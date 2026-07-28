@@ -6,7 +6,7 @@ const migrationFiles = readdirSync(migrationDirectory)
   .filter((file) => file.endsWith('.sql'))
   .sort();
 
-if (migrationFiles.length < 7) {
+if (migrationFiles.length < 8) {
   throw new Error(
     `Expected the 6 MAX-002 migrations plus incremental changes, found ${migrationFiles.length}.`,
   );
@@ -60,6 +60,11 @@ const requiredFragments = [
   'create or replace function public.save_establishment',
   'create or replace function public.update_own_profile_name',
   'with (security_invoker = true)',
+  'create or replace function private.campaign_is_structurally_ready',
+  'create or replace function public.simulate_geofence_eligibility',
+  'create policy campaign_media_authenticated_read',
+  'create policy campaign_media_commercial_insert',
+  'file_size_limit = 52428800',
 ];
 
 for (const fragment of requiredFragments) {

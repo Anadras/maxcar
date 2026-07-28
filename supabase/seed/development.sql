@@ -70,7 +70,7 @@ insert into public.campaigns (
     '10000000-0000-4000-8000-000000000001',
     'Institucional Midiamax — Demo',
     'regular',
-    'active',
+    'draft',
     '2026-01-01 00:00:00-04',
     '2027-12-31 23:59:59-04',
     null,
@@ -85,7 +85,7 @@ insert into public.campaigns (
     '10000000-0000-4000-8000-000000000002',
     'Oferta Pizzaria Central — Demo',
     'geo',
-    'active',
+    'draft',
     '2026-01-01 00:00:00-04',
     '2027-12-31 23:59:59-04',
     '11:00',
@@ -100,7 +100,7 @@ insert into public.campaigns (
     '10000000-0000-4000-8000-000000000003',
     'Plano Prime — Demo',
     'geo',
-    'active',
+    'draft',
     '2026-01-01 00:00:00-04',
     '2027-12-31 23:59:59-04',
     '06:00',
@@ -115,9 +115,9 @@ on conflict (id) do nothing;
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path, duration_seconds, file_size_bytes, checksum, active
 ) values
-  ('70000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'Institucional 15s — Demo', 'video', 'development/midiamax/institucional-demo.mp4', 15, 12000000, repeat('a', 64), true),
-  ('70000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'Oferta Pizzaria 15s — Demo', 'video', 'development/pizzaria/oferta-demo.mp4', 15, 11000000, repeat('b', 64), true),
-  ('70000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 'Plano Prime — Demo', 'image', 'development/academia/plano-demo.webp', 10, 900000, repeat('c', 64), true)
+  ('70000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'Institucional 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000001/campaigns/60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.mp4', 15, 12000000, repeat('a', 64), true),
+  ('70000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'Oferta Pizzaria 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000002/campaigns/60000000-0000-4000-8000-000000000002/70000000-0000-4000-8000-000000000002.mp4', 15, 11000000, repeat('b', 64), true),
+  ('70000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 'Plano Prime — Demo', 'image', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp', 10, 900000, repeat('c', 64), true)
 on conflict (id) do nothing;
 
 insert into public.campaign_geofences (
@@ -126,6 +126,14 @@ insert into public.campaign_geofences (
   ('80000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', 1500, 90, 900, true),
   ('80000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000002', 900, null, null, true)
 on conflict (id) do nothing;
+
+update public.campaigns
+set status = 'active'
+where id in (
+  '60000000-0000-4000-8000-000000000001',
+  '60000000-0000-4000-8000-000000000002',
+  '60000000-0000-4000-8000-000000000003'
+);
 
 insert into public.playlists (id, name, active) values
   ('90000000-0000-4000-8000-000000000001', 'Grade piloto Campo Grande — Demo', true)

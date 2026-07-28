@@ -3,24 +3,59 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
+import type { AppRole } from '@maxcar/shared/database-types';
+import { logout } from '@/app/(auth)/actions';
+import { ROLE_LABELS } from '@/lib/auth/access';
 
-const nav = [
-  ['Dashboard', '/', '▦'],
-  ['Campanhas', '/campanhas', '◉'],
-  ['Clientes', '/clientes', '◇'],
-  ['Estabelecimentos', '/estabelecimentos', '⌂'],
-  ['Veículos', '/veiculos', '◆'],
-  ['Motoristas', '/motoristas', '♙'],
-  ['Dispositivos', '/dispositivos', '▣'],
-  ['Geofences', '/geofences', '◎'],
-  ['Tablet / Player', '/player', '▷'],
-  ['Relatórios', '/relatorios', '▥'],
-  ['Configurações', '/configuracoes', '⚙'],
-] as const;
+const nav: Array<{
+  label: string;
+  href: string;
+  icon: string;
+  roles?: AppRole[];
+}> = [
+  { label: 'Dashboard', href: '/', icon: '▦' },
+  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
+  {
+    label: 'Clientes',
+    href: '/clientes',
+    icon: '◇',
+    roles: ['super_admin', 'admin', 'commercial'],
+  },
+  { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
+  { label: 'Veículos', href: '/veiculos', icon: '◆' },
+  { label: 'Motoristas', href: '/motoristas', icon: '♙' },
+  { label: 'Dispositivos', href: '/dispositivos', icon: '▣' },
+  { label: 'Geofences', href: '/geofences', icon: '◎' },
+  { label: 'Tablet / Player', href: '/player', icon: '▷' },
+  { label: 'Relatórios', href: '/relatorios', icon: '▥' },
+  {
+    label: 'Usuários',
+    href: '/usuarios',
+    icon: '♧',
+    roles: ['super_admin', 'admin'],
+  },
+  { label: 'Meu perfil', href: '/perfil', icon: '◌' },
+  { label: 'Configurações', href: '/configuracoes', icon: '⚙' },
+];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  user,
+}: {
+  children: ReactNode;
+  user: { name: string; email: string; role: AppRole };
+}) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const visibleNav = nav.filter(
+    (item) => !item.roles || item.roles.includes(user.role),
+  );
+  const initials = user.name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
 
   return (
     <div className="app-shell">
@@ -41,30 +76,34 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav aria-label="Navegação principal">
           <p className="nav-label">OPERAÇÃO</p>
-          {nav.slice(0, 9).map(([label, href, icon]) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMenuOpen(false)}
-              className={pathname === href ? 'active' : ''}
-            >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-              {label === 'Dispositivos' && <small>3</small>}
-            </Link>
-          ))}
+          {visibleNav
+            .filter((item) => nav.indexOf(item) < 9)
+            .map(({ label, href, icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className={pathname === href ? 'active' : ''}
+              >
+                <span aria-hidden="true">{icon}</span>
+                {label}
+                {label === 'Dispositivos' && <small>3</small>}
+              </Link>
+            ))}
           <p className="nav-label nav-label-secondary">GESTÃO</p>
-          {nav.slice(9).map(([label, href, icon]) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={() => setMenuOpen(false)}
-              className={pathname === href ? 'active' : ''}
-            >
-              <span aria-hidden="true">{icon}</span>
-              {label}
-            </Link>
-          ))}
+          {visibleNav
+            .filter((item) => nav.indexOf(item) >= 9)
+            .map(({ label, href, icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className={pathname === href ? 'active' : ''}
+              >
+                <span aria-hidden="true">{icon}</span>
+                {label}
+              </Link>
+            ))}
         </nav>
         <div className="pilot-card">
           <div>
@@ -74,12 +113,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span>48 veículos monitorados</span>
         </div>
         <div className="user-card">
-          <div className="avatar">AM</div>
+          <div className="avatar">{initials}</div>
           <div>
-            <strong>André Martins</strong>
-            <span>Administrador</span>
+            <Link href="/perfil">
+              <strong>{user.name}</strong>
+            </Link>
+            <span>{ROLE_LABELS[user.role]}</span>
           </div>
-          <button aria-label="Opções do usuário">⋮</button>
+          <form action={logout}>
+            <button type="submit" aria-label={`Sair da conta ${user.email}`}>
+              ↪
+            </button>
+          </form>
         </div>
       </aside>
       {menuOpen && (

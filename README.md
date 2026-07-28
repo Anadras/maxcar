@@ -4,9 +4,10 @@ MAXCAR é uma plataforma de mídia digital para tablets Android instalados em ve
 
 ## Estado atual
 
-O MAX-003 conecta o painel ao Supabase com autenticação SSR, autorização por
-perfil persistido, gestão segura de usuários e CRUDs reais de clientes e
-estabelecimentos. As demais áreas preservam os mocks executivos do MAX-001.
+O MAX-004 conecta campanhas, criativos e geofences ao Supabase. O painel possui
+CRUDs reais, mídia privada com preview assinado, regras de ativação e simulação
+de proximidade em PostGIS. Frota, dispositivos, player e relatórios ainda
+preservam dados demonstrativos.
 
 ## Stack
 
@@ -103,8 +104,8 @@ Os tipos gerados ficam em `packages/shared/src/database.types.ts` e podem ser im
 - `apps/admin/app`: rotas e composição das páginas.
 - `apps/admin/components`: shell, primitives visuais e simuladores.
 - `apps/admin/lib/data`: acesso tipado a dados reais, isolado da UI.
-- `apps/admin/lib/mock-data.ts`: dados demonstrativos apenas das áreas ainda fora do MAX-003.
-- `packages/business-rules`: lógica independente de UI, incluindo a inserção GEO após a mídia atual.
+- `apps/admin/lib/mock-data.ts`: dados demonstrativos apenas das áreas ainda fora do MAX-004.
+- `packages/business-rules`: regras puras de prontidão e futura inserção GEO após a mídia atual.
 - `packages/shared`: contratos tipados compartilhados.
 - `supabase/migrations`: fonte de verdade versionada do schema e da segurança.
 - `supabase/seed/development.sql`: dados exclusivamente fictícios para desenvolvimento.
@@ -112,4 +113,6 @@ Os tipos gerados ficam em `packages/shared/src/database.types.ts` e podem ser im
 
 Consulte [autenticação](docs/AUTH.md), [produto](docs/product/PRODUCT.md),
 [arquitetura](docs/architecture/ARCHITECTURE.md),
+[campanhas](docs/architecture/CAMPAIGNS.md),
+[Storage](docs/architecture/STORAGE.md),
 [banco de dados](docs/architecture/DATABASE.md) e os ADRs em `docs/decisions`.

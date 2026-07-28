@@ -28,6 +28,7 @@
 - Authorization must derive from `auth.uid()` and the persisted profile, never from a client-supplied role.
 - Historical events must not be removed through accidental cascades.
 - Offline events require stable client identifiers and idempotent ingestion.
+- Active campaigns must retain their required creative and GEO structure.
 
 ## Security
 
@@ -35,6 +36,8 @@
 - Never commit secrets.
 - Follow least privilege.
 - Device credentials must eventually be revocable.
+- Campaign media stays private; previews use short-lived signed URLs.
+- Storage object paths derive from persisted ownership and UUIDs, never user filenames.
 
 ## TypeScript
 

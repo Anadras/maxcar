@@ -2,10 +2,10 @@
 
 ## Escopo
 
-MAX-002 estabelece a fonte de verdade do domínio e MAX-003 conecta autenticação,
-anunciantes e estabelecimentos ao painel. O schema é reproduzido exclusivamente
-pelas migrations em `supabase/migrations`; alterações manuais no Studio não são
-fonte de verdade.
+MAX-002 estabelece a fonte de verdade, MAX-003 conecta identidade, anunciantes
+e estabelecimentos e MAX-004 ativa campanhas, criativos, Storage e geofences.
+O schema é reproduzido exclusivamente pelas migrations em
+`supabase/migrations`; alterações manuais no Studio não são fonte de verdade.
 
 ## Modelo principal
 
@@ -115,6 +115,10 @@ conta. A constraint de vínculo continua obrigatória para `advertiser` e
 - `update_own_profile_name`: função pequena `SECURITY DEFINER` que permite
   alterar exclusivamente o próprio nome, sem abrir as colunas privilegiadas de
   `profiles`.
+- `campaign_admin_view` e `campaign_geofence_admin_view`: views
+  `security_invoker` para as listagens do painel sem contornar RLS.
+- `simulate_geofence_eligibility`: RPC `SECURITY INVOKER` que valida a posição,
+  calcula distância em PostGIS e aplica agenda básica.
 
 ## Constraints e idempotência
 
@@ -122,6 +126,10 @@ conta. A constraint de vínculo continua obrigatória para `advertiser` e
 - Prioridades ficam entre 0 e 100; cooldowns não podem ser negativos.
 - Percentual de conclusão e bateria ficam entre 0 e 100.
 - Períodos não podem terminar antes do início.
+- Campanhas ativas exigem período, dia ativo e criativo; campanhas GEO exigem
+  também uma geofence ativa.
+- Geofences só vinculam campanhas GEO e estabelecimentos do mesmo anunciante.
+- Paths de criativos precisam corresponder ao anunciante e à campanha.
 - Posição de playlist é única dentro da playlist.
 - `(device_id, client_event_id)` é único em `impressions`.
 

@@ -39,6 +39,19 @@ uploads e player Android continuam fora do escopo atual.
 - Coordenadas escritas por RPC RLS-aware como `geography(Point, 4326)`.
 - Mocks mantidos exclusivamente para módulos fora deste marco.
 
+## Implementado — MAX-004
+
+- CRUD real de campanhas `REGULAR` e `GEO`, com busca e filtros.
+- Prontidão de ativação protegida por regras puras e triggers no banco.
+- Criativos reais, SHA-256 calculado no servidor e preview com signed URL.
+- Bucket `campaign-media` privado, paths por propriedade e RLS de Storage.
+- CRUD de geofences ligado à localização PostGIS do estabelecimento.
+- Simulador de posição com distância e elegibilidade calculadas por RPC.
+- Dashboard alimentado por contagens reais dos módulos já entregues.
+- Mocks removidos de campanhas, criativos, geofences e seus indicadores.
+
+Veja [CAMPAIGNS.md](CAMPAIGNS.md) e [STORAGE.md](STORAGE.md).
+
 ## Planejado — web
 
 Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso
@@ -49,7 +62,7 @@ tipado em `lib/data`. A UI não embute consultas nem decide autorização.
 - Supabase Auth possui a extensão de domínio `profiles`; novos usuários começam como `pending`.
 - PostgreSQL é a fonte de verdade versionada pelas migrations.
 - PostGIS representa posições terrestres como `geography(Point, 4326)`.
-- Supabase Storage possui o bucket privado reservado para criativos.
+- Supabase Storage mantém criativos privados com acesso autenticado e assinado.
 - Edge Functions apenas quando uma fronteira segura de servidor for necessária.
 - Migrations versionadas para toda alteração estrutural.
 - RLS obrigatória e acesso por least privilege.

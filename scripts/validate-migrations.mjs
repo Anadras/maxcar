@@ -6,9 +6,9 @@ const migrationFiles = readdirSync(migrationDirectory)
   .filter((file) => file.endsWith('.sql'))
   .sort();
 
-if (migrationFiles.length !== 6) {
+if (migrationFiles.length < 7) {
   throw new Error(
-    `Expected 6 MAX-002 migrations, found ${migrationFiles.length}.`,
+    `Expected the 6 MAX-002 migrations plus incremental changes, found ${migrationFiles.length}.`,
   );
 }
 
@@ -55,6 +55,11 @@ const requiredFragments = [
   "new.raw_user_meta_data ->> 'full_name'",
   "'pending'",
   'insert into storage.buckets',
+  'create policy profiles_super_admin_write',
+  'create policy profiles_admin_update',
+  'create or replace function public.save_establishment',
+  'create or replace function public.update_own_profile_name',
+  'with (security_invoker = true)',
 ];
 
 for (const fragment of requiredFragments) {

@@ -11,7 +11,7 @@
     "build": "npm run build --workspace=@maxcar/admin",
     "lint": "npm run lint --workspace=@maxcar/admin",
     "typecheck": "npm run typecheck --workspace=@maxcar/admin",
-    "test": "npm run test --workspace=@maxcar/business-rules",
+    "test": "npm run test --workspaces --if-present",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --local",

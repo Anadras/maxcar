@@ -1,0 +1,24 @@
+{
+  "name": "maxcar",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@maxcar/admin",
+    "build": "npm run build --workspace=@maxcar/admin",
+    "lint": "npm run lint --workspace=@maxcar/admin",
+    "typecheck": "npm run typecheck --workspace=@maxcar/admin",
+    "test": "npm run test --workspace=@maxcar/business-rules",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.8.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

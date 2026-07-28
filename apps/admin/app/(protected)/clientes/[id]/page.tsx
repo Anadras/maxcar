@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { canWriteCommercialData } from '@/lib/auth/access';
+import { getAuthContext } from '@/lib/auth/context';
 import { getAdvertiser } from '@/lib/data/advertisers';
 
 const STATUS_LABEL = {
@@ -19,7 +21,10 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params;
   const query = await searchParams;
-  const client = await getAdvertiser(id);
+  const [client, auth] = await Promise.all([
+    getAdvertiser(id),
+    getAuthContext(),
+  ]);
   if (!client) notFound();
   return (
     <div className="page record-page">
@@ -29,12 +34,22 @@ export default async function ClientDetailPage({
         title={client.trade_name}
         description={client.legal_name}
         action={
-          <Link
-            className="button button-primary"
-            href={`/clientes/${id}/editar`}
-          >
-            Editar
-          </Link>
+          auth && canWriteCommercialData(auth.profile.role) ? (
+            <div className="header-actions">
+              <Link
+                className="button button-secondary"
+                href={`/campanhas/nova?advertiser=${id}`}
+              >
+                ＋ Nova campanha
+              </Link>
+              <Link
+                className="button button-primary"
+                href={`/clientes/${id}/editar`}
+              >
+                Editar
+              </Link>
+            </div>
+          ) : undefined
         }
       />
       <SectionCard title="Dados do anunciante">

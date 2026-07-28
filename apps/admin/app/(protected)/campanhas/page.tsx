@@ -1,163 +1,201 @@
-'use client';
-
-import { useMemo, useState } from 'react';
-import { campaigns } from '@/lib/mock-data';
+import type {
+  CampaignStatus,
+  DatabaseCampaignType,
+} from '@maxcar/shared/database-types';
+import Link from 'next/link';
+import { EmptyState } from '@/components/empty-state';
+import { FlashMessage } from '@/components/flash-message';
+import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { canWriteCommercialData } from '@/lib/auth/access';
+import { getAuthContext } from '@/lib/auth/context';
 import {
-  Button,
-  Modal,
-  PageHeader,
-  SectionCard,
-  StatusBadge,
-  Toast,
-} from '@/components/ui';
+  CAMPAIGN_STATUS_LABELS,
+  CAMPAIGN_TYPE_LABELS,
+  formatCampaignPeriod,
+  priorityLabel,
+} from '@/lib/campaigns';
+import { listAdvertisers } from '@/lib/data/advertisers';
+import { getCampaignMetrics, listCampaigns } from '@/lib/data/campaigns';
 
-export default function CampaignsPage() {
-  const [query, setQuery] = useState('');
-  const [type, setType] = useState<'TODAS' | 'GRADE' | 'GEO'>('TODAS');
-  const [modal, setModal] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const rows = useMemo(
-    () =>
-      campaigns.filter(
-        (campaign) =>
-          (type === 'TODAS' || campaign.type === type) &&
-          campaign.name.toLowerCase().includes(query.toLowerCase()),
-      ),
-    [query, type],
-  );
+export default async function CampaignsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    q?: string;
+    advertiser?: string;
+    type?: DatabaseCampaignType;
+    status?: CampaignStatus;
+    success?: string;
+    error?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const [campaigns, advertisers, metrics, auth] = await Promise.all([
+    listCampaigns({
+      query: params.q,
+      advertiserId: params.advertiser,
+      campaignType: params.type,
+      status: params.status,
+    }),
+    listAdvertisers(),
+    getCampaignMetrics(),
+    getAuthContext(),
+  ]);
+  const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
+
   return (
     <div className="page">
+      <FlashMessage success={params.success} error={params.error} />
       <PageHeader
         eyebrow="CONTEÚDO E PUBLICIDADE"
         title="Campanhas"
-        description="Gerencie a programação regular e as ativações por proximidade."
+        description="Programação REGULAR e ativações GEO conectadas ao Supabase."
         action={
-          <Button onClick={() => setModal(true)}>＋ Nova campanha</Button>
+          canWrite ? (
+            <Link className="button button-primary" href="/campanhas/nova">
+              ＋ Nova campanha
+            </Link>
+          ) : undefined
         }
       />
       <div className="mini-stats">
         <article>
           <span>ATIVAS AGORA</span>
-          <strong>18</strong>
-          <small>11 grade · 7 GEO</small>
+          <strong>{metrics.active}</strong>
+          <small>{metrics.geo} campanhas GEO cadastradas</small>
         </article>
         <article>
           <span>AGENDADAS</span>
-          <strong>4</strong>
-          <small>Próximos 30 dias</small>
+          <strong>{metrics.scheduled}</strong>
+          <small>Programação futura</small>
         </article>
         <article>
-          <span>REPRODUÇÕES</span>
-          <strong>12.847</strong>
-          <small>Hoje</small>
+          <span>TOTAL EXIBIDO</span>
+          <strong>{campaigns.length}</strong>
+          <small>Filtros atuais</small>
         </article>
       </div>
       <SectionCard>
-        <div className="table-toolbar">
+        <form className="campaign-filters">
           <label className="search-box">
             <span>⌕</span>
             <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar campanha..."
-              aria-label="Buscar campanha"
+              name="q"
+              defaultValue={params.q}
+              placeholder="Buscar campanha…"
             />
           </label>
-          <div className="filter-pills">
-            {(['TODAS', 'GRADE', 'GEO'] as const).map((item) => (
-              <button
-                key={item}
-                className={type === item ? 'active' : ''}
-                onClick={() => setType(item)}
-              >
-                {item === 'TODAS' ? 'Todas' : item}
-              </button>
+          <select
+            name="advertiser"
+            defaultValue={params.advertiser ?? ''}
+            aria-label="Filtrar por cliente"
+          >
+            <option value="">Todos os clientes</option>
+            {advertisers.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.trade_name}
+              </option>
             ))}
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Campanha</th>
-                <th>Cliente</th>
-                <th>Tipo</th>
-                <th>Status</th>
-                <th>Período</th>
-                <th>Reproduções</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((campaign) => (
-                <tr key={campaign.id}>
-                  <td>
-                    <strong>{campaign.name}</strong>
-                    <small>{campaign.id}</small>
-                  </td>
-                  <td>{campaign.client}</td>
-                  <td>
-                    <StatusBadge value={campaign.type} />
-                  </td>
-                  <td>
-                    <StatusBadge value={campaign.status} />
-                  </td>
-                  <td>{campaign.period}</td>
-                  <td>{campaign.plays.toLocaleString('pt-BR')}</td>
-                  <td>
-                    <button
-                      className="row-action"
-                      onClick={() => setModal(true)}
-                    >
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="table-footer">
-          <span>{rows.length} campanhas exibidas</span>
-        </div>
-      </SectionCard>
-      <Modal title="Nova campanha" open={modal} onClose={() => setModal(false)}>
-        <form
-          className="demo-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setModal(false);
-            setToast('Campanha demonstrativa criada com sucesso.');
-          }}
-        >
-          <label className="full-field">
-            Nome da campanha
-            <input placeholder="Ex.: Oferta especial de agosto" required />
-          </label>
-          <label>
-            Tipo
-            <select>
-              <option>GRADE</option>
-              <option>GEO</option>
-            </select>
-          </label>
-          <label>
-            Cliente
-            <select>
-              <option>Pizzaria Central</option>
-              <option>Academia Prime</option>
-              <option>Midiamax</option>
-            </select>
-          </label>
-          <div className="form-actions">
-            <Button variant="ghost" onClick={() => setModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit">Criar campanha</Button>
-          </div>
+          </select>
+          <select
+            name="type"
+            defaultValue={params.type ?? ''}
+            aria-label="Filtrar por tipo"
+          >
+            <option value="">Todos os tipos</option>
+            <option value="regular">REGULAR</option>
+            <option value="geo">GEO</option>
+          </select>
+          <select
+            name="status"
+            defaultValue={params.status ?? ''}
+            aria-label="Filtrar por status"
+          >
+            <option value="">Todos os status</option>
+            {Object.entries(CAMPAIGN_STATUS_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <button className="button button-secondary" type="submit">
+            Filtrar
+          </button>
         </form>
-      </Modal>
-      <Toast message={toast} onClose={() => setToast(null)} />
+        {campaigns.length === 0 ? (
+          <EmptyState
+            title="Nenhuma campanha encontrada"
+            description="Ajuste os filtros ou crie a primeira campanha real."
+            action={
+              canWrite
+                ? { href: '/campanhas/nova', label: 'Criar campanha' }
+                : undefined
+            }
+          />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Campanha</th>
+                  <th>Cliente</th>
+                  <th>Tipo</th>
+                  <th>Status</th>
+                  <th>Período</th>
+                  <th>Prioridade</th>
+                  <th>Criativos</th>
+                  <th>Geofences</th>
+                  <th>Reproduções</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {campaigns.map((campaign) =>
+                  campaign.id && campaign.campaign_type && campaign.status ? (
+                    <tr key={campaign.id}>
+                      <td>
+                        <strong>{campaign.name}</strong>
+                        <small>{campaign.id.slice(0, 8)}</small>
+                      </td>
+                      <td>{campaign.advertiser_name ?? 'Acesso restrito'}</td>
+                      <td>
+                        <StatusBadge
+                          value={CAMPAIGN_TYPE_LABELS[campaign.campaign_type]}
+                        />
+                      </td>
+                      <td>
+                        <StatusBadge
+                          value={CAMPAIGN_STATUS_LABELS[campaign.status]}
+                        />
+                      </td>
+                      <td>
+                        {formatCampaignPeriod(
+                          campaign.starts_at,
+                          campaign.ends_at,
+                        )}
+                      </td>
+                      <td>
+                        {priorityLabel(campaign.priority ?? 50)} ·{' '}
+                        {campaign.priority}
+                      </td>
+                      <td>{campaign.creative_count ?? 0}</td>
+                      <td>{campaign.geofence_count ?? 0}</td>
+                      <td>
+                        {(campaign.impression_count ?? 0).toLocaleString(
+                          'pt-BR',
+                        )}
+                      </td>
+                      <td>
+                        <Link href={`/campanhas/${campaign.id}`}>Abrir</Link>
+                      </td>
+                    </tr>
+                  ) : null,
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

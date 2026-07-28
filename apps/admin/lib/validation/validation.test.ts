@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { advertiserSchema } from './advertisers';
+import { campaignSchema } from './campaigns';
+import { inspectCreativeFile } from './creatives';
 import { establishmentSchema } from './establishments';
+import { geofenceSchema } from './geofences';
 
 describe('advertiser validation', () => {
   it('rejects malformed contacts', () => {
@@ -38,5 +41,80 @@ describe('establishment validation', () => {
     expect(
       establishmentSchema.safeParse({ ...valid, longitude: -181 }).success,
     ).toBe(false);
+  });
+});
+
+const validCampaign = {
+  advertiserId: '13000000-0000-4000-8000-000000000001',
+  name: 'Campanha Centro',
+  campaignType: 'geo',
+  status: 'draft',
+  startsAt: '2026-07-28T08:00',
+  endsAt: '2026-08-28T22:00',
+  utcOffset: '-04:00',
+  dailyStartTime: '08:00',
+  dailyEndTime: '22:00',
+  priority: 70,
+  cooldownSeconds: 900,
+  maxDailyImpressions: 100,
+  activeDays: [1, 2, 3, 4, 5],
+};
+
+describe('campaign validation', () => {
+  it('accepts an explicit operational offset and the database weekday format', () => {
+    expect(campaignSchema.safeParse(validCampaign).success).toBe(true);
+  });
+
+  it('rejects inverted periods and new windows crossing midnight', () => {
+    expect(
+      campaignSchema.safeParse({
+        ...validCampaign,
+        endsAt: '2026-07-20T22:00',
+      }).success,
+    ).toBe(false);
+    expect(
+      campaignSchema.safeParse({
+        ...validCampaign,
+        dailyStartTime: '22:00',
+        dailyEndTime: '05:00',
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('creative validation', () => {
+  it('checks MIME, extension and binary signature together', () => {
+    const png = Uint8Array.from([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
+    expect(
+      inspectCreativeFile(
+        { name: 'creative.png', type: 'image/png', size: png.length },
+        png,
+      ),
+    ).toMatchObject({ success: true, creativeType: 'image' });
+    expect(
+      inspectCreativeFile(
+        { name: 'creative.jpg', type: 'image/png', size: png.length },
+        png,
+      ).success,
+    ).toBe(false);
+  });
+});
+
+describe('geofence validation', () => {
+  it('accepts a practical radius and rejects zero', () => {
+    const base = {
+      campaignId: '33000000-0000-4000-8000-000000000001',
+      establishmentId: '23000000-0000-4000-8000-000000000001',
+      radiusMeters: 1000,
+      priorityOverride: null,
+      cooldownOverrideSeconds: null,
+      active: true,
+    };
+    expect(geofenceSchema.safeParse(base).success).toBe(true);
+    expect(geofenceSchema.safeParse({ ...base, radiusMeters: 0 }).success).toBe(
+      false,
+    );
   });
 });

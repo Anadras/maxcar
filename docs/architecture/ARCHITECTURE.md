@@ -25,11 +25,24 @@ O sistema será dividido entre cloud e veículo. Na cloud, o painel administrati
 - Bucket privado `campaign-media`, sem políticas de upload prematuras.
 - Seed fictício, testes pgTAP e processo de geração de tipos.
 
-O painel permanece em mocks. Login, CRUD conectado, ingestão do dispositivo, uploads e player Android ainda não estão implementados.
+Neste marco, o painel ainda permanecia em mocks. Ingestão do dispositivo,
+uploads e player Android continuam fora do escopo atual.
+
+## Implementado — MAX-003
+
+- Supabase Auth SSR com cookies e renovação de sessão no `proxy.ts`.
+- Layout protegido com autorização derivada de claims validados e `profiles`.
+- Estados controlados para contas `pending`, inativas, anunciantes e motoristas.
+- AppShell com identidade real, papel, navegação contextual e logout.
+- Perfil próprio e gestão administrativa de usuários.
+- CRUD real de anunciantes e estabelecimentos em `lib/data`.
+- Coordenadas escritas por RPC RLS-aware como `geography(Point, 4326)`.
+- Mocks mantidos exclusivamente para módulos fora deste marco.
 
 ## Planejado — web
 
-O painel trocará `lib/mock-data.ts` por repositórios tipados que acessam Supabase. A UI continuará consumindo contratos do domínio sem embutir consultas ou regras de elegibilidade nos componentes.
+Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso
+tipado em `lib/data`. A UI não embute consultas nem decide autorização.
 
 ## Backend e banco
 
@@ -64,6 +77,10 @@ Heartbeats futuros incluirão versão do app, bateria, GPS, armazenamento, vers�
 ## Segurança
 
 - Nunca expor `service_role` no frontend.
+- A chave de serviço opcional existe apenas em módulo `server-only` para
+  operações do Supabase Auth Admin.
+- Proxy faz renovação/barreira otimista; Server Components, Actions e RLS
+  repetem a autorização perto do dado.
 - RLS e migrations são requisitos, não opcionais.
 - Credenciais de dispositivo serão específicas, rotacionáveis e revogáveis.
 - URLs de mídia serão controladas e manifests validados.

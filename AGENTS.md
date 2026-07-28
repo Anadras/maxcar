@@ -42,6 +42,9 @@
 - Avoid `any`.
 - Validate external data.
 - Separate UI, business rules and data access.
+- Supabase reads belong in `apps/admin/lib/data`; writes use validated Server Actions.
+- Treat `proxy.ts` as an optimistic session boundary, never as the only authorization layer.
+- Import `SUPABASE_SERVICE_ROLE_KEY` only from server-only modules.
 
 ## Android
 

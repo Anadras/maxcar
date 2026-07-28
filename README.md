@@ -4,7 +4,9 @@ MAXCAR é uma plataforma de mídia digital para tablets Android instalados em ve
 
 ## Estado atual
 
-O MAX-002 adiciona a arquitetura real de dados: Supabase local, PostgreSQL, PostGIS, migrations, seed fictício, RLS, testes pgTAP e contratos TypeScript. O painel do MAX-001 continua usando mocks; autenticação e CRUDs reais pertencem ao próximo marco.
+O MAX-003 conecta o painel ao Supabase com autenticação SSR, autorização por
+perfil persistido, gestão segura de usuários e CRUDs reais de clientes e
+estabelecimentos. As demais áreas preservam os mocks executivos do MAX-001.
 
 ## Stack
 
@@ -52,7 +54,8 @@ npm install
 npm run dev
 ```
 
-Abra `http://localhost:3000`.
+Copie `.env.example` para `.env.local`, configure um projeto Supabase com as
+migrations aplicadas e abra `http://localhost:3000`.
 
 ## Comandos
 
@@ -61,7 +64,7 @@ npm run dev          # ambiente de desenvolvimento
 npm run build        # build de produção
 npm run lint         # análise estática
 npm run typecheck    # validação TypeScript
-npm run test         # testes das regras de negócio
+npm run test         # testes da aplicação e das regras de negócio
 npm run format:check # validação de formatação
 npm run db:start     # inicia o Supabase local
 npm run db:reset     # recria banco, aplica migrations e seed
@@ -74,7 +77,11 @@ npm run db:stop      # encerra o Supabase local
 
 ## Ambiente
 
-Copie `.env.example` apenas quando uma integração futura exigir variáveis locais. Nenhuma variável é necessária para o painel demonstrativo. Nunca use uma chave `service_role` no frontend ou em arquivo versionado.
+`NEXT_PUBLIC_SUPABASE_URL` e uma chave pública (`PUBLISHABLE_KEY`, ou
+`ANON_KEY` em projetos legados) são obrigatórias. `SUPABASE_SERVICE_ROLE_KEY`
+é opcional e habilita somente no servidor a listagem de e-mails e o envio de
+convites. Nunca use essa chave em uma variável `NEXT_PUBLIC_*`, no navegador ou
+em arquivo versionado. Veja [AUTH.md](docs/AUTH.md).
 
 ## Banco local
 
@@ -95,11 +102,14 @@ Os tipos gerados ficam em `packages/shared/src/database.types.ts` e podem ser im
 
 - `apps/admin/app`: rotas e composição das páginas.
 - `apps/admin/components`: shell, primitives visuais e simuladores.
-- `apps/admin/lib/mock-data.ts`: única fonte de dados demonstrativos.
+- `apps/admin/lib/data`: acesso tipado a dados reais, isolado da UI.
+- `apps/admin/lib/mock-data.ts`: dados demonstrativos apenas das áreas ainda fora do MAX-003.
 - `packages/business-rules`: lógica independente de UI, incluindo a inserção GEO após a mídia atual.
 - `packages/shared`: contratos tipados compartilhados.
 - `supabase/migrations`: fonte de verdade versionada do schema e da segurança.
 - `supabase/seed/development.sql`: dados exclusivamente fictícios para desenvolvimento.
 - `supabase/tests`: testes pgTAP de schema, geografia, constraints e RLS.
 
-Consulte [produto](docs/product/PRODUCT.md), [arquitetura](docs/architecture/ARCHITECTURE.md), [banco de dados](docs/architecture/DATABASE.md) e os ADRs em `docs/decisions`.
+Consulte [autenticação](docs/AUTH.md), [produto](docs/product/PRODUCT.md),
+[arquitetura](docs/architecture/ARCHITECTURE.md),
+[banco de dados](docs/architecture/DATABASE.md) e os ADRs em `docs/decisions`.

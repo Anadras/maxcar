@@ -2,7 +2,10 @@
 
 ## Escopo
 
-MAX-002 estabelece a fonte de verdade do domínio sem conectar o painel aos dados reais. O schema é reproduzido exclusivamente pelas migrations em `supabase/migrations`; alterações manuais no Studio não são fonte de verdade.
+MAX-002 estabelece a fonte de verdade do domínio e MAX-003 conecta autenticação,
+anunciantes e estabelecimentos ao painel. O schema é reproduzido exclusivamente
+pelas migrations em `supabase/migrations`; alterações manuais no Studio não são
+fonte de verdade.
 
 ## Modelo principal
 
@@ -97,7 +100,21 @@ O papel vem de `profiles.role`, consultado por helpers `SECURITY DEFINER` no sch
 | Impressões                       | ler   | ler        | ler                   | campanhas próprias | veículo próprio | —       |
 | Sessões                          | gerir | —          | gerir                 | —                  | próprias: ler   | —       |
 
-`super_admin` e `admin` compartilham acesso amplo nesta fase. Um usuário recém-criado recebe `pending` pelo trigger de `auth.users`. Apenas administradores podem alterar papéis e vínculos.
+Um usuário recém-criado recebe `pending` pelo trigger de `auth.users`.
+`super_admin` pode gerir todos os perfis. `admin` pode gerir perfis que não
+sejam `super_admin`, mas não pode promover a esse papel nem alterar a própria
+conta. A constraint de vínculo continua obrigatória para `advertiser` e
+`driver`.
+
+## APIs seguras do painel
+
+- `save_establishment`: função `SECURITY INVOKER` que valida latitude/longitude,
+  constrói o ponto WGS84 no banco e depende das políticas RLS da tabela.
+- `establishment_admin_view`: view `security_invoker` que expõe latitude e
+  longitude sem contornar RLS.
+- `update_own_profile_name`: função pequena `SECURITY DEFINER` que permite
+  alterar exclusivamente o próprio nome, sem abrir as colunas privilegiadas de
+  `profiles`.
 
 ## Constraints e idempotência
 
@@ -126,7 +143,10 @@ Relações históricas usam `RESTRICT` ou `SET NULL`. Não há cascata de anunci
 
 ## Migrations, seed e testes
 
-As migrations são aplicadas em ordem de responsabilidade. `supabase/seed/development.sql` contém apenas dados fictícios e coordenadas plausíveis marcadas para desenvolvimento. Testes pgTAP validam objetos, constraints, PostGIS, idempotência e isolamento RLS.
+As migrations são aplicadas em ordem de responsabilidade.
+`supabase/seed/development.sql` contém apenas dados fictícios e coordenadas
+plausíveis marcadas para desenvolvimento. Testes pgTAP validam objetos,
+constraints, PostGIS, idempotência, hierarquia administrativa e isolamento RLS.
 
 ```bash
 npm run db:start

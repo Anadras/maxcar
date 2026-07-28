@@ -87,57 +87,6 @@ export const campaigns: Campaign[] = [
   },
 ];
 
-export const clients = [
-  ['Pizzaria Central', 'Alimentação', '2 unidades', '3 campanhas', 'Ativo'],
-  ['Midiamax', 'Mídia & Conteúdo', '1 unidade', '5 campanhas', 'Ativo'],
-  ['Academia Prime', 'Fitness', '3 unidades', '2 campanhas', 'Ativo'],
-  ['Max Motors', 'Automotivo', '2 unidades', '2 campanhas', 'Ativo'],
-  ['Instituto Vida', 'Terceiro setor', '1 unidade', '1 campanha', 'Atenção'],
-];
-
-export const establishments = [
-  [
-    'Pizzaria Central — Centro',
-    'Pizzaria Central',
-    'Av. Afonso Pena, 840',
-    'Campo Grande',
-    '1',
-    'Ativo',
-  ],
-  [
-    'Pizzaria Central — Afonso Pena',
-    'Pizzaria Central',
-    'Av. Afonso Pena, 3.210',
-    'Campo Grande',
-    '2',
-    'Ativo',
-  ],
-  [
-    'Academia Prime — Norte',
-    'Academia Prime',
-    'Av. Mascarenhas, 1.900',
-    'Campo Grande',
-    '1',
-    'Ativo',
-  ],
-  [
-    'Academia Prime — Centro',
-    'Academia Prime',
-    'R. 14 de Julho, 1.140',
-    'Campo Grande',
-    '1',
-    'Ativo',
-  ],
-  [
-    'Academia Prime — Sul',
-    'Academia Prime',
-    'Av. Gury Marques, 2.600',
-    'Campo Grande',
-    '0',
-    'Atenção',
-  ],
-];
-
 export const vehicles = [
   ['CAR-001', 'Carlos Mendes', 'TB-001', 'Agora', 'Online'],
   ['CAR-002', 'Ana Souza', 'TB-002', '1 min', 'Online'],

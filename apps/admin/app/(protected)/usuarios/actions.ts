@@ -1,6 +1,6 @@
 'use server';
 
-import type { AppRole } from '@maxcar/shared/database-types';
+import type { AppRole } from '@maxcar/shared';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';

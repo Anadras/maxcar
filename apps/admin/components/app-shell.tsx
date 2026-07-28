@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
-import type { AppRole } from '@maxcar/shared/database-types';
+import type { AppRole } from '@maxcar/shared';
 import { logout } from '@/app/(auth)/actions';
 import { ROLE_LABELS } from '@/lib/auth/access';
 

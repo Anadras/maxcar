@@ -12,6 +12,7 @@
     "lint": "npm run lint --workspace=@maxcar/admin",
     "typecheck": "npm run typecheck --workspace=@maxcar/admin",
     "test": "npm run test --workspaces --if-present",
+    "auth:diagnose": "node scripts/debug-auth.mjs",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --local",

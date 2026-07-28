@@ -1,28 +1,19 @@
+import type { Database } from './database.types';
+
 export type CampaignType = 'GRADE' | 'GEO';
 export type OperationalStatus = 'Online' | 'Offline' | 'Atenção' | 'Manutenção';
 export type UUID = string;
 export type ISODateTime = string;
 
-export type AppRole =
-  | 'pending'
-  | 'super_admin'
-  | 'admin'
-  | 'commercial'
-  | 'operations'
-  | 'advertiser'
-  | 'driver';
-export type DatabaseCampaignType = 'regular' | 'geo';
-export type CampaignStatus =
-  'draft' | 'scheduled' | 'active' | 'paused' | 'completed' | 'cancelled';
-export type DeviceStatus =
-  'provisioning' | 'online' | 'offline' | 'maintenance' | 'retired';
-export type VehicleStatus =
-  'active' | 'offline' | 'maintenance' | 'unassigned' | 'retired';
-export type DriverStatus = 'pending' | 'active' | 'inactive' | 'suspended';
-export type CreativeType = 'image' | 'video';
-export type ImpressionSource = 'regular' | 'geo';
-export type ImpressionStatus =
-  'started' | 'completed' | 'interrupted' | 'failed';
+export type AppRole = Database['public']['Enums']['app_role'];
+export type DatabaseCampaignType = Database['public']['Enums']['campaign_type'];
+export type CampaignStatus = Database['public']['Enums']['campaign_status'];
+export type DeviceStatus = Database['public']['Enums']['device_status'];
+export type VehicleStatus = Database['public']['Enums']['vehicle_status'];
+export type DriverStatus = Database['public']['Enums']['driver_status'];
+export type CreativeType = Database['public']['Enums']['creative_type'];
+export type ImpressionSource = Database['public']['Enums']['impression_source'];
+export type ImpressionStatus = Database['public']['Enums']['impression_status'];
 
 export interface ProfileRecord {
   id: UUID;

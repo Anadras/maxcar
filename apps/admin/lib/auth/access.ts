@@ -1,4 +1,4 @@
-import type { AppRole } from '@maxcar/shared/database-types';
+import type { AppRole } from '@maxcar/shared';
 
 export const STAFF_ROLES: AppRole[] = [
   'super_admin',

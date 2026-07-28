@@ -19,6 +19,7 @@ describe('profile routing', () => {
 
   it('allows active staff and blocks every inactive profile', () => {
     expect(destinationForProfile('operations', true)).toBe('/');
+    expect(destinationForProfile('super_admin', true)).toBe('/');
     expect(destinationForProfile('super_admin', false)).toBe(
       '/acesso-indisponivel',
     );

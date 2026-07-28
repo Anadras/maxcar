@@ -1,7 +1,4 @@
-import type {
-  CampaignStatus,
-  DatabaseCampaignType,
-} from '@maxcar/shared/database-types';
+import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
 
 export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   draft: 'Rascunho',

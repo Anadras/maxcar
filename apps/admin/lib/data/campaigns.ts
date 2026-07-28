@@ -1,7 +1,4 @@
-import type {
-  CampaignStatus,
-  DatabaseCampaignType,
-} from '@maxcar/shared/database-types';
+import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 

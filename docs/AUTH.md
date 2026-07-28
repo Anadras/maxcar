@@ -4,6 +4,8 @@
 
 O painel usa `@supabase/ssr` e cookies HTTP para compartilhar a sessão entre
 navegador, Server Components, Server Actions e o `proxy.ts` do Next.js 16.
+As variáveis públicas são acessadas estaticamente para que o Next também as
+inclua corretamente no bundle do cliente.
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
@@ -28,6 +30,33 @@ projetos legados. A chave de serviço é opcional, jamais recebe o prefixo
 O menu por papel melhora a experiência, mas não é uma fronteira de segurança.
 As políticas derivam a identidade de `auth.uid()` e nunca aceitam um papel
 enviado pelo cliente.
+
+Quando o Supabase renova a sessão, o proxy replica `Set-Cookie` e os headers
+privados de cache inclusive nas respostas de redirect. Assim, o navegador e os
+Server Components recebem o mesmo estado de sessão.
+
+## Diagnóstico seguro
+
+O comando abaixo confirma qual projeto e tipo de chave pública são carregados,
+sem imprimir chaves ou tokens:
+
+```bash
+npm run auth:diagnose
+```
+
+Um teste real pode ser habilitado explicitamente por variáveis temporárias:
+
+```bash
+AUTH_DIAGNOSTIC_EMAIL='usuario@exemplo.com' \
+AUTH_DIAGNOSTIC_PASSWORD='senha' \
+npm run auth:diagnose
+```
+
+O resultado mostra apenas status técnico, quantidade de cookies e papel/estado
+do perfil. Em desenvolvimento, falhas do formulário também são registradas
+somente no servidor com e-mail, tamanho da senha, origem Supabase, código e
+status; senha, chaves e tokens nunca são registrados. A interface mantém uma
+mensagem genérica para credenciais inválidas.
 
 ## Gestão de usuários
 

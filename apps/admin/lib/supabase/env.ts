@@ -1,5 +1,4 @@
-function required(name: string, fallback?: string) {
-  const value = process.env[name] ?? fallback;
+function required(name: string, value?: string) {
   if (!value) {
     throw new Error(
       `Configuração ausente: ${name}. Consulte .env.example e docs/AUTH.md.`,
@@ -9,12 +8,14 @@ function required(name: string, fallback?: string) {
 }
 
 export function getPublicSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
   return {
-    url: required('NEXT_PUBLIC_SUPABASE_URL'),
-    key: required(
-      'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    ),
+    url: required('NEXT_PUBLIC_SUPABASE_URL', url),
+    key: required('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', publishableKey),
   };
 }
 

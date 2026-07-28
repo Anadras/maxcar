@@ -29,7 +29,8 @@ async function save(id: string | null, formData: FormData) {
   const input = parsed.data;
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('save_establishment', {
-    p_id: id,
+    // Postgres accepts NULL here for create; generated RPC args omit nullability.
+    p_id: id as string,
     p_advertiser_id: input.advertiserId,
     p_name: input.name,
     p_address_line: input.addressLine,

@@ -1,7 +1,4 @@
-import type {
-  CampaignStatus,
-  DatabaseCampaignType,
-} from '@maxcar/shared/database-types';
+import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';

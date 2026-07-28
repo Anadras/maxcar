@@ -1,4 +1,4 @@
-import type { AppRole } from '@maxcar/shared/database-types';
+import type { AppRole } from '@maxcar/shared';
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 

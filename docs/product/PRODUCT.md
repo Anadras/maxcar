@@ -50,4 +50,4 @@ O aplicativo futuro será nativo em Kotlin, offline-first e operará em modo qui
 
 ## Evolução
 
-MAX-002 adicionará Supabase, PostgreSQL, PostGIS, migrations e RLS. Marcos posteriores entregarão autenticação, storage, sincronização, aplicativo Android, telemetria, mapas reais e analytics.
+MAX-002 entregou Supabase local, PostgreSQL, PostGIS, migrations, schema inicial, RLS, seed e testes de banco. MAX-003 conectará autenticação real e os primeiros CRUDs do painel. Marcos posteriores entregarão sincronização, aplicativo Android, credenciais de dispositivo, mapas reais e analytics.

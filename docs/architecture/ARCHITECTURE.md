@@ -4,7 +4,7 @@
 
 O sistema será dividido entre cloud e veículo. Na cloud, o painel administrativo usará Supabase para dados, identidade, storage e capacidades geográficas. No veículo, o aplicativo Android manterá mídia, programação, regras e eventos localmente.
 
-## Implementado agora — MAX-001
+## Implementado — MAX-001
 
 - Monorepo npm com painel Next.js, tipos compartilhados e regras de negócio.
 - App Router, TypeScript estrito, Tailwind CSS, ESLint e Prettier.
@@ -14,23 +14,34 @@ O sistema será dividido entre cloud e veículo. Na cloud, o painel administrati
 - Estrutura reservada para Supabase e aplicativo Android.
 - Documentação de produto, arquitetura e decisão técnica.
 
-Não há backend, autenticação, persistência, mapa real, GPS ou player Android funcionando nesta fase.
+## Implementado — MAX-002
+
+- Supabase CLI e ambiente local configurado.
+- PostgreSQL 17 e PostGIS como fundação de dados.
+- Schema inicial versionado em seis migrations.
+- Identidades, anunciantes, frota, campanhas, geofences, playlists e eventos.
+- RLS baseada em `auth.uid()` e perfis persistidos.
+- Idempotência de impressões offline por dispositivo e evento do cliente.
+- Bucket privado `campaign-media`, sem políticas de upload prematuras.
+- Seed fictício, testes pgTAP e processo de geração de tipos.
+
+O painel permanece em mocks. Login, CRUD conectado, ingestão do dispositivo, uploads e player Android ainda não estão implementados.
 
 ## Planejado — web
 
 O painel trocará `lib/mock-data.ts` por repositórios tipados que acessam Supabase. A UI continuará consumindo contratos do domínio sem embutir consultas ou regras de elegibilidade nos componentes.
 
-## Planejado — backend e banco
+## Backend e banco
 
-- Supabase Auth para usuários administrativos.
-- PostgreSQL como fonte de verdade.
-- PostGIS para estabelecimentos, geofences e consultas geográficas.
-- Supabase Storage para criativos.
+- Supabase Auth possui a extensão de domínio `profiles`; novos usuários começam como `pending`.
+- PostgreSQL é a fonte de verdade versionada pelas migrations.
+- PostGIS representa posições terrestres como `geography(Point, 4326)`.
+- Supabase Storage possui o bucket privado reservado para criativos.
 - Edge Functions apenas quando uma fronteira segura de servidor for necessária.
 - Migrations versionadas para toda alteração estrutural.
 - RLS obrigatória e acesso por least privilege.
 
-A modelagem completa pertence ao MAX-002.
+O modelo e as políticas estão detalhados em [DATABASE.md](DATABASE.md).
 
 ## Planejado — Android offline-first
 

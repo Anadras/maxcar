@@ -21,8 +21,13 @@
 
 - Every schema change requires a migration.
 - PostGIS will be used for geographic features.
+- Terrestrial coordinates use `geography(Point, 4326)` and require justified spatial indexes.
 - Row Level Security is mandatory.
 - Database changes must be version-controlled.
+- New authenticated users always start with the `pending` role.
+- Authorization must derive from `auth.uid()` and the persisted profile, never from a client-supplied role.
+- Historical events must not be removed through accidental cascades.
+- Offline events require stable client identifiers and idempotent ingestion.
 
 ## Security
 
@@ -51,6 +56,7 @@
 - Geographic logic requires unit tests.
 - Synchronization requires tests.
 - Database migrations require validation.
+- RLS changes require isolation tests for pending, advertiser, driver and staff roles.
 
 ## UI
 

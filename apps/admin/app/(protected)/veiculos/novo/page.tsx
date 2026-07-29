@@ -10,7 +10,7 @@ import { listDriverOptions } from '@/lib/data/drivers';
 export default async function NewVehiclePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; driver?: string }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canManageFleet(auth.profile.role)) redirect('/veiculos');
@@ -27,7 +27,11 @@ export default async function NewVehiclePage({
         description="Cadastre o veículo e, se disponível, vincule um motorista."
       />
       <SectionCard>
-        <VehicleForm drivers={drivers} action={createVehicle} />
+        <VehicleForm
+          drivers={drivers}
+          preselectedDriver={params.driver}
+          action={createVehicle}
+        />
       </SectionCard>
     </div>
   );

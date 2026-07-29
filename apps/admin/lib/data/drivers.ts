@@ -43,7 +43,9 @@ export async function getDriver(id: string) {
     await Promise.all([
       supabase
         .from('drivers')
-        .select('*, vehicles(id, internal_code, license_plate)')
+        .select(
+          '*, vehicles(id, internal_code, license_plate, devices(id, device_code, status))',
+        )
         .eq('id', id)
         .maybeSingle(),
       supabase
@@ -57,12 +59,17 @@ export async function getDriver(id: string) {
     ]);
   if (error) throw error;
   if (sessionError) throw sessionError;
+  const vehicle = data?.vehicles[0] ?? null;
+  const device = vehicle?.devices[0] ?? null;
   return data
     ? {
         ...data,
-        vehicle_id: data.vehicles[0]?.id ?? null,
-        vehicle_code: data.vehicles[0]?.internal_code ?? null,
-        license_plate: data.vehicles[0]?.license_plate ?? null,
+        vehicle_id: vehicle?.id ?? null,
+        vehicle_code: vehicle?.internal_code ?? null,
+        license_plate: vehicle?.license_plate ?? null,
+        device_id: device?.id ?? null,
+        device_code: device?.device_code ?? null,
+        device_status: device?.status ?? null,
         sessions,
       }
     : null;

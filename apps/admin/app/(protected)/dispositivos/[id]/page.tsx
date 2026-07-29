@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { simulateHeartbeat } from '../actions';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -29,6 +30,13 @@ export default async function DeviceDetailPage({
   return (
     <div className="page record-page">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Frota' },
+          { label: 'Dispositivos', href: '/dispositivos' },
+          { label: device.device_code },
+        ]}
+      />
       <PageHeader
         eyebrow="DISPOSITIVO"
         title={device.device_code}

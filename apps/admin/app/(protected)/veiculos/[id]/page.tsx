@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -26,22 +27,40 @@ export default async function VehicleDetailPage({
   const query = await searchParams;
   const [vehicle, auth] = await Promise.all([getVehicle(id), getAuthContext()]);
   if (!vehicle) notFound();
+  const canWrite = Boolean(auth && canManageFleet(auth.profile.role));
   return (
     <div className="page record-page">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Frota' },
+          { label: 'Veículos', href: '/veiculos' },
+          { label: vehicle.internal_code },
+        ]}
+      />
       <PageHeader
         eyebrow="VEÍCULO"
         title={vehicle.internal_code}
         description={vehicle.license_plate ?? 'Sem placa informada'}
         action={
-          auth && canManageFleet(auth.profile.role) ? (
-            <Link
-              className="button button-primary"
-              href={`/veiculos/${id}/editar`}
-            >
-              Editar vínculos
-            </Link>
-          ) : undefined
+          <div className="header-actions">
+            {canWrite && !vehicle.device_id && (
+              <Link
+                className="button button-secondary"
+                href={`/dispositivos/novo?vehicle=${id}`}
+              >
+                ＋ Instalar tablet
+              </Link>
+            )}
+            {canWrite && (
+              <Link
+                className="button button-primary"
+                href={`/veiculos/${id}/editar`}
+              >
+                Editar vínculos
+              </Link>
+            )}
+          </div>
         }
       />
       <SectionCard title="Dados e vínculos">

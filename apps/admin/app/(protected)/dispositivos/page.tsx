@@ -5,7 +5,10 @@ import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listDevices } from '@/lib/data/devices';
+import { listVehicles } from '@/lib/data/vehicles';
 import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
+
+const LOW_BATTERY_THRESHOLD = 20;
 
 export default async function DevicesPage({
   searchParams,
@@ -19,11 +22,51 @@ export default async function DevicesPage({
   }>;
 }) {
   const params = await searchParams;
-  const [devices, auth] = await Promise.all([
+  const [devices, allDevices, activeVehicles, auth] = await Promise.all([
     listDevices(params.q, params.connection, params.link),
+    listDevices(),
+    listVehicles('', 'active'),
     getAuthContext(),
   ]);
   const canWrite = !!auth && canManageFleet(auth.profile.role);
+
+  const attention = [
+    {
+      key: 'offline',
+      count: allDevices.filter((d) => d.connection_status === 'offline').length,
+      label: 'offline',
+      href: '/dispositivos?connection=offline',
+    },
+    {
+      key: 'attention',
+      count: allDevices.filter((d) => d.connection_status === 'attention')
+        .length,
+      label: 'em atenção',
+      href: '/dispositivos?connection=attention',
+    },
+    {
+      key: 'battery',
+      count: allDevices.filter(
+        (d) =>
+          d.battery_level !== null && d.battery_level < LOW_BATTERY_THRESHOLD,
+      ).length,
+      label: 'com bateria baixa',
+      href: '/dispositivos',
+    },
+    {
+      key: 'unlinked',
+      count: allDevices.filter((d) => d.vehicle_id === null).length,
+      label: 'sem veículo vinculado',
+      href: '/dispositivos?link=unlinked',
+    },
+    {
+      key: 'vehicle-without-device',
+      count: activeVehicles.filter((v) => v.device_id === null).length,
+      label: 'veículo(s) ativo(s) sem tablet',
+      href: '/veiculos',
+    },
+  ].filter((item) => item.count > 0);
+
   return (
     <div className="page">
       <FlashMessage success={params.success} error={params.error} />
@@ -39,6 +82,31 @@ export default async function DevicesPage({
           ) : undefined
         }
       />
+      <SectionCard
+        title="O que precisa de atenção agora"
+        subtitle={
+          attention.length === 0
+            ? 'Nenhum ponto crítico identificado.'
+            : undefined
+        }
+        className="attention-card"
+      >
+        {attention.length === 0 ? (
+          <p className="section-empty">
+            Toda a frota monitorada está saudável no momento.
+          </p>
+        ) : (
+          <ul className="attention-list">
+            {attention.map((item) => (
+              <li key={item.key}>
+                <Link href={item.href}>
+                  <strong>{item.count}</strong> {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
       <SectionCard>
         <form className="fleet-filters fleet-filters-wide">
           <label className="search-box">

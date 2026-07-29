@@ -11,10 +11,12 @@ type DriverOption = {
 export function VehicleForm({
   vehicle,
   drivers,
+  preselectedDriver,
   action,
 }: {
   vehicle?: Vehicle;
   drivers: DriverOption[];
+  preselectedDriver?: string;
   action: (formData: FormData) => void | Promise<void>;
 }) {
   return (
@@ -62,7 +64,10 @@ export function VehicleForm({
       </label>
       <label>
         Motorista
-        <select name="driverId" defaultValue={vehicle?.driver_id ?? ''}>
+        <select
+          name="driverId"
+          defaultValue={vehicle?.driver_id ?? preselectedDriver ?? ''}
+        >
           <option value="">Sem motorista</option>
           {drivers.map((driver) => (
             <option key={driver.id} value={driver.id}>

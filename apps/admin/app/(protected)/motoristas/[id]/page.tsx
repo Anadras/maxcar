@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -25,9 +26,17 @@ export default async function DriverDetailPage({
   const query = await searchParams;
   const [driver, auth] = await Promise.all([getDriver(id), getAuthContext()]);
   if (!driver) notFound();
+  const canWrite = Boolean(auth && canManageFleet(auth.profile.role));
   return (
     <div className="page record-page">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Frota' },
+          { label: 'Motoristas', href: '/motoristas' },
+          { label: driver.full_name },
+        ]}
+      />
       <PageHeader
         eyebrow="MOTORISTA"
         title={driver.full_name}
@@ -37,14 +46,24 @@ export default async function DriverDetailPage({
             : 'Sem veículo vinculado'
         }
         action={
-          auth && canManageFleet(auth.profile.role) ? (
-            <Link
-              className="button button-primary"
-              href={`/motoristas/${id}/editar`}
-            >
-              Editar
-            </Link>
-          ) : undefined
+          <div className="header-actions">
+            {canWrite && !driver.vehicle_id && (
+              <Link
+                className="button button-secondary"
+                href={`/veiculos/novo?driver=${id}`}
+              >
+                ＋ Adicionar veículo
+              </Link>
+            )}
+            {canWrite && (
+              <Link
+                className="button button-primary"
+                href={`/motoristas/${id}/editar`}
+              >
+                Editar
+              </Link>
+            )}
+          </div>
         }
       />
       <SectionCard title="Dados do motorista">
@@ -82,6 +101,32 @@ export default async function DriverDetailPage({
           <div>
             <dt>Placa</dt>
             <dd>{driver.license_plate ?? '—'}</dd>
+          </div>
+          <div>
+            <dt>Tablet</dt>
+            <dd>
+              {driver.device_id ? (
+                <Link href={`/dispositivos/${driver.device_id}`}>
+                  {driver.device_code}
+                </Link>
+              ) : driver.vehicle_id ? (
+                <>
+                  Sem tablet instalado
+                  {canWrite && (
+                    <>
+                      {' · '}
+                      <Link
+                        href={`/dispositivos/novo?vehicle=${driver.vehicle_id}`}
+                      >
+                        instalar
+                      </Link>
+                    </>
+                  )}
+                </>
+              ) : (
+                '—'
+              )}
+            </dd>
           </div>
         </dl>
       </SectionCard>

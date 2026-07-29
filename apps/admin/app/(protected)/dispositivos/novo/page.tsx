@@ -10,7 +10,7 @@ import { listVehicleOptions } from '@/lib/data/vehicles';
 export default async function NewDevicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; vehicle?: string }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canManageFleet(auth.profile.role)) redirect('/dispositivos');
@@ -27,7 +27,11 @@ export default async function NewDevicePage({
         description="Cadastre o código operacional e o vínculo inicial."
       />
       <SectionCard>
-        <DeviceForm vehicles={vehicles} action={createDevice} />
+        <DeviceForm
+          vehicles={vehicles}
+          preselectedVehicle={params.vehicle}
+          action={createDevice}
+        />
       </SectionCard>
     </div>
   );

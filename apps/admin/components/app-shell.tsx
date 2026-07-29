@@ -22,9 +22,24 @@ const nav: Array<{
     roles: ['super_admin', 'admin', 'commercial'],
   },
   { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
-  { label: 'Veículos', href: '/veiculos', icon: '◆' },
-  { label: 'Motoristas', href: '/motoristas', icon: '♙' },
-  { label: 'Dispositivos', href: '/dispositivos', icon: '▣' },
+  {
+    label: 'Veículos',
+    href: '/veiculos',
+    icon: '◆',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
+  {
+    label: 'Motoristas',
+    href: '/motoristas',
+    icon: '♙',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
+  {
+    label: 'Dispositivos',
+    href: '/dispositivos',
+    icon: '▣',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
   { label: 'Geofences', href: '/geofences', icon: '◎' },
   { label: 'Tablet / Player', href: '/player', icon: '▷' },
   { label: 'Relatórios', href: '/relatorios', icon: '▥' },
@@ -87,7 +102,6 @@ export function AppShell({
               >
                 <span aria-hidden="true">{icon}</span>
                 {label}
-                {label === 'Dispositivos' && <small>3</small>}
               </Link>
             ))}
           <p className="nav-label nav-label-secondary">GESTÃO</p>
@@ -110,7 +124,7 @@ export function AppShell({
             <i /> PILOTO ATIVO
           </div>
           <strong>Campo Grande, MS</strong>
-          <span>48 veículos monitorados</span>
+          <span>Monitoramento via Supabase</span>
         </div>
         <div className="user-card">
           <div className="avatar">{initials}</div>

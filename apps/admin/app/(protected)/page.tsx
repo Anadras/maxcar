@@ -32,17 +32,35 @@ export default async function DashboardPage() {
       tone: 'cyan',
     },
     {
-      label: 'Veículos online',
-      value: '41',
-      detail: 'Demonstrativo até MAX-005',
+      label: 'Motoristas ativos',
+      value: counts.activeDrivers.toLocaleString('pt-BR'),
+      detail: 'Cadastro operacional',
       tone: 'green',
     },
     {
+      label: 'Veículos ativos',
+      value: counts.activeVehicles.toLocaleString('pt-BR'),
+      detail: 'Frota cadastrada',
+      tone: 'green',
+    },
+    {
+      label: 'Tablets online',
+      value: counts.deviceCounts.online.toLocaleString('pt-BR'),
+      detail: `${counts.deviceCounts.total} monitorados`,
+      tone: 'green',
+    },
+    {
+      label: 'Tablets em atenção',
+      value: counts.deviceCounts.attention.toLocaleString('pt-BR'),
+      detail: 'Heartbeat entre 5 e 15 min',
+      tone: 'yellow',
+    },
+    {
       label: 'Dispositivos offline',
-      value: '3',
-      detail: 'Demonstrativo até MAX-005',
+      value: counts.deviceCounts.offline.toLocaleString('pt-BR'),
+      detail: 'Sem sinal há mais de 15 min',
       tone: 'red',
     },
   ];
-  return <DashboardView dashboardMetrics={metrics} />;
+  return <DashboardView dashboardMetrics={metrics} devices={counts.devices} />;
 }

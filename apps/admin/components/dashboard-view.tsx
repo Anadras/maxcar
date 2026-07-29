@@ -8,6 +8,7 @@ import {
   SectionCard,
   StatusBadge,
 } from '@/components/ui';
+import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
 
 type MapSelection =
   | {
@@ -26,12 +27,17 @@ type MapSelection =
     }
   | null;
 
-const activity = [
-  ['CAR-001', 'Reprodução concluída', 'Institucional Midiamax', 'agora'],
-  ['CAR-017', 'Entrada em geofence', 'Pizzaria Central — Centro', '2 min'],
-  ['TB-004', 'Dispositivo offline', 'Último sinal há 42 min', '4 min'],
-  ['CAR-028', 'Campanha GEO exibida', 'Plano Verão Prime', '7 min'],
-];
+interface DashboardDevice {
+  id: string;
+  code: string;
+  vehicleCode: string | null;
+  driverName: string | null;
+  heartbeatAt: string | null;
+  batteryLevel: number | null;
+  networkConnected: boolean | null;
+  gpsAvailable: boolean | null;
+  connection: 'online' | 'attention' | 'offline' | 'inactive';
+}
 
 export interface DashboardMetric {
   label: string;
@@ -42,8 +48,10 @@ export interface DashboardMetric {
 
 export function DashboardView({
   dashboardMetrics,
+  devices,
 }: {
   dashboardMetrics: DashboardMetric[];
+  devices: DashboardDevice[];
 }) {
   const [selected, setSelected] = useState<MapSelection>(null);
   return (
@@ -119,28 +127,22 @@ export function DashboardView({
             >
               <span>GEO</span>
             </button>
-            {[
-              ['CAR-001', 'car-one', 'TB-001', 'Institucional Midiamax'],
-              ['CAR-017', 'car-two', 'TB-017', 'Conteúdo editorial'],
-              ['CAR-028', 'car-three', 'TB-028', 'Oferta Pizzaria Central'],
-              ['CAR-034', 'car-four', 'TB-034', 'Campanha geral'],
-              ['CAR-041', 'car-five', 'TB-041', 'Notícias da cidade'],
-            ].map(([title, position, tablet, campaign]) => (
+            {devices.slice(0, 5).map((device, index) => (
               <button
-                key={title}
-                className={`map-car ${position}`}
+                key={device.id}
+                className={`map-car ${['car-one', 'car-two', 'car-three', 'car-four', 'car-five'][index]}`}
                 onClick={() =>
                   setSelected({
                     kind: 'car',
-                    title,
-                    status: 'Online',
-                    tablet,
-                    campaign,
+                    title: device.vehicleCode ?? 'Sem veículo',
+                    status: CONNECTION_LABEL[device.connection],
+                    tablet: device.code,
+                    campaign: device.driverName ?? 'Sem motorista',
                   })
                 }
-                aria-label={`Abrir veículo ${title}`}
+                aria-label={`Abrir veículo ${device.vehicleCode ?? device.code}`}
               >
-                ◆<small>{title}</small>
+                ◆<small>{device.vehicleCode ?? device.code}</small>
               </button>
             ))}
             <div className="map-label label-centro">CENTRO</div>
@@ -150,7 +152,12 @@ export function DashboardView({
               <button aria-label="Diminuir zoom">−</button>
             </div>
             <div className="map-footer">
-              <i /> 41 veículos online <span>•</span> 7 zonas GEO ativas
+              <i />{' '}
+              {
+                devices.filter((device) => device.connection === 'online')
+                  .length
+              }{' '}
+              tablets online <span>•</span> {devices.length} monitorados
             </div>
           </div>
         </SectionCard>
@@ -161,18 +168,18 @@ export function DashboardView({
           action={<button className="text-button">Ver tudo →</button>}
         >
           <div className="activity-list">
-            {activity.map(([id, action, detail, time], index) => (
-              <article key={`${id}-${action}`}>
+            {devices.slice(0, 6).map((device, index) => (
+              <article key={device.id}>
                 <span className={`activity-icon activity-${index}`}>
-                  {index === 2 ? '!' : index === 1 ? '◎' : '▶'}
+                  {device.connection === 'offline' ? '!' : '◎'}
                 </span>
                 <div>
-                  <strong>{action}</strong>
+                  <strong>{CONNECTION_LABEL[device.connection]}</strong>
                   <p>
-                    <b>{id}</b> · {detail}
+                    <b>{device.code}</b> · {device.vehicleCode ?? 'Sem veículo'}
                   </p>
                 </div>
-                <time>{time}</time>
+                <time>{formatRelativeTime(device.heartbeatAt)}</time>
               </article>
             ))}
           </div>
@@ -183,19 +190,43 @@ export function DashboardView({
             </header>
             <div>
               <span>Player</span>
-              <b>100%</b>
+              <b>
+                {devices.length
+                  ? `${Math.round((devices.filter((device) => device.connection === 'online').length / devices.length) * 100)}%`
+                  : '0%'}
+              </b>
             </div>
-            <progress value="100" max="100" />
+            <progress
+              value={
+                devices.filter((device) => device.connection === 'online')
+                  .length
+              }
+              max={Math.max(devices.length, 1)}
+            />
             <div>
               <span>GPS</span>
-              <b>97,6%</b>
+              <b>
+                {devices.length
+                  ? `${Math.round((devices.filter((device) => device.gpsAvailable).length / devices.length) * 100)}%`
+                  : '0%'}
+              </b>
             </div>
-            <progress value="97.6" max="100" />
+            <progress
+              value={devices.filter((device) => device.gpsAvailable).length}
+              max={Math.max(devices.length, 1)}
+            />
             <div>
               <span>Sincronização</span>
-              <b>95,1%</b>
+              <b>
+                {devices.length
+                  ? `${Math.round((devices.filter((device) => device.networkConnected).length / devices.length) * 100)}%`
+                  : '0%'}
+              </b>
             </div>
-            <progress value="95.1" max="100" />
+            <progress
+              value={devices.filter((device) => device.networkConnected).length}
+              max={Math.max(devices.length, 1)}
+            />
           </div>
         </SectionCard>
       </div>
@@ -227,7 +258,7 @@ export function DashboardView({
               <strong>Agora</strong>
             </div>
             <div>
-              <span>Campanha atual</span>
+              <span>Motorista</span>
               <strong>{selected.campaign}</strong>
             </div>
           </div>

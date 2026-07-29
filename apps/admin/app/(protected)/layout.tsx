@@ -23,6 +23,7 @@ export default async function ProtectedLayout({
         email: auth.email,
         role: auth.profile.role,
       }}
+      environment={process.env.NEXT_PUBLIC_APP_ENV ?? 'development'}
     >
       {children}
     </AppShell>

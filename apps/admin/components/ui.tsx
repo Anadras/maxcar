@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { type ReactNode, useEffect } from 'react';
 
 export function PageHeader({
@@ -71,22 +72,32 @@ export function MetricCard({
   value,
   detail,
   tone = 'blue',
+  href,
 }: {
   label: string;
   value: string;
   detail: string;
   tone?: string;
+  href?: string;
 }) {
-  return (
-    <article className={`metric-card metric-${tone}`}>
+  const content = (
+    <>
       <div className="metric-top">
         <span>{label}</span>
         <i aria-hidden="true" />
       </div>
       <strong>{value}</strong>
       <small>{detail}</small>
-    </article>
+    </>
   );
+  if (href) {
+    return (
+      <Link href={href} className={`metric-card metric-${tone} metric-link`}>
+        {content}
+      </Link>
+    );
+  }
+  return <article className={`metric-card metric-${tone}`}>{content}</article>;
 }
 
 export function SectionCard({

@@ -7,14 +7,16 @@ import type { AppRole } from '@maxcar/shared';
 import { logout } from '@/app/(auth)/actions';
 import { ROLE_LABELS } from '@/lib/auth/access';
 
-const nav: Array<{
+interface NavItem {
   label: string;
   href: string;
   icon: string;
   roles?: AppRole[];
-}> = [
-  { label: 'Dashboard', href: '/', icon: '▦' },
-  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
+}
+
+const overviewNav: NavItem[] = [{ label: 'Dashboard', href: '/', icon: '▦' }];
+
+const commercialNav: NavItem[] = [
   {
     label: 'Clientes',
     href: '/clientes',
@@ -22,16 +24,21 @@ const nav: Array<{
     roles: ['super_admin', 'admin', 'commercial'],
   },
   { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
-  {
-    label: 'Veículos',
-    href: '/veiculos',
-    icon: '◆',
-    roles: ['super_admin', 'admin', 'operations'],
-  },
+  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
+  { label: 'Geofences', href: '/geofences', icon: '◎' },
+];
+
+const operationsNav: NavItem[] = [
   {
     label: 'Motoristas',
     href: '/motoristas',
     icon: '♙',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
+  {
+    label: 'Veículos',
+    href: '/veiculos',
+    icon: '◆',
     roles: ['super_admin', 'admin', 'operations'],
   },
   {
@@ -40,8 +47,10 @@ const nav: Array<{
     icon: '▣',
     roles: ['super_admin', 'admin', 'operations'],
   },
-  { label: 'Geofences', href: '/geofences', icon: '◎' },
   { label: 'Tablet / Player', href: '/player', icon: '▷' },
+];
+
+const adminNav: NavItem[] = [
   { label: 'Relatórios', href: '/relatorios', icon: '▥' },
   {
     label: 'Usuários',
@@ -53,18 +62,32 @@ const nav: Array<{
   { label: 'Configurações', href: '/configuracoes', icon: '⚙' },
 ];
 
+const navGroups: Array<{ label: string; items: NavItem[] }> = [
+  { label: 'VISÃO GERAL', items: overviewNav },
+  { label: 'COMERCIAL', items: commercialNav },
+  { label: 'OPERAÇÃO', items: operationsNav },
+  { label: 'ADMINISTRAÇÃO', items: adminNav },
+];
+
 export function AppShell({
   children,
   user,
+  environment,
 }: {
   children: ReactNode;
   user: { name: string; email: string; role: AppRole };
+  environment: string;
 }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
-  const visibleNav = nav.filter(
-    (item) => !item.roles || item.roles.includes(user.role),
-  );
+  const visibleGroups = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) => !item.roles || item.roles.includes(user.role),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
   const initials = user.name
     .split(/\s+/)
     .slice(0, 2)
@@ -90,34 +113,26 @@ export function AppShell({
           </button>
         </div>
         <nav aria-label="Navegação principal">
-          <p className="nav-label">OPERAÇÃO</p>
-          {visibleNav
-            .filter((item) => nav.indexOf(item) < 9)
-            .map(({ label, href, icon }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className={pathname === href ? 'active' : ''}
+          {visibleGroups.map((group, index) => (
+            <div key={group.label}>
+              <p
+                className={`nav-label ${index > 0 ? 'nav-label-secondary' : ''}`}
               >
-                <span aria-hidden="true">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          <p className="nav-label nav-label-secondary">GESTÃO</p>
-          {visibleNav
-            .filter((item) => nav.indexOf(item) >= 9)
-            .map(({ label, href, icon }) => (
-              <Link
-                key={href}
-                href={href}
-                onClick={() => setMenuOpen(false)}
-                className={pathname === href ? 'active' : ''}
-              >
-                <span aria-hidden="true">{icon}</span>
-                {label}
-              </Link>
-            ))}
+                {group.label}
+              </p>
+              {group.items.map(({ label, href, icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={() => setMenuOpen(false)}
+                  className={pathname === href ? 'active' : ''}
+                >
+                  <span aria-hidden="true">{icon}</span>
+                  {label}
+                </Link>
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="pilot-card">
           <div>
@@ -158,15 +173,7 @@ export function AppShell({
             ☰
           </button>
           <div className="live-status">
-            <i /> REDE OPERACIONAL <strong>98,7%</strong>
-          </div>
-          <div className="top-actions">
-            <span>
-              Última atualização <strong>agora</strong>
-            </span>
-            <button className="notification-button" aria-label="Notificações">
-              ●<small>3</small>
-            </button>
+            <i /> AMBIENTE <strong>{environment.toUpperCase()}</strong>
           </div>
         </header>
         <main>{children}</main>

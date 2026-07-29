@@ -1,4 +1,5 @@
 import type { Database } from '@maxcar/shared/database-types';
+import { ConfirmSubmitButton } from './confirm-submit-button';
 import { StatusBadge } from './ui';
 
 type Creative = Database['public']['Tables']['campaign_creatives']['Row'] & {
@@ -74,9 +75,19 @@ export function CreativeGallery({
               <form
                 action={toggleAction.bind(null, creative.id, !creative.active)}
               >
-                <button className="text-button" type="submit">
-                  {creative.active ? 'Desativar com segurança' : 'Reativar'}
-                </button>
+                {creative.active ? (
+                  <ConfirmSubmitButton
+                    className="text-button"
+                    confirmMessage={`Desativar "${creative.name}"? Campanhas ativas que dependem deste criativo como único ativo não poderão ser desativadas se isso deixar a campanha sem criativo.`}
+                    pendingLabel="Desativando…"
+                  >
+                    Desativar com segurança
+                  </ConfirmSubmitButton>
+                ) : (
+                  <button className="text-button" type="submit">
+                    Reativar
+                  </button>
+                )}
               </form>
             )}
           </div>

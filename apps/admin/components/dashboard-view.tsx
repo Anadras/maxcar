@@ -10,22 +10,17 @@ import {
 } from '@/components/ui';
 import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
 
-type MapSelection =
-  | {
-      kind: 'car';
-      title: string;
-      status: string;
-      tablet: string;
-      campaign: string;
-    }
-  | {
-      kind: 'geo';
-      title: string;
-      client: string;
-      radius: string;
-      priority: string;
-    }
-  | null;
+type MapSelection = {
+  kind: 'car';
+  title: string;
+  status: string;
+  tablet: string;
+  driver: string;
+  battery: string;
+  network: string;
+  gps: string;
+  lastSeen: string;
+} | null;
 
 interface DashboardDevice {
   id: string;
@@ -44,13 +39,24 @@ export interface DashboardMetric {
   value: string;
   detail: string;
   tone: string;
+  href?: string;
 }
 
+export interface DashboardMetricGroup {
+  title: string;
+  metrics: DashboardMetric[];
+}
+
+const today = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: 'long',
+}).format(new Date());
+
 export function DashboardView({
-  dashboardMetrics,
+  metricGroups,
   devices,
 }: {
-  dashboardMetrics: DashboardMetric[];
+  metricGroups: DashboardMetricGroup[];
   devices: DashboardDevice[];
 }) {
   const [selected, setSelected] = useState<MapSelection>(null);
@@ -60,17 +66,18 @@ export function DashboardView({
         eyebrow="CENTRAL DE OPERAÇÕES"
         title="Visão geral"
         description="Acompanhe a rede MAXCAR em tempo real."
-        action={
-          <div className="date-pill">
-            ● Hoje, 28 de julho <span>⌄</span>
-          </div>
-        }
+        action={<div className="date-pill">● Hoje, {today}</div>}
       />
-      <div className="metric-grid">
-        {dashboardMetrics.map((metric) => (
-          <MetricCard key={metric.label} {...metric} />
-        ))}
-      </div>
+      {metricGroups.map((group) => (
+        <div key={group.title} className="metric-group">
+          <h2 className="metric-group-title">{group.title}</h2>
+          <div className="metric-grid">
+            {group.metrics.map((metric) => (
+              <MetricCard key={metric.label} {...metric} />
+            ))}
+          </div>
+        </div>
+      ))}
       <div className="dashboard-grid">
         <SectionCard
           title="Mapa operacional"
@@ -97,36 +104,6 @@ export function DashboardView({
             <div className="map-block block-one" />
             <div className="map-block block-two" />
             <div className="map-block block-three" />
-            <button
-              className="geofence-zone geo-one"
-              onClick={() =>
-                setSelected({
-                  kind: 'geo',
-                  title: 'Pizzaria Central — Centro',
-                  client: 'Pizzaria Central',
-                  radius: '1.500 m',
-                  priority: 'Alta',
-                })
-              }
-              aria-label="Abrir geofence Pizzaria Central"
-            >
-              <span>GEO</span>
-            </button>
-            <button
-              className="geofence-zone geo-two"
-              onClick={() =>
-                setSelected({
-                  kind: 'geo',
-                  title: 'Academia Prime — Centro',
-                  client: 'Academia Prime',
-                  radius: '900 m',
-                  priority: 'Média',
-                })
-              }
-              aria-label="Abrir geofence Academia Prime"
-            >
-              <span>GEO</span>
-            </button>
             {devices.slice(0, 5).map((device, index) => (
               <button
                 key={device.id}
@@ -137,7 +114,24 @@ export function DashboardView({
                     title: device.vehicleCode ?? 'Sem veículo',
                     status: CONNECTION_LABEL[device.connection],
                     tablet: device.code,
-                    campaign: device.driverName ?? 'Sem motorista',
+                    driver: device.driverName ?? 'Sem motorista',
+                    battery:
+                      device.batteryLevel === null
+                        ? 'Sem telemetria'
+                        : `${device.batteryLevel}%`,
+                    network:
+                      device.networkConnected === null
+                        ? 'Sem telemetria'
+                        : device.networkConnected
+                          ? 'Conectada'
+                          : 'Desconectada',
+                    gps:
+                      device.gpsAvailable === null
+                        ? 'Sem telemetria'
+                        : device.gpsAvailable
+                          ? 'Disponível'
+                          : 'Indisponível',
+                    lastSeen: formatRelativeTime(device.heartbeatAt),
                   })
                 }
                 aria-label={`Abrir veículo ${device.vehicleCode ?? device.code}`}
@@ -243,50 +237,27 @@ export function DashboardView({
             </div>
             <div>
               <span>GPS</span>
-              <strong>Saudável</strong>
+              <strong>{selected.gps}</strong>
             </div>
             <div>
-              <span>Internet</span>
-              <strong>Online</strong>
+              <span>Rede</span>
+              <strong>{selected.network}</strong>
             </div>
             <div>
               <span>Tablet</span>
               <strong>{selected.tablet}</strong>
             </div>
             <div>
+              <span>Bateria</span>
+              <strong>{selected.battery}</strong>
+            </div>
+            <div>
               <span>Último heartbeat</span>
-              <strong>Agora</strong>
+              <strong>{selected.lastSeen}</strong>
             </div>
             <div>
               <span>Motorista</span>
-              <strong>{selected.campaign}</strong>
-            </div>
-          </div>
-        ) : selected?.kind === 'geo' ? (
-          <div className="detail-grid">
-            <div>
-              <span>Cliente</span>
-              <strong>{selected.client}</strong>
-            </div>
-            <div>
-              <span>Campanha</span>
-              <strong>Oferta por proximidade</strong>
-            </div>
-            <div>
-              <span>Raio</span>
-              <strong>{selected.radius}</strong>
-            </div>
-            <div>
-              <span>Prioridade</span>
-              <StatusBadge value={selected.priority} />
-            </div>
-            <div>
-              <span>Horário</span>
-              <strong>11:00 — 23:00</strong>
-            </div>
-            <div>
-              <span>Status</span>
-              <StatusBadge value="Ativa" />
+              <strong>{selected.driver}</strong>
             </div>
           </div>
         ) : null}

@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { canManageUsers } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import { messageUrl, optionalText } from '@/lib/forms';
+import { friendlyDatabaseError, messageUrl, optionalText } from '@/lib/forms';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -103,20 +103,49 @@ export async function updateManagedUser(id: string, formData: FormData) {
       messageUrl('/usuarios', 'error', 'Informe o ID do motorista vinculado.'),
     );
   }
+  const active = formData.get('active') === 'on';
 
   const supabase = await createClient();
+  const { data: target } = await supabase
+    .from('profiles')
+    .select('role, active')
+    .eq('id', id)
+    .single();
+  if (target?.role === 'super_admin' && (role !== 'super_admin' || !active)) {
+    const { count } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'super_admin')
+      .eq('active', true)
+      .neq('id', id);
+    if (!count) {
+      redirect(
+        messageUrl(
+          '/usuarios',
+          'error',
+          'Deve existir pelo menos um superadministrador ativo. Promova outra pessoa antes de alterar este perfil.',
+        ),
+      );
+    }
+  }
+
   const { error } = await supabase
     .from('profiles')
     .update({
       role,
-      active: formData.get('active') === 'on',
+      active,
       advertiser_id: role === 'advertiser' ? advertiserId : null,
       driver_id: role === 'driver' ? driverId : null,
     })
     .eq('id', id)
     .select('id')
     .single();
-  if (error) redirect(messageUrl('/usuarios', 'error', error.message));
+  if (error) {
+    const message = error.message.includes('super_admin')
+      ? 'Deve existir pelo menos um superadministrador ativo. Promova outra pessoa antes de alterar este perfil.'
+      : friendlyDatabaseError(error);
+    redirect(messageUrl('/usuarios', 'error', message));
+  }
   revalidatePath('/usuarios');
   redirect(messageUrl('/usuarios', 'success', 'Usuário atualizado.'));
 }

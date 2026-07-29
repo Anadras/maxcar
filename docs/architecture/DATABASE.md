@@ -119,6 +119,11 @@ conta. A constraint de vínculo continua obrigatória para `advertiser` e
   `security_invoker` para as listagens do painel sem contornar RLS.
 - `simulate_geofence_eligibility`: RPC `SECURITY INVOKER` que valida a posição,
   calcula distância em PostGIS e aplica agenda básica.
+- `driver_admin_view`, `vehicle_admin_view` e `device_monitoring_view`: views
+  `security_invoker` que expõem vínculos e o heartbeat mais recente sem
+  contornar as políticas das tabelas.
+- `simulate_device_heartbeat`: RPC `SECURITY INVOKER`, restrita a
+  `super_admin`, usada apenas pela ferramenta local de validação.
 
 ## Constraints e idempotência
 
@@ -131,6 +136,9 @@ conta. A constraint de vínculo continua obrigatória para `advertiser` e
 - Geofences só vinculam campanhas GEO e estabelecimentos do mesmo anunciante.
 - Paths de criativos precisam corresponder ao anunciante e à campanha.
 - Posição de playlist é única dentro da playlist.
+- Um motorista só pode ocupar um vínculo atual de veículo e um veículo só pode
+  receber um vínculo atual de dispositivo.
+- Placas brasileiras e códigos operacionais são normalizados no banco.
 - `(device_id, client_event_id)` é único em `impressions`.
 
 O tablet deve persistir um UUID estável por evento. Reenvios após perda de conexão produzem conflito de unicidade, não nova impressão.

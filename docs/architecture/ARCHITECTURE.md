@@ -52,6 +52,23 @@ uploads e player Android continuam fora do escopo atual.
 
 Veja [CAMPAIGNS.md](CAMPAIGNS.md) e [STORAGE.md](STORAGE.md).
 
+## Implementado — MAX-005
+
+- CRUD real de motoristas, veículos e dispositivos, isolado em `lib/data` e
+  Server Actions validadas.
+- Vínculo 1:1 entre motorista e veículo e entre veículo e dispositivo,
+  garantido por índices únicos parciais.
+- Normalização de códigos e placas brasileiras no app e no PostgreSQL.
+- Heartbeats persistidos com bateria, rede, GPS, armazenamento, versão e
+  localização PostGIS.
+- Estado de conexão derivado por regra pura: online até 5 minutos, atenção até
+  15 minutos e offline após esse limite ou sem heartbeat.
+- Dashboard e painel de dispositivos alimentados somente por dados reais.
+- Simulador local de heartbeat com autorização dupla de `super_admin`.
+- Trigger de criação de `profiles` reforçado e coberto por pgTAP.
+
+Veja [FLEET.md](FLEET.md).
+
 ## Planejado — web
 
 Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso
@@ -85,7 +102,10 @@ Manifestos deverão usar versão e checksum. Uma campanha só fica disponível d
 
 ## Telemetria e observabilidade
 
-Heartbeats futuros incluirão versão do app, bateria, GPS, armazenamento, versão do manifesto e momento da última sincronização. Logs locais terão retenção limitada e serão enviados quando possível. Alertas operacionais usarão janelas de ausência de heartbeat, não uma única falha.
+Heartbeats já incluem versão do app, bateria, rede, GPS, armazenamento e
+localização. O MAX-006 deverá autenticar o dispositivo e sincronizar esses
+sinais a partir do Android; logs locais, manifesto e alertas automatizados
+continuam planejados.
 
 ## Segurança
 

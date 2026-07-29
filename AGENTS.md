@@ -30,6 +30,17 @@
 - Offline events require stable client identifiers and idempotent ingestion.
 - Active campaigns must retain their required creative and GEO structure.
 
+## Fleet
+
+- Driver↔vehicle and vehicle↔device links are current 1:1 relationships
+  enforced by database constraints, never by application-only checks.
+- Device connection status (online/attention/offline) is derived from the
+  latest heartbeat by a single business-rules function; never hardcode the
+  time thresholds in components or queries.
+- No anonymous heartbeat ingestion endpoint. Device identity and
+  authentication ship in a later milestone; until then, heartbeats come only
+  from the `super_admin`-only, non-production simulator.
+
 ## Security
 
 - Never expose `service_role` in frontend applications.

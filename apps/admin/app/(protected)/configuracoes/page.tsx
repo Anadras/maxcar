@@ -1,50 +1,41 @@
-'use client';
-
-import { useState } from 'react';
-import {
-  Button,
-  PageHeader,
-  SectionCard,
-  StatusBadge,
-  Toast,
-} from '@/components/ui';
+import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 
 export default function SettingsPage() {
-  const [toast, setToast] = useState<string | null>(null);
+  const environment = process.env.NEXT_PUBLIC_APP_ENV ?? 'development';
   return (
     <div className="page settings-page">
       <PageHeader
         eyebrow="ADMINISTRAÇÃO"
         title="Configurações"
-        description="Parâmetros gerais do ambiente piloto MAXCAR."
+        description="Informações somente leitura sobre o ambiente atual do MAXCAR."
       />
       <div className="settings-grid">
         <SectionCard
           title="Ambiente"
-          subtitle="Informações da implantação atual"
+          subtitle="Implantação atual, sem edição pelo painel"
         >
           <div className="settings-list">
             <div>
               <span>Ambiente</span>
-              <StatusBadge value="Demonstração" />
+              <StatusBadge value={environment} />
             </div>
             <div>
               <span>Cidade piloto</span>
               <strong>Campo Grande, MS</strong>
             </div>
             <div>
-              <span>Fuso horário</span>
+              <span>Fuso horário operacional</span>
               <strong>America/Campo_Grande</strong>
             </div>
             <div>
-              <span>Versão do painel</span>
-              <strong>MAX-001 · 0.1.0</strong>
+              <span>Marco atual</span>
+              <strong>MAX-005.5</strong>
             </div>
           </div>
         </SectionCard>
         <SectionCard
           title="Operação do player"
-          subtitle="Padrões preparados para o aplicativo Android"
+          subtitle="Padrões definidos para o futuro aplicativo Android"
         >
           <div className="settings-list">
             <div>
@@ -66,42 +57,19 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
         <SectionCard
-          title="Recursos futuros"
-          subtitle="Planejados para os próximos marcos"
+          title="Ainda por vir"
+          subtitle="Planejado para os próximos marcos (MAX-006 em diante)"
         >
           <div className="future-tags">
-            <span>Supabase Auth</span>
-            <span>PostgreSQL</span>
-            <span>PostGIS</span>
-            <span>RLS</span>
-            <span>Storage</span>
-            <span>Android Kotlin</span>
-            <span>Telemetria</span>
-            <span>Analytics real</span>
-          </div>
-        </SectionCard>
-        <SectionCard
-          title="Identidade da rede"
-          subtitle="Configurações gerais de apresentação"
-        >
-          <div className="settings-form">
-            <label>
-              Nome da operação
-              <input defaultValue="MAXCAR Campo Grande" />
-            </label>
-            <label>
-              Contato operacional
-              <input defaultValue="operacao@maxcar.local" />
-            </label>
-            <Button
-              onClick={() => setToast('Configurações demonstrativas salvas.')}
-            >
-              Salvar alterações
-            </Button>
+            <span>Aplicativo Android</span>
+            <span>Identidade do dispositivo</span>
+            <span>Sincronização offline real</span>
+            <span>GPS embarcado</span>
+            <span>Kiosk mode</span>
+            <span>Analytics de reprodução real</span>
           </div>
         </SectionCard>
       </div>
-      <Toast message={toast} onClose={() => setToast(null)} />
     </div>
   );
 }

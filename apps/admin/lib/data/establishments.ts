@@ -16,6 +16,17 @@ export async function listEstablishments(search = '') {
   return data;
 }
 
+export async function listEstablishmentsByAdvertiser(advertiserId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('establishment_admin_view')
+    .select('*')
+    .eq('advertiser_id', advertiserId)
+    .order('name');
+  if (error) throw error;
+  return data;
+}
+
 export async function getEstablishment(id: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

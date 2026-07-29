@@ -1,4 +1,17 @@
+import type { CampaignReadinessIssue } from '@maxcar/business-rules';
 import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
+
+export const CAMPAIGN_READINESS_ISSUE_LABELS: Record<
+  CampaignReadinessIssue,
+  string
+> = {
+  'missing-period': 'Defina início e fim.',
+  'invalid-period': 'Corrija o período.',
+  'invalid-daily-window': 'Corrija a janela diária.',
+  'invalid-active-days': 'Selecione dias válidos.',
+  'missing-creative': 'Adicione um criativo ativo.',
+  'missing-geofence': 'Adicione uma geofence ativa.',
+};
 
 export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   draft: 'Rascunho',

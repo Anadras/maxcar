@@ -10,7 +10,7 @@ import { listAdvertisers } from '@/lib/data/advertisers';
 export default async function NewEstablishmentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; advertiser?: string }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canWriteCommercialData(auth.profile.role))
@@ -30,6 +30,7 @@ export default async function NewEstablishmentPage({
       <SectionCard>
         <EstablishmentForm
           advertisers={advertisers}
+          preselectedAdvertiser={params.advertiser}
           action={createEstablishment}
         />
       </SectionCard>

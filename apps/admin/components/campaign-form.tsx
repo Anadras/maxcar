@@ -12,11 +12,13 @@ export function CampaignForm({
   advertisers,
   action,
   preselectedAdvertiser,
+  preselectedType,
 }: {
   campaign?: Campaign;
   advertisers: Advertiser[];
   action: (formData: FormData) => void | Promise<void>;
   preselectedAdvertiser?: string;
+  preselectedType?: 'regular' | 'geo';
 }) {
   const activeDays = campaign?.active_days ?? [0, 1, 2, 3, 4, 5, 6];
   return (
@@ -62,7 +64,9 @@ export function CampaignForm({
             Tipo
             <select
               name="campaignType"
-              defaultValue={campaign?.campaign_type ?? 'regular'}
+              defaultValue={
+                campaign?.campaign_type ?? preselectedType ?? 'regular'
+              }
             >
               <option value="regular">REGULAR — grade normal</option>
               <option value="geo">GEO — ativação por proximidade</option>

@@ -240,6 +240,62 @@ body {
   margin: 7px 0 0;
   color: var(--text);
 }
+.link-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.link-list li a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-bright);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.link-list li a:hover {
+  border-color: var(--blue-light);
+}
+.link-list li a strong {
+  flex: 1;
+  color: var(--text);
+}
+.link-list li a > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.attention-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.attention-list li a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-bright);
+  background: rgba(255, 152, 0, 0.08);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+}
+.attention-list li a:hover {
+  border-color: var(--blue-light);
+}
+.attention-list li a strong {
+  color: var(--blue-light);
+}
 .map-preview {
   min-height: 115px;
   display: flex;
@@ -270,6 +326,32 @@ body {
 }
 .detail-map {
   margin: 20px;
+}
+.location-map {
+  height: 260px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-bright);
+}
+.location-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+  font: inherit;
+}
+.location-map-pin span {
+  display: block;
+  font-size: 22px;
+  line-height: 1;
+  color: #2563eb;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.9);
+}
+.location-map-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
 }
 .inline-form {
   display: grid;
@@ -1123,6 +1205,22 @@ main {
   max-width: 1500px;
   margin: 0 auto;
 }
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 14px;
+}
+.breadcrumbs a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.breadcrumbs a:hover {
+  color: var(--blue-light);
+  text-decoration: underline;
+}
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -1162,6 +1260,16 @@ main {
 .date-pill span {
   margin-left: 12px;
 }
+.metric-group {
+  margin-bottom: 18px;
+}
+.metric-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(130px, 1fr));
@@ -1180,6 +1288,15 @@ main {
   border-radius: 11px;
   position: relative;
   overflow: hidden;
+}
+.metric-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.metric-link:hover {
+  border-color: var(--blue-light);
 }
 .metric-card::after {
   content: '';

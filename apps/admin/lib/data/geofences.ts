@@ -33,6 +33,17 @@ export async function listCampaignGeofences(campaignId: string) {
   return data;
 }
 
+export async function listGeofencesForEstablishment(establishmentId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('campaign_geofence_admin_view')
+    .select('*')
+    .eq('establishment_id', establishmentId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 export async function listEstablishmentsForAdvertiser(advertiserId: string) {
   const supabase = await createClient();
   const { data, error } = await supabase

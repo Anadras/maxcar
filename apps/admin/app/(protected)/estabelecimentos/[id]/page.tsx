@@ -1,10 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Breadcrumbs } from '@/components/breadcrumbs';
+import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
+import { LocationMap } from '@/components/location-map-loader';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { getEstablishment } from '@/lib/data/establishments';
+import { listGeofencesForEstablishment } from '@/lib/data/geofences';
 
 export default async function EstablishmentDetailPage({
   params,
@@ -14,28 +18,50 @@ export default async function EstablishmentDetailPage({
   searchParams: Promise<{ success?: string; error?: string }>;
 }) {
   const { id } = await params;
-  const [query, item, auth] = await Promise.all([
+  const [query, item, geofences, auth] = await Promise.all([
     searchParams,
     getEstablishment(id),
+    listGeofencesForEstablishment(id),
     getAuthContext(),
   ]);
   if (!item) notFound();
   const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
+
   return (
     <div className="page record-page">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Estabelecimentos', href: '/estabelecimentos' },
+          { label: item.name ?? 'Estabelecimento' },
+        ]}
+      />
       <PageHeader
-        eyebrow="ESTABELECIMENTO"
+        eyebrow="ESTABELECIMENTO · HUB GEO"
         title={item.name ?? 'Estabelecimento'}
         description={`${item.city}/${item.state}`}
         action={
           canWrite ? (
-            <Link
-              className="button button-primary"
-              href={`/estabelecimentos/${id}/editar`}
-            >
-              Editar
-            </Link>
+            <div className="header-actions">
+              <Link
+                className="button button-secondary"
+                href={`/campanhas/nova?advertiser=${item.advertiser_id}&type=geo`}
+              >
+                ＋ Nova campanha GEO
+              </Link>
+              <Link
+                className="button button-secondary"
+                href={`/geofences/nova?establishment=${id}`}
+              >
+                ＋ Criar geofence
+              </Link>
+              <Link
+                className="button button-primary"
+                href={`/estabelecimentos/${id}/editar`}
+              >
+                Editar
+              </Link>
+            </div>
           ) : undefined
         }
       />
@@ -43,7 +69,15 @@ export default async function EstablishmentDetailPage({
         <dl className="detail-grid">
           <div>
             <dt>Cliente</dt>
-            <dd>{item.advertiser_name ?? 'Acesso restrito'}</dd>
+            <dd>
+              {item.advertiser_id ? (
+                <Link href={`/clientes/${item.advertiser_id}`}>
+                  {item.advertiser_name ?? 'Ver cliente'}
+                </Link>
+              ) : (
+                (item.advertiser_name ?? 'Acesso restrito')
+              )}
+            </dd>
           </div>
           <div>
             <dt>Status</dt>
@@ -72,15 +106,55 @@ export default async function EstablishmentDetailPage({
             <dd>{item.longitude}</dd>
           </div>
         </dl>
-        <div className="map-preview detail-map">
-          <span>◎</span>
-          <div>
-            <strong>Localização geoespacial</strong>
-            <p>
-              {item.latitude}, {item.longitude} · WGS84
-            </p>
-          </div>
-        </div>
+        {item.latitude != null && item.longitude != null && (
+          <LocationMap
+            latitude={item.latitude}
+            longitude={item.longitude}
+            label={item.name ?? 'Estabelecimento'}
+          />
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Campanhas GEO e geofences"
+        subtitle={`${geofences.length} zona(s) de ativação neste estabelecimento`}
+        action={
+          canWrite && geofences.length > 0 ? (
+            <Link
+              className="button button-ghost"
+              href={`/geofences/nova?establishment=${id}`}
+            >
+              ＋ Nova geofence
+            </Link>
+          ) : undefined
+        }
+      >
+        {geofences.length === 0 ? (
+          <EmptyState
+            title="Nenhuma geofence ainda"
+            description="Crie uma campanha GEO para este cliente e associe uma geofence a este estabelecimento para ativar por proximidade."
+            action={
+              canWrite
+                ? {
+                    href: `/geofences/nova?establishment=${id}`,
+                    label: 'Criar geofence',
+                  }
+                : undefined
+            }
+          />
+        ) : (
+          <ul className="link-list">
+            {geofences.map((geo) => (
+              <li key={geo.id}>
+                <Link href={`/geofences/${geo.id}`}>
+                  <strong>{geo.campaign_name}</strong>
+                  <span>{geo.radius_meters} m de raio</span>
+                  <StatusBadge value={geo.active ? 'Ativa' : 'Inativa'} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </SectionCard>
     </div>
   );

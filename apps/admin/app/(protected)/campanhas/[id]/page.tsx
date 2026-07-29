@@ -5,9 +5,11 @@ import {
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { setCreativeActive, uploadCreative } from './creative-actions';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { CreativeGallery } from '@/components/creative-gallery';
 import { CreativeUploadForm } from '@/components/creative-upload-form';
 import { FlashMessage } from '@/components/flash-message';
+import { ReadinessBanner } from '@/components/readiness-banner';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
@@ -21,15 +23,6 @@ import {
 import { getCampaign } from '@/lib/data/campaigns';
 import { listCampaignCreatives } from '@/lib/data/creatives';
 import { listCampaignGeofences } from '@/lib/data/geofences';
-
-const ISSUE_LABELS = {
-  'missing-period': 'Defina início e fim.',
-  'invalid-period': 'Corrija o período.',
-  'invalid-daily-window': 'Corrija a janela diária.',
-  'invalid-active-days': 'Selecione dias válidos.',
-  'missing-creative': 'Adicione um criativo ativo.',
-  'missing-geofence': 'Adicione uma geofence ativa.',
-} as const;
 
 export default async function CampaignDetailPage({
   params,
@@ -64,6 +57,20 @@ export default async function CampaignDetailPage({
   return (
     <div className="page campaign-detail">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Campanhas', href: '/campanhas' },
+          ...(campaign.advertiser_id && campaign.advertiser_name
+            ? [
+                {
+                  label: campaign.advertiser_name,
+                  href: `/clientes/${campaign.advertiser_id}`,
+                },
+              ]
+            : []),
+          { label: campaign.name ?? 'Campanha' },
+        ]}
+      />
       <PageHeader
         eyebrow="CAMPANHA"
         title={campaign.name ?? 'Campanha'}
@@ -79,21 +86,7 @@ export default async function CampaignDetailPage({
           ) : undefined
         }
       />
-      <div className={`readiness-banner ${ready ? 'ready' : 'not-ready'}`}>
-        <span>{ready ? '✓' : '!'}</span>
-        <div>
-          <strong>
-            {ready
-              ? 'Campanha estruturalmente pronta'
-              : 'Campanha ainda incompleta'}
-          </strong>
-          <p>
-            {ready
-              ? 'Pode ser ativada com segurança.'
-              : readiness.map((issue) => ISSUE_LABELS[issue]).join(' ')}
-          </p>
-        </div>
-      </div>
+      <ReadinessBanner ready={ready} issues={readiness} />
       <SectionCard title="Resumo">
         <dl className="detail-grid campaign-summary">
           <div>

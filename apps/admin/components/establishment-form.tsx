@@ -8,10 +8,12 @@ type Advertiser = Database['public']['Tables']['advertisers']['Row'];
 export function EstablishmentForm({
   establishment,
   advertisers,
+  preselectedAdvertiser,
   action,
 }: {
   establishment?: Establishment;
   advertisers: Advertiser[];
+  preselectedAdvertiser?: string;
   action: (formData: FormData) => void | Promise<void>;
 }) {
   return (
@@ -20,7 +22,9 @@ export function EstablishmentForm({
         Cliente
         <select
           name="advertiserId"
-          defaultValue={establishment?.advertiser_id ?? ''}
+          defaultValue={
+            establishment?.advertiser_id ?? preselectedAdvertiser ?? ''
+          }
           required
         >
           <option value="" disabled>

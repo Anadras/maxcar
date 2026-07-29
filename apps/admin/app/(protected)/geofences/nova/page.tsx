@@ -11,7 +11,11 @@ import { listEstablishments } from '@/lib/data/establishments';
 export default async function NewGeofencePage({
   searchParams,
 }: {
-  searchParams: Promise<{ campaign?: string; error?: string }>;
+  searchParams: Promise<{
+    campaign?: string;
+    establishment?: string;
+    error?: string;
+  }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canWriteCommercialData(auth.profile.role))
@@ -34,6 +38,7 @@ export default async function NewGeofencePage({
           campaigns={campaigns}
           establishments={establishments}
           preselectedCampaign={params.campaign}
+          preselectedEstablishment={params.establishment}
           action={createGeofence}
         />
       </SectionCard>

@@ -16,12 +16,14 @@ export function GeofenceForm({
   campaigns,
   establishments,
   preselectedCampaign,
+  preselectedEstablishment,
   action,
 }: {
   geofence?: Geofence;
   campaigns: CampaignOption[];
   establishments: Establishment[];
   preselectedCampaign?: string;
+  preselectedEstablishment?: string;
   action: (formData: FormData) => void | Promise<void>;
 }) {
   return (
@@ -53,7 +55,9 @@ export function GeofenceForm({
         Estabelecimento
         <select
           name="establishmentId"
-          defaultValue={geofence?.establishment_id ?? ''}
+          defaultValue={
+            geofence?.establishment_id ?? preselectedEstablishment ?? ''
+          }
           required
         >
           <option value="" disabled>

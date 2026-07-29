@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { simulateGeofence } from '../actions';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 import { FlashMessage } from '@/components/flash-message';
 import { GeofenceSimulator } from '@/components/geofence-simulator';
+import { LocationMap } from '@/components/location-map-loader';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
@@ -24,10 +26,15 @@ export default async function GeofenceDetailPage({
   if (!geofence || geofence.latitude === null || geofence.longitude === null)
     notFound();
   const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
-  const radiusSize = Math.min(330, 130 + (geofence.radius_meters ?? 0) / 15);
   return (
     <div className="page">
       <FlashMessage success={query.success} error={query.error} />
+      <Breadcrumbs
+        items={[
+          { label: 'Geofences', href: '/geofences' },
+          { label: geofence.establishment_name ?? 'Zona GEO' },
+        ]}
+      />
       <PageHeader
         eyebrow="GEOFENCE"
         title={geofence.establishment_name ?? 'Zona GEO'}
@@ -46,24 +53,15 @@ export default async function GeofenceDetailPage({
       <div className="geofence-detail-layout">
         <SectionCard
           title="Visualização da zona"
-          subtitle="Mapa conceitual baseado nas coordenadas PostGIS."
+          subtitle="Mapa real com o raio configurado, a partir das coordenadas PostGIS."
           className="geo-map-card"
         >
-          <div className="real-geo-map">
-            <div className="map-grid-lines" />
-            <div
-              className="real-radius"
-              style={{ width: radiusSize, height: radiusSize }}
-            >
-              <span>{geofence.radius_meters?.toLocaleString('pt-BR')} m</span>
-            </div>
-            <div className="real-store-pin">
-              ⌂<strong>{geofence.establishment_name}</strong>
-            </div>
-            <div className="coordinate-chip">
-              {geofence.latitude.toFixed(5)}, {geofence.longitude.toFixed(5)}
-            </div>
-          </div>
+          <LocationMap
+            latitude={geofence.latitude}
+            longitude={geofence.longitude}
+            radiusMeters={geofence.radius_meters ?? undefined}
+            label={geofence.establishment_name ?? 'Zona GEO'}
+          />
         </SectionCard>
         <SectionCard title="Regras">
           <dl className="detail-grid single-detail">

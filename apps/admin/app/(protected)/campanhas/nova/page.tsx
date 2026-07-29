@@ -10,7 +10,11 @@ import { listAdvertisers } from '@/lib/data/advertisers';
 export default async function NewCampaignPage({
   searchParams,
 }: {
-  searchParams: Promise<{ advertiser?: string; error?: string }>;
+  searchParams: Promise<{
+    advertiser?: string;
+    type?: 'regular' | 'geo';
+    error?: string;
+  }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canWriteCommercialData(auth.profile.role))
@@ -31,6 +35,7 @@ export default async function NewCampaignPage({
         advertisers={advertisers.filter((item) => item.status === 'active')}
         action={createCampaign}
         preselectedAdvertiser={params.advertiser}
+        preselectedType={params.type}
       />
     </div>
   );

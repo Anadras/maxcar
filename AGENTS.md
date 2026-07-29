@@ -30,6 +30,16 @@
 - Offline events require stable client identifiers and idempotent ingestion.
 - Active campaigns must retain their required creative and GEO structure.
 
+## UX
+
+- Never render fabricated live metrics (fake uptime %, fake "last updated"
+  timestamps, fake notification counts). If a number isn't backed by a real
+  query, don't show it as if it were.
+- A screen that only shows a toast without persisting anything is worse than
+  no screen — mark it read-only or remove the fake action instead.
+- At least one active `super_admin` profile must always exist; both the app
+  layer and a database trigger enforce this.
+
 ## Fleet
 
 - Driver↔vehicle and vehicle↔device links are current 1:1 relationships

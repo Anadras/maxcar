@@ -5,8 +5,12 @@ MAXCAR é uma plataforma de mídia digital para tablets Android instalados em ve
 ## Estado atual
 
 O MAX-005 conecta motoristas, veículos, dispositivos e heartbeats ao Supabase.
-O painel possui CRUDs reais, vínculos 1:1 protegidos no PostgreSQL, saúde
-operacional derivada do último sinal e dashboard de frota real. Player Android,
+O MAX-005.5 conecta essas áreas entre si: cliente e estabelecimento viraram
+hubs operacionais, a frota é navegável em qualquer direção
+(motorista ↔ veículo ↔ dispositivo), a prontidão de campanha é visível antes
+da ativação e o monitoramento mostra o que precisa de atenção agora. O painel
+possui CRUDs reais, vínculos 1:1 protegidos no PostgreSQL, saúde operacional
+derivada do último sinal e dashboard de frota real. Player Android,
 sincronização embarcada e relatórios avançados permanecem fora deste marco.
 
 ## Stack
@@ -66,6 +70,7 @@ npm run build        # build de produção
 npm run lint         # análise estática
 npm run typecheck    # validação TypeScript
 npm run test         # testes da aplicação e das regras de negócio
+npm run test:e2e     # fluxo operacional ponta a ponta (Playwright, Supabase local)
 npm run format:check # validação de formatação
 npm run db:start     # inicia o Supabase local
 npm run db:reset     # recria banco, aplica migrations e seed
@@ -116,6 +121,7 @@ Consulte [autenticação](docs/AUTH.md), [produto](docs/product/PRODUCT.md),
 [campanhas](docs/architecture/CAMPAIGNS.md),
 [frota e monitoramento](docs/architecture/FLEET.md),
 [monitoramento de dispositivos](docs/architecture/DEVICE_MONITORING.md),
+[fluxo operacional e UX](docs/architecture/OPERATIONS_UX.md),
 [Storage](docs/architecture/STORAGE.md),
 [banco de dados](docs/architecture/DATABASE.md),
 [deploy de staging](docs/deployment/STAGING.md) e os ADRs em

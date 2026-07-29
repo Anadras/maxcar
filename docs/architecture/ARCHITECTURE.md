@@ -69,6 +69,29 @@ Veja [CAMPAIGNS.md](CAMPAIGNS.md) e [STORAGE.md](STORAGE.md).
 
 Veja [FLEET.md](FLEET.md).
 
+## Implementado — MAX-005.5
+
+- Cliente e estabelecimento viraram hubs operacionais: mostram campanhas,
+  estabelecimentos e geofences relacionados, com ações rápidas que
+  pré-selecionam o vínculo (cliente, tipo de campanha, estabelecimento,
+  motorista, veículo).
+- Mapa real (Leaflet/OpenStreetMap) no detalhe de estabelecimento e de
+  geofence, com marcador próprio para evitar o conflito do ícone padrão do
+  Leaflet com as rotas dinâmicas do Next.
+- Readiness de campanha (`@maxcar/business-rules`) reutilizada também no
+  formulário de edição, não só no detalhe.
+- Trigger novo (`profiles_protect_last_super_admin`) impede remover o último
+  `super_admin` ativo, com checagem equivalente na Server Action.
+- Dashboard reagrupado (Comercial/Frota/Saúde) com métricas clicáveis;
+  telemetria fabricada removida do mapa operacional e da topbar.
+- Configurações e Relatórios pararam de simular funcionalidade que não
+  existe (sem "salvar" fictício, sem números de reprodução inventados).
+- Teste E2E (Playwright) cobre login → cliente → estabelecimento → campanha
+  GEO → criativo → geofence → ativação → motorista → veículo → dispositivo,
+  contra Supabase local, com limpeza automática dos dados criados.
+
+Veja [OPERATIONS_UX.md](OPERATIONS_UX.md).
+
 ## Planejado — web
 
 Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso

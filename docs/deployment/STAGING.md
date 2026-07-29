@@ -67,6 +67,21 @@ usa `apps/admin/.env.local` diretamente (fora do Git).
   `http://127.0.0.1:3000/**` preservados para desenvolvimento local.
 - RLS permanece ativo em todas as tabelas; nenhuma policy foi
   desabilitada para o deploy.
+- Migration `20260729090000_operational_integrity_and_ux.sql` aplicada
+  (proteção contra remover o último `super_admin` ativo).
+- Dados: um conjunto `DEMO -` pequeno (1 cliente, 2 estabelecimentos, 1
+  campanha REGULAR e 1 GEO ativas, 1 geofence, 2 motoristas, 2 veículos, 2
+  tablets) — ver [OPERATIONS_UX.md](../architecture/OPERATIONS_UX.md#dados-de-demonstração).
+  Nenhum dado real de cliente existia antes.
+
+## Testes E2E (Playwright)
+
+`npm run test:e2e` roda o fluxo operacional completo (login → cliente →
+estabelecimento → campanha GEO → criativo → geofence → ativação → motorista
+→ veículo → dispositivo) contra o **Supabase local**, nunca contra
+Cloud/staging — o teste cria e apaga usuários e registros reais, o que seria
+arriscado rodar contra o mesmo projeto que serve o staging público. Exige
+`supabase start` e as migrations aplicadas localmente.
 
 ## Como fazer redeploy
 

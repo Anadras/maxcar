@@ -6,3 +6,4 @@ next-env.d.ts
 packages/shared/src/database.types.ts
 supabase/.temp/
 supabase/**/*.sql
+.vercel

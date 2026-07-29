@@ -117,4 +117,6 @@ Consulte [autenticação](docs/AUTH.md), [produto](docs/product/PRODUCT.md),
 [frota e monitoramento](docs/architecture/FLEET.md),
 [monitoramento de dispositivos](docs/architecture/DEVICE_MONITORING.md),
 [Storage](docs/architecture/STORAGE.md),
-[banco de dados](docs/architecture/DATABASE.md) e os ADRs em `docs/decisions`.
+[banco de dados](docs/architecture/DATABASE.md),
+[deploy de staging](docs/deployment/STAGING.md) e os ADRs em
+`docs/decisions`.

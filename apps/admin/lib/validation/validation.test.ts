@@ -4,6 +4,9 @@ import { campaignSchema } from './campaigns';
 import { inspectCreativeFile } from './creatives';
 import { establishmentSchema } from './establishments';
 import { geofenceSchema } from './geofences';
+import { deviceSchema } from './devices';
+import { driverSchema } from './drivers';
+import { normalizeLicensePlate, vehicleSchema } from './vehicles';
 
 describe('advertiser validation', () => {
   it('rejects malformed contacts', () => {
@@ -116,5 +119,52 @@ describe('geofence validation', () => {
     expect(geofenceSchema.safeParse({ ...base, radiusMeters: 0 }).success).toBe(
       false,
     );
+  });
+});
+
+describe('fleet validation', () => {
+  it('accepts a complete driver and rejects malformed e-mail', () => {
+    expect(
+      driverSchema.safeParse({
+        fullName: 'Maria Operadora',
+        documentNumber: '',
+        phone: '',
+        email: 'maria@example.test',
+        status: 'active',
+      }).success,
+    ).toBe(true);
+    expect(
+      driverSchema.safeParse({
+        fullName: 'Maria Operadora',
+        email: 'inválido',
+        status: 'active',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('normalizes Mercosul and legacy Brazilian plates', () => {
+    expect(normalizeLicensePlate('abc-1d23')).toBe('ABC1D23');
+    expect(
+      vehicleSchema.parse({
+        internalCode: 'car-010',
+        licensePlate: 'abc-1234',
+        make: '',
+        model: '',
+        year: '',
+        driverId: '',
+        status: 'active',
+      }),
+    ).toMatchObject({ internalCode: 'CAR-010', licensePlate: 'ABC1234' });
+  });
+
+  it('requires an operational device code', () => {
+    expect(
+      deviceSchema.safeParse({
+        deviceCode: '',
+        vehicleId: '',
+        status: 'provisioning',
+        appVersion: '',
+      }).success,
+    ).toBe(false);
   });
 });

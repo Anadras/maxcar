@@ -1,22 +1,119 @@
-import { EntityPage } from '@/components/entity-page';
-import { drivers } from '@/lib/mock-data';
-export default function Page() {
+import Link from 'next/link';
+import { EmptyState } from '@/components/empty-state';
+import { FlashMessage } from '@/components/flash-message';
+import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { canManageFleet } from '@/lib/auth/access';
+import { getAuthContext } from '@/lib/auth/context';
+import { listDrivers } from '@/lib/data/drivers';
+
+const LABEL = {
+  pending: 'Pendente',
+  active: 'Ativo',
+  inactive: 'Inativo',
+  suspended: 'Suspenso',
+} as const;
+
+export default async function DriversPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    success?: string;
+    error?: string;
+  }>;
+}) {
+  const params = await searchParams;
+  const [drivers, auth] = await Promise.all([
+    listDrivers(params.q, params.status),
+    getAuthContext(),
+  ]);
+  const canWrite = !!auth && canManageFleet(auth.profile.role);
   return (
-    <EntityPage
-      eyebrow="OPERAÇÃO EM CAMPO"
-      title="Motoristas"
-      description="Acompanhe sessões, disponibilidade e vínculo com a frota."
-      buttonLabel="Novo motorista"
-      columns={[
-        'Nome',
-        'Veículo',
-        'Status',
-        'Horas ativas',
-        'Disponibilidade',
-        'Último sinal',
-      ]}
-      rows={drivers}
-      filterOptions={['Todos', 'Disponível', 'Offline']}
-    />
+    <div className="page">
+      <FlashMessage success={params.success} error={params.error} />
+      <PageHeader
+        eyebrow="OPERAÇÃO DE FROTA"
+        title="Motoristas"
+        description="Pessoas, disponibilidade e vínculos operacionais reais."
+        action={
+          canWrite ? (
+            <Link className="button button-primary" href="/motoristas/novo">
+              ＋ Novo motorista
+            </Link>
+          ) : undefined
+        }
+      />
+      <SectionCard>
+        <form className="fleet-filters">
+          <label className="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input
+              name="q"
+              defaultValue={params.q}
+              placeholder="Nome, documento ou veículo…"
+            />
+          </label>
+          <select
+            name="status"
+            defaultValue={params.status ?? ''}
+            aria-label="Status"
+          >
+            <option value="">Todos os status</option>
+            <option value="active">Ativos</option>
+            <option value="pending">Pendentes</option>
+            <option value="inactive">Inativos</option>
+            <option value="suspended">Suspensos</option>
+          </select>
+          <button className="button button-secondary" type="submit">
+            Filtrar
+          </button>
+        </form>
+        {drivers.length === 0 ? (
+          <EmptyState
+            title="Nenhum motorista encontrado"
+            description="Ajuste os filtros ou cadastre o primeiro motorista."
+            action={
+              canWrite
+                ? { href: '/motoristas/novo', label: 'Criar motorista' }
+                : undefined
+            }
+          />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Motorista</th>
+                  <th>Documento</th>
+                  <th>Contato</th>
+                  <th>Veículo</th>
+                  <th>Status</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {drivers.map((driver) => (
+                  <tr key={driver.id}>
+                    <td>
+                      <strong>{driver.full_name}</strong>
+                    </td>
+                    <td>{driver.document_number ?? '—'}</td>
+                    <td>{driver.email ?? driver.phone ?? '—'}</td>
+                    <td>{driver.vehicle_code ?? 'Sem vínculo'}</td>
+                    <td>
+                      <StatusBadge value={LABEL[driver.status]} />
+                    </td>
+                    <td>
+                      <Link href={`/motoristas/${driver.id}`}>Abrir</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+    </div>
   );
 }

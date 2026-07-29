@@ -35,3 +35,7 @@ export function canManageUsers(role: AppRole) {
 export function canWriteCommercialData(role: AppRole) {
   return role === 'super_admin' || role === 'admin' || role === 'commercial';
 }
+
+export function canManageFleet(role: AppRole) {
+  return role === 'super_admin' || role === 'admin' || role === 'operations';
+}

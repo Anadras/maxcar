@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canManageFleet,
   canManageUsers,
   canWriteCommercialData,
   destinationForProfile,
@@ -36,5 +37,14 @@ describe('role capabilities', () => {
   it('allows commercial writes but not operations writes', () => {
     expect(canWriteCommercialData('commercial')).toBe(true);
     expect(canWriteCommercialData('operations')).toBe(false);
+  });
+
+  it('limits fleet management to operational staff', () => {
+    expect(canManageFleet('super_admin')).toBe(true);
+    expect(canManageFleet('admin')).toBe(true);
+    expect(canManageFleet('operations')).toBe(true);
+    expect(canManageFleet('commercial')).toBe(false);
+    expect(canManageFleet('advertiser')).toBe(false);
+    expect(canManageFleet('driver')).toBe(false);
   });
 });

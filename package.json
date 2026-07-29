@@ -12,6 +12,7 @@
     "lint": "npm run lint --workspace=@maxcar/admin",
     "typecheck": "npm run typecheck --workspace=@maxcar/admin",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e": "npm run test:e2e --workspace=@maxcar/admin",
     "auth:diagnose": "node scripts/debug-auth.mjs",
     "db:start": "supabase start",
     "db:stop": "supabase stop",

@@ -17,3 +17,6 @@ local.properties
 .gradle/
 build/
 .vercel
+playwright-report/
+test-results/
+blob-report/

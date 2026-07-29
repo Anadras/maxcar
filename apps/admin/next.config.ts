@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@maxcar/shared', '@maxcar/business-rules'],
+  allowedDevOrigins: ['127.0.0.1'],
   experimental: {
     serverActions: {
       bodySizeLimit: '55mb',

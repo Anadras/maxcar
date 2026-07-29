@@ -3,9 +3,13 @@ import type { QueueItem } from '@maxcar/shared';
 import {
   campaignReadinessIssues,
   enqueueGeoAfterCurrent,
+  getDeviceConnectionStatus,
+  getHeartbeatHealth,
   isCampaignScheduleValid,
   isCampaignStructurallyReady,
+  isDeviceOnline,
   resumeRegularSchedule,
+  vehicleCanReceiveDevice,
 } from './index';
 
 const regularQueue: QueueItem[] = [
@@ -46,6 +50,56 @@ describe('GEO priority queue', () => {
     expect(
       resumeRegularSchedule(enqueueGeoAfterCurrent(regularQueue, geo)),
     ).toEqual(regularQueue);
+  });
+});
+
+describe('fleet health', () => {
+  const now = new Date('2026-07-28T12:00:00.000Z');
+
+  it('derives online, attention and offline from the latest heartbeat', () => {
+    expect(
+      getDeviceConnectionStatus('2026-07-28T11:56:00Z', 'online', now),
+    ).toBe('online');
+    expect(
+      getDeviceConnectionStatus('2026-07-28T11:50:00Z', 'online', now),
+    ).toBe('attention');
+    expect(
+      getDeviceConnectionStatus('2026-07-28T11:40:00Z', 'online', now),
+    ).toBe('offline');
+    expect(getDeviceConnectionStatus(null, 'online', now)).toBe('offline');
+  });
+
+  it('keeps retired and maintenance devices outside connection alerts', () => {
+    expect(
+      getDeviceConnectionStatus('2026-07-28T12:00:00Z', 'retired', now),
+    ).toBe('inactive');
+    expect(isDeviceOnline('2026-07-28T12:00:00Z', 'maintenance', now)).toBe(
+      false,
+    );
+  });
+
+  it('reports heartbeat subsystems without hiding missing telemetry', () => {
+    expect(
+      getHeartbeatHealth({
+        recordedAt: '2026-07-28T11:58:00Z',
+        deviceStatus: 'online',
+        batteryLevel: 18,
+        networkConnected: false,
+        gpsAvailable: true,
+        now,
+      }),
+    ).toEqual({
+      connection: 'online',
+      battery: 'low',
+      network: 'disconnected',
+      gps: 'available',
+    });
+  });
+
+  it('allows only an empty vehicle or the same device link', () => {
+    expect(vehicleCanReceiveDevice(null, 'device-1')).toBe(true);
+    expect(vehicleCanReceiveDevice('device-1', 'device-1')).toBe(true);
+    expect(vehicleCanReceiveDevice('device-1', 'device-2')).toBe(false);
   });
 });
 

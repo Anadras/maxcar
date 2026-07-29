@@ -105,3 +105,83 @@ export function isCampaignScheduleValid(
 export function isCampaignStructurallyReady(campaign: CampaignReadinessInput) {
   return campaignReadinessIssues(campaign).length === 0;
 }
+
+export type DeviceConnectionStatus =
+  'online' | 'attention' | 'offline' | 'inactive';
+
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+const ATTENTION_WINDOW_MS = 15 * 60 * 1000;
+
+export function getDeviceConnectionStatus(
+  lastHeartbeatAt: string | null,
+  deviceStatus: string,
+  now: Date = new Date(),
+): DeviceConnectionStatus {
+  if (deviceStatus === 'retired' || deviceStatus === 'maintenance') {
+    return 'inactive';
+  }
+  if (!lastHeartbeatAt) return 'offline';
+  const age = now.getTime() - Date.parse(lastHeartbeatAt);
+  if (!Number.isFinite(age) || age > ATTENTION_WINDOW_MS) return 'offline';
+  if (age > ONLINE_WINDOW_MS) return 'attention';
+  return 'online';
+}
+
+export function isDeviceOnline(
+  lastHeartbeatAt: string | null,
+  deviceStatus: string,
+  now: Date = new Date(),
+) {
+  return (
+    getDeviceConnectionStatus(lastHeartbeatAt, deviceStatus, now) === 'online'
+  );
+}
+
+export interface HeartbeatHealth {
+  connection: DeviceConnectionStatus;
+  battery: 'healthy' | 'low' | 'unknown';
+  network: 'connected' | 'disconnected' | 'unknown';
+  gps: 'available' | 'unavailable' | 'unknown';
+}
+
+export function getHeartbeatHealth(input: {
+  recordedAt: string | null;
+  deviceStatus: string;
+  batteryLevel: number | null;
+  networkConnected: boolean | null;
+  gpsAvailable: boolean | null;
+  now?: Date;
+}): HeartbeatHealth {
+  return {
+    connection: getDeviceConnectionStatus(
+      input.recordedAt,
+      input.deviceStatus,
+      input.now,
+    ),
+    battery:
+      input.batteryLevel === null
+        ? 'unknown'
+        : input.batteryLevel < 20
+          ? 'low'
+          : 'healthy',
+    network:
+      input.networkConnected === null
+        ? 'unknown'
+        : input.networkConnected
+          ? 'connected'
+          : 'disconnected',
+    gps:
+      input.gpsAvailable === null
+        ? 'unknown'
+        : input.gpsAvailable
+          ? 'available'
+          : 'unavailable',
+  };
+}
+
+export function vehicleCanReceiveDevice(
+  currentDeviceId: string | null,
+  candidateDeviceId?: string,
+) {
+  return currentDeviceId === null || currentDeviceId === candidateDeviceId;
+}

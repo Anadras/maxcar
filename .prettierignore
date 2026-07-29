@@ -3,4 +3,6 @@ node_modules
 coverage
 package-lock.json
 next-env.d.ts
+packages/shared/src/database.types.ts
+supabase/.temp/
 supabase/**/*.sql

@@ -12,7 +12,8 @@ on conflict (id) do nothing;
 
 insert into public.drivers (id, full_name, document_number, phone, email, status) values
   ('20000000-0000-4000-8000-000000000001', 'Carlos Demo', 'DEV-DRIVER-0001', '+55 67 0000-0101', 'carlos@example.test', 'active'),
-  ('20000000-0000-4000-8000-000000000002', 'Ana Demo', 'DEV-DRIVER-0002', '+55 67 0000-0102', 'ana@example.test', 'active')
+  ('20000000-0000-4000-8000-000000000002', 'Ana Demo', 'DEV-DRIVER-0002', '+55 67 0000-0102', 'ana@example.test', 'active'),
+  ('20000000-0000-4000-8000-000000000003', 'Bruno Demo', 'DEV-DRIVER-0003', '+55 67 0000-0103', 'bruno@example.test', 'active')
 on conflict (id) do nothing;
 
 insert into public.establishments (
@@ -50,14 +51,16 @@ insert into public.vehicles (
   id, driver_id, internal_code, license_plate, make, model, year, status
 ) values
   ('40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'CAR-001', 'DEV0A01', 'Marca Demo', 'Modelo A', 2024, 'active'),
-  ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'CAR-002', 'DEV0A02', 'Marca Demo', 'Modelo B', 2023, 'active')
+  ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'CAR-002', 'DEV0A02', 'Marca Demo', 'Modelo B', 2023, 'active'),
+  ('40000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000003', 'CAR-003', 'DEV0A03', 'Marca Demo', 'Modelo C', 2022, 'active')
 on conflict (id) do nothing;
 
 insert into public.devices (
   id, vehicle_id, device_code, status, app_version, last_seen_at, last_sync_at
 ) values
   ('50000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'TB-001', 'online', '1.0.0-dev', now(), now()),
-  ('50000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'TB-002', 'online', '1.0.0-dev', now() - interval '2 minutes', now() - interval '5 minutes')
+  ('50000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'TB-002', 'online', '1.0.0-dev', now() - interval '10 minutes', now() - interval '10 minutes'),
+  ('50000000-0000-4000-8000-000000000003', '40000000-0000-4000-8000-000000000003', 'TB-003', 'online', '1.0.0-dev', now() - interval '30 minutes', now() - interval '30 minutes')
 on conflict (id) do nothing;
 
 insert into public.campaigns (
@@ -157,6 +160,28 @@ insert into public.device_heartbeats (
     24000000000,
     '1.0.0-dev',
     extensions.st_setsrid(extensions.st_makepoint(-54.6188, -20.4701), 4326)::extensions.geography
+  ),
+  (
+    'a0000000-0000-4000-8000-000000000002',
+    '50000000-0000-4000-8000-000000000002',
+    now() - interval '10 minutes',
+    54,
+    true,
+    true,
+    18000000000,
+    '1.0.0-dev',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6112, -20.4584), 4326)::extensions.geography
+  ),
+  (
+    'a0000000-0000-4000-8000-000000000003',
+    '50000000-0000-4000-8000-000000000003',
+    now() - interval '30 minutes',
+    18,
+    false,
+    false,
+    9000000000,
+    '1.0.0-dev',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6500, -20.4900), 4326)::extensions.geography
   )
 on conflict (id) do nothing;
 

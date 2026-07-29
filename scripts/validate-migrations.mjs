@@ -6,7 +6,7 @@ const migrationFiles = readdirSync(migrationDirectory)
   .filter((file) => file.endsWith('.sql'))
   .sort();
 
-if (migrationFiles.length < 8) {
+if (migrationFiles.length < 9) {
   throw new Error(
     `Expected the 6 MAX-002 migrations plus incremental changes, found ${migrationFiles.length}.`,
   );
@@ -65,6 +65,12 @@ const requiredFragments = [
   'create policy campaign_media_authenticated_read',
   'create policy campaign_media_commercial_insert',
   'file_size_limit = 52428800',
+  'create unique index vehicles_one_driver_unique',
+  'create unique index devices_one_vehicle_unique',
+  'create view public.device_monitoring_view',
+  'create policy device_heartbeats_super_admin_insert',
+  'create or replace function public.simulate_device_heartbeat',
+  'invalid brazilian license plate',
 ];
 
 for (const fragment of requiredFragments) {

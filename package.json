@@ -17,7 +17,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset --local",
     "db:check": "node scripts/validate-migrations.mjs",
-    "db:lint": "supabase db lint --local --level error --fail-on error",
+    "db:lint": "supabase db lint --local --schema public,private --level error --fail-on error",
     "db:test": "supabase test db --local supabase/tests",
     "db:types": "node scripts/generate-database-types.mjs",
     "format": "prettier --write .",

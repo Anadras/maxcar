@@ -16,6 +16,10 @@ local.properties
 .idea/
 .gradle/
 build/
+*.iml
+.cxx/
+captures/
+.externalNativeBuild/
 .vercel
 playwright-report/
 test-results/

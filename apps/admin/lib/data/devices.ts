@@ -106,3 +106,14 @@ export async function getDevice(id: string) {
   const device = devices.find((item) => item.id === id);
   return device ? { ...device, heartbeats } : null;
 }
+
+export async function getDeviceEnrollment(deviceId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('device_enrollment_admin_view')
+    .select('*')
+    .eq('device_id', deviceId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}

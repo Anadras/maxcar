@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder mark: a simple "M" built from two strokes, tinted with the
+     panel's brand blue. Swap for the real MAXCAR mark whenever design
+     delivers exported vector art; this keeps the app installable and
+     visually on-brand in the meantime. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M34,74 L34,34 L44,34 L54,58 L64,34 L74,34 L74,74 L64,74 L64,50 L56,70 L52,70 L44,50 L44,74 Z"
+        android:fillColor="@color/maxcar_blue_light" />
+</vector>

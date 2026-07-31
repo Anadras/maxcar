@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Mirrors the admin panel's dark operational palette (see
+         apps/admin/app/globals.css) so the tablet's technical screens feel
+         like the same product, not a separate app. -->
+    <color name="maxcar_bg_deep">#0A1727</color>
+    <color name="maxcar_surface">#101F32</color>
+    <color name="maxcar_border">#1E3350</color>
+    <color name="maxcar_blue">#267DFF</color>
+    <color name="maxcar_blue_light">#59A2FF</color>
+    <color name="maxcar_green">#2BDA8B</color>
+    <color name="maxcar_yellow">#F2B84B</color>
+    <color name="maxcar_red">#F0555A</color>
+    <color name="maxcar_text">#EAF1FB</color>
+    <color name="maxcar_muted">#7390AA</color>
+</resources>

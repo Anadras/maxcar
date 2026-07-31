@@ -909,6 +909,43 @@ body {
   border-color: rgba(242, 184, 75, 0.3);
   background: rgba(242, 184, 75, 0.07);
 }
+.enrollment-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.enrollment-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.enrollment-code-reveal {
+  padding: 18px;
+  border: 1px dashed var(--blue-light);
+  border-radius: 12px;
+  background: rgba(38, 125, 255, 0.06);
+}
+.enrollment-code-reveal strong {
+  display: block;
+  font-size: 28px;
+  letter-spacing: 4px;
+  color: var(--text);
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+.enrollment-code-reveal p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.enrollment-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
 @media (max-width: 1050px) {
   .campaign-filters {

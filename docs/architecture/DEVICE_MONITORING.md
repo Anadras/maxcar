@@ -36,15 +36,24 @@ A classificação online/atenção/offline/inativo vive exclusivamente em
 Vitest. Nem os componentes nem as queries repetem os limites de 5 e 15
 minutos — eles apenas leem o resultado da função.
 
+## Ativação e heartbeat real (MAX-006)
+
+O card "Ativação do tablet" no detalhe do dispositivo gera/revoga códigos de
+ativação e revoga credenciais emitidas — veja
+[ANDROID_ENROLLMENT.md](ANDROID_ENROLLMENT.md). A partir da ativação, a
+conexão exibida vem de heartbeats reais enviados pelo Android
+(`device-heartbeat`), não mais só do simulador.
+
 ## Simulação de heartbeat
 
 `simulateHeartbeat` (`app/(protected)/dispositivos/actions.ts`) chama a RPC
 `simulate_device_heartbeat`, restrita a `super_admin` e recusada em produção
-(`NODE_ENV === 'production'`). É a única forma de gerar sinal antes do
-Android existir; não há endpoint público ou uso de `service_role`.
+(`NODE_ENV === 'production'`). Continua útil para testar um dispositivo ainda
+não ativado ou sem hardware físico à mão; não há endpoint público ou uso de
+`service_role`.
 
 ## Fora deste marco
 
-Mapa em tempo real, histórico geográfico, alertas automatizados por ausência
-de heartbeat e ingestão a partir do tablet real ficam para o MAX-006, quando o
-dispositivo terá identidade e autenticação próprias.
+Mapa em tempo real, histórico geográfico e alertas automatizados por
+ausência de heartbeat ficam para um marco futuro. Localização (GPS) no
+heartbeat depende do Location Engine, planejado para MAX-007/008.

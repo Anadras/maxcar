@@ -48,6 +48,36 @@ export type Database = {
         }
         Relationships: []
       }
+      app_remote_config: {
+        Row: {
+          config_version: number
+          heartbeat_interval_seconds: number
+          id: boolean
+          kiosk_enabled: boolean
+          logging_level: string
+          sync_interval_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          config_version?: number
+          heartbeat_interval_seconds?: number
+          id?: boolean
+          kiosk_enabled?: boolean
+          logging_level?: string
+          sync_interval_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          config_version?: number
+          heartbeat_interval_seconds?: number
+          id?: boolean
+          kiosk_enabled?: boolean
+          logging_level?: string
+          sync_interval_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_creatives: {
         Row: {
           active: boolean
@@ -232,10 +262,166 @@ export type Database = {
           },
         ]
       }
+      device_credentials: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          installation_id: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          installation_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          installation_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      device_enrollment_attempts: {
+        Row: {
+          id: number
+          installation_id: string
+          occurred_at: string
+          succeeded: boolean
+        }
+        Insert: {
+          id?: never
+          installation_id: string
+          occurred_at?: string
+          succeeded: boolean
+        }
+        Update: {
+          id?: never
+          installation_id?: string
+          occurred_at?: string
+          succeeded?: boolean
+        }
+        Relationships: []
+      }
+      device_enrollment_codes: {
+        Row: {
+          attempts: number
+          code_hash: string
+          created_at: string
+          created_by: string | null
+          device_id: string
+          expires_at: string
+          id: string
+          max_attempts: number
+          revoked_at: string | null
+          used_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          code_hash: string
+          created_at?: string
+          created_by?: string | null
+          device_id: string
+          expires_at: string
+          id?: string
+          max_attempts?: number
+          revoked_at?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          code_hash?: string
+          created_at?: string
+          created_by?: string | null
+          device_id?: string
+          expires_at?: string
+          id?: string
+          max_attempts?: number
+          revoked_at?: string | null
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_enrollment_codes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
       device_heartbeats: {
         Row: {
           app_version: string | null
           battery_level: number | null
+          client_event_id: string | null
           created_at: string
           device_id: string
           gps_available: boolean
@@ -248,6 +434,7 @@ export type Database = {
         Insert: {
           app_version?: string | null
           battery_level?: number | null
+          client_event_id?: string | null
           created_at?: string
           device_id: string
           gps_available: boolean
@@ -260,6 +447,7 @@ export type Database = {
         Update: {
           app_version?: string | null
           battery_level?: number | null
+          client_event_id?: string | null
           created_at?: string
           device_id?: string
           gps_available?: boolean
@@ -274,8 +462,29 @@ export type Database = {
             foreignKeyName: "device_heartbeats_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "devices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
           },
         ]
       }
@@ -314,6 +523,20 @@ export type Database = {
           vehicle_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "devices_vehicle_id_fkey"
             columns: ["vehicle_id"]
@@ -359,7 +582,42 @@ export type Database = {
             foreignKeyName: "driver_sessions_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["driver_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
             referencedColumns: ["id"]
           },
           {
@@ -367,6 +625,20 @@ export type Database = {
             columns: ["driver_id"]
             isOneToOne: false
             referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
             referencedColumns: ["id"]
           },
           {
@@ -520,8 +792,29 @@ export type Database = {
             foreignKeyName: "geofence_events_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "geofence_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofence_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "devices"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofence_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
           },
         ]
       }
@@ -606,7 +899,42 @@ export type Database = {
             foreignKeyName: "impressions_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "impressions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impressions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impressions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "impressions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "impressions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
             referencedColumns: ["id"]
           },
           {
@@ -743,6 +1071,20 @@ export type Database = {
             foreignKeyName: "profiles_driver_id_fkey"
             columns: ["driver_id"]
             isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["driver_id"]
+          },
+          {
+            foreignKeyName: "profiles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
             referencedRelation: "drivers"
             referencedColumns: ["id"]
           },
@@ -786,6 +1128,20 @@ export type Database = {
           year?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["driver_id"]
+          },
+          {
+            foreignKeyName: "vehicles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicles_driver_id_fkey"
             columns: ["driver_id"]
@@ -887,6 +1243,100 @@ export type Database = {
           },
         ]
       }
+      device_enrollment_admin_view: {
+        Row: {
+          credential_issued_at: string | null
+          credential_last_used_at: string | null
+          device_code: string | null
+          device_id: string | null
+          is_enrolled: boolean | null
+          last_enrollment_requested_at: string | null
+          pending_code_expires_at: string | null
+        }
+        Insert: {
+          credential_issued_at?: never
+          credential_last_used_at?: never
+          device_code?: string | null
+          device_id?: string | null
+          is_enrolled?: never
+          last_enrollment_requested_at?: never
+          pending_code_expires_at?: never
+        }
+        Update: {
+          credential_issued_at?: never
+          credential_last_used_at?: never
+          device_code?: string | null
+          device_id?: string | null
+          is_enrolled?: never
+          last_enrollment_requested_at?: never
+          pending_code_expires_at?: never
+        }
+        Relationships: []
+      }
+      device_monitoring_view: {
+        Row: {
+          app_version: string | null
+          battery_level: number | null
+          created_at: string | null
+          device_code: string | null
+          driver_id: string | null
+          driver_name: string | null
+          gps_available: boolean | null
+          heartbeat_app_version: string | null
+          heartbeat_at: string | null
+          id: string | null
+          last_seen_at: string | null
+          last_sync_at: string | null
+          latitude: number | null
+          license_plate: string | null
+          longitude: number | null
+          network_connected: boolean | null
+          status: Database["public"]["Enums"]["device_status"] | null
+          storage_free_bytes: number | null
+          updated_at: string | null
+          vehicle_code: string | null
+          vehicle_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      driver_admin_view: {
+        Row: {
+          created_at: string | null
+          document_number: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          license_plate: string | null
+          phone: string | null
+          status: Database["public"]["Enums"]["driver_status"] | null
+          updated_at: string | null
+          vehicle_code: string | null
+          vehicle_id: string | null
+        }
+        Relationships: []
+      }
       establishment_admin_view: {
         Row: {
           active: boolean | null
@@ -916,8 +1366,114 @@ export type Database = {
           },
         ]
       }
+      vehicle_admin_view: {
+        Row: {
+          created_at: string | null
+          device_code: string | null
+          device_id: string | null
+          driver_id: string | null
+          driver_name: string | null
+          id: string | null
+          internal_code: string | null
+          license_plate: string | null
+          make: string | null
+          model: string | null
+          status: Database["public"]["Enums"]["vehicle_status"] | null
+          updated_at: string | null
+          year: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["driver_id"]
+          },
+          {
+            foreignKeyName: "vehicles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "driver_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      enroll_device: {
+        Args: {
+          p_android_version?: string
+          p_app_version?: string
+          p_code: string
+          p_installation_id: string
+          p_manufacturer?: string
+          p_model?: string
+        }
+        Returns: {
+          device_code: string
+          device_id: string
+          device_token: string
+          vehicle_code: string
+          vehicle_id: string
+        }[]
+      }
+      generate_device_enrollment_code: {
+        Args: { p_device_id: string }
+        Returns: {
+          code: string
+          expires_at: string
+        }[]
+      }
+      get_device_config: {
+        Args: { p_token: string }
+        Returns: {
+          config_version: number
+          device_code: string
+          device_id: string
+          heartbeat_interval_seconds: number
+          kiosk_enabled: boolean
+          logging_level: string
+          sync_interval_seconds: number
+          vehicle_code: string
+          vehicle_id: string
+        }[]
+      }
+      record_device_enrollment_attempt: {
+        Args: { p_installation_id: string; p_succeeded: boolean }
+        Returns: undefined
+      }
+      record_device_heartbeat: {
+        Args: {
+          p_app_version?: string
+          p_battery_level?: number
+          p_client_event_id?: string
+          p_device_time?: string
+          p_network_type?: string
+          p_storage_free_bytes?: number
+          p_token: string
+        }
+        Returns: {
+          device_code: string
+          out_device_id: string
+          recorded_at: string
+        }[]
+      }
+      revoke_device_credential: {
+        Args: { p_device_id: string }
+        Returns: undefined
+      }
+      revoke_device_enrollment_code: {
+        Args: { p_device_id: string }
+        Returns: undefined
+      }
       save_establishment: {
         Args: {
           p_active: boolean
@@ -956,6 +1512,19 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      simulate_device_heartbeat: {
+        Args: {
+          p_app_version?: string
+          p_battery_level?: number
+          p_device_id: string
+          p_gps_available?: boolean
+          p_latitude?: number
+          p_longitude?: number
+          p_network_connected?: boolean
+          p_storage_free_bytes?: number
+        }
+        Returns: string
       }
       simulate_geofence_eligibility: {
         Args: {

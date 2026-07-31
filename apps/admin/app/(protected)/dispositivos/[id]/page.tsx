@@ -1,12 +1,18 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { simulateHeartbeat } from '../actions';
+import {
+  generateEnrollmentCode,
+  revokeDeviceCredential,
+  revokePendingEnrollmentCode,
+} from '../enrollment-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import { getDevice } from '@/lib/data/devices';
+import { getDevice, getDeviceEnrollment } from '@/lib/data/devices';
 import {
   CONNECTION_LABEL,
   formatDateTime,
@@ -24,6 +30,8 @@ export default async function DeviceDetailPage({
   const query = await searchParams;
   const [device, auth] = await Promise.all([getDevice(id), getAuthContext()]);
   if (!device) notFound();
+  const canManage = !!auth && canManageFleet(auth.profile.role);
+  const enrollment = canManage ? await getDeviceEnrollment(id) : null;
   const canSimulate =
     process.env.NODE_ENV !== 'production' &&
     auth?.profile.role === 'super_admin';
@@ -144,6 +152,22 @@ export default async function DeviceDetailPage({
           </div>
         </dl>
       </SectionCard>
+      {canManage && enrollment && (
+        <SectionCard
+          title="Ativação do tablet"
+          subtitle="Código de uso único para vincular o hardware físico a este dispositivo."
+        >
+          <DeviceEnrollmentPanel
+            isEnrolled={enrollment.is_enrolled ?? false}
+            pendingCodeExpiresAt={enrollment.pending_code_expires_at}
+            credentialIssuedAt={enrollment.credential_issued_at}
+            credentialLastUsedAt={enrollment.credential_last_used_at}
+            generateAction={generateEnrollmentCode.bind(null, id)}
+            revokeCodeAction={revokePendingEnrollmentCode.bind(null, id)}
+            revokeCredentialAction={revokeDeviceCredential.bind(null, id)}
+          />
+        </SectionCard>
+      )}
       {canSimulate && (
         <SectionCard
           title="Simulador de heartbeat"

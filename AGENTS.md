@@ -47,16 +47,28 @@
 - Device connection status (online/attention/offline) is derived from the
   latest heartbeat by a single business-rules function; never hardcode the
   time thresholds in components or queries.
-- No anonymous heartbeat ingestion endpoint. Device identity and
-  authentication ship in a later milestone; until then, heartbeats come only
-  from the `super_admin`-only, non-production simulator.
+- No anonymous heartbeat ingestion endpoint. Devices authenticate with an
+  opaque bearer token issued at enrollment (never a Supabase Auth JWT); the
+  `super_admin`-only, non-production simulator remains available for devices
+  that aren't enrolled yet or have no physical hardware.
+- A device never declares its own `device_id`. The server always derives it
+  from the hash of the bearer token it received.
 
 ## Security
 
 - Never expose `service_role` in frontend applications.
+- `service_role` must never enter the Android app in any form — not in
+  `BuildConfig`, resources, assets, source, or logs. The Android app only
+  talks to Supabase through the device Edge Functions
+  (`device-enroll`/`device-heartbeat`/`device-config`).
 - Never commit secrets.
 - Follow least privilege.
-- Device credentials must eventually be revocable.
+- Device credentials are hash-only at rest (both the enrollment code and the
+  issued token), specific per device, and revocable from the panel at any
+  time. The raw device token is never written to Room, DataStore, or a log
+  line — only to Keystore-backed encrypted storage on the device.
+- A network failure must never be treated as a device credential revocation;
+  only an explicit auth rejection (401) from the server may clear it.
 - Campaign media stays private; previews use short-lived signed URLs.
 - Storage object paths derive from persisted ownership and UUIDs, never user filenames.
 
@@ -76,6 +88,12 @@
 - Use Room, Media3, WorkManager, Coroutines and Location Services.
 - Synchronization must be resilient.
 - Kiosk mode will eventually be required.
+- No location, camera, or storage permission until the milestone that
+  actually needs it (Location Engine, player). Don't request permissions
+  ahead of the feature that uses them.
+- Player, media download, and the GEO/Location Engine are separate
+  milestones from device identity/enrollment/heartbeat — don't blend their
+  scope into unrelated work.
 
 ## Testing
 

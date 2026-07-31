@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- HTTPS only, everywhere, including local debug builds against the
+     Supabase CLI's local stack (which itself serves HTTPS-terminated
+     traffic through the CLI's gateway in every environment this app
+     targets). No cleartext exception is defined on purpose. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

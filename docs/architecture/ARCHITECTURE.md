@@ -92,6 +92,33 @@ Veja [FLEET.md](FLEET.md).
 
 Veja [OPERATIONS_UX.md](OPERATIONS_UX.md).
 
+## Implementado — MAX-006
+
+- Projeto Android nativo (Kotlin + Jetpack Compose) em `apps/android`,
+  offline-first desde a fundação: Room, DataStore, WorkManager.
+- Identidade do dispositivo (`installation_id`) gerada uma vez no primeiro
+  boot e persistida, nunca derivada de `ANDROID_ID` ou outro identificador de
+  hardware.
+- Ativação por código humano de uso único (15 minutos, hash-only no banco),
+  gerado e revogado pelo painel; troca do código por um token de dispositivo
+  opaco (256 bits, hash-only), nunca um JWT do Supabase Auth.
+- Três Edge Functions (`device-enroll`, `device-heartbeat`, `device-config`)
+  são o único caminho do Android até o banco; `service_role` nunca chega ao
+  APK.
+- Token do dispositivo guardado só em `EncryptedSharedPreferences`
+  (Keystore); heartbeats reais e idempotentes substituem o simulador como
+  fonte de conexão para dispositivos ativados.
+- Falha de rede nunca é tratada como revogação; só uma rejeição explícita do
+  servidor limpa a credencial local. Fila de heartbeats pendentes com
+  retenção de 7 dias cobre o resto.
+- RLS com zero políticas em `device_enrollment_codes` e `device_credentials`
+  — todo acesso passa por funções `SECURITY DEFINER` que revalidam papel.
+
+Veja [ANDROID_ARCHITECTURE.md](ANDROID_ARCHITECTURE.md),
+[ANDROID_ENROLLMENT.md](ANDROID_ENROLLMENT.md),
+[ANDROID_OFFLINE_FIRST.md](ANDROID_OFFLINE_FIRST.md) e
+[DEVICE_SECURITY.md](DEVICE_SECURITY.md).
+
 ## Planejado — web
 
 Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso
@@ -111,7 +138,13 @@ O modelo e as políticas estão detalhados em [DATABASE.md](DATABASE.md).
 
 ## Planejado — Android offline-first
 
-O tablet sincronizará manifestos e arquivos para armazenamento local antes de reproduzir. Room manterá campanhas, playlist, geofences, regras, configurações, reproduções e telemetria pendente. Media3 tocará somente arquivos locais de campanha. WorkManager fará download e upload resilientes; Coroutines organizarão concorrência e Location Services fornecerá posição.
+O MAX-006 já entrega a fundação offline-first (identidade, credencial, Room,
+DataStore, WorkManager — veja [ANDROID_OFFLINE_FIRST.md](ANDROID_OFFLINE_FIRST.md)).
+O que falta: o tablet sincronizará manifestos e arquivos de campanha para
+armazenamento local antes de reproduzir. Room passará a manter também
+campanhas, playlist, geofences, regras, configurações e reproduções. Media3
+tocará somente arquivos locais de campanha. Coroutines organizarão
+concorrência e Location Services fornecerá posição para o Location Engine.
 
 Sem internet, o player, GPS e geofences continuam operando. Reproduções e eventos ficam pendentes. Quando a conexão retorna, o dispositivo envia eventos, heartbeat e telemetria, verifica novas campanhas e baixa arquivos faltantes de forma idempotente.
 
@@ -125,10 +158,11 @@ Manifestos deverão usar versão e checksum. Uma campanha só fica disponível d
 
 ## Telemetria e observabilidade
 
-Heartbeats já incluem versão do app, bateria, rede, GPS, armazenamento e
-localização. O MAX-006 deverá autenticar o dispositivo e sincronizar esses
-sinais a partir do Android; logs locais, manifesto e alertas automatizados
-continuam planejados.
+Heartbeats incluem versão do app, bateria, rede, armazenamento e (a partir do
+Location Engine, ainda planejado) localização. O MAX-006 autenticou o
+dispositivo e passou a enviar esses sinais a partir do Android real, com
+idempotência por `client_event_id`. Logs locais persistentes, manifesto e
+alertas automatizados por ausência de heartbeat continuam planejados.
 
 ## Segurança
 
@@ -138,7 +172,9 @@ continuam planejados.
 - Proxy faz renovação/barreira otimista; Server Components, Actions e RLS
   repetem a autorização perto do dado.
 - RLS e migrations são requisitos, não opcionais.
-- Credenciais de dispositivo serão específicas, rotacionáveis e revogáveis.
+- Credenciais de dispositivo são específicas, hash-only no banco,
+  Keystore-backed no Android e revogáveis pelo painel a qualquer momento —
+  veja [DEVICE_SECURITY.md](DEVICE_SECURITY.md).
 - URLs de mídia serão controladas e manifests validados.
 - Segredos ficam fora do Git e apenas nos ambientes apropriados.
 

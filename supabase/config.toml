@@ -387,6 +387,20 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# The device API authenticates with its own opaque bearer token, never a
+# Supabase JWT, so Supabase's own gateway JWT check must be off for these
+# three functions specifically (every other function/table keeps normal
+# auth; this only disables the platform's pre-check on these routes, not
+# any of our own token validation inside them).
+[functions.device-enroll]
+verify_jwt = false
+
+[functions.device-heartbeat]
+verify_jwt = false
+
+[functions.device-config]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

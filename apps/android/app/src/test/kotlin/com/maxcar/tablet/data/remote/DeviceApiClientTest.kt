@@ -131,4 +131,19 @@ class DeviceApiClientTest {
             // expected
         }
     }
+
+    @Test
+    fun `a malformed success body surfaces as Unexpected, not a raw SerializationException`() = runTest {
+        server.enqueue(
+            MockResponse().setBody("""{"thisIsNot":"a valid EnrollResponse"}""").setResponseCode(200),
+        )
+
+        try {
+            client.enroll(EnrollRequest(code = "GOODCODE", installationId = "i1"))
+            fail("expected DeviceApiError.Unexpected")
+        } catch (e: DeviceApiError.Unexpected) {
+            // expected: a parsing failure must never crash the caller with
+            // a raw kotlinx.serialization.SerializationException.
+        }
+    }
 }

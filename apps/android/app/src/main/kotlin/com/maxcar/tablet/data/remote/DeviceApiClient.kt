@@ -1,6 +1,7 @@
 package com.maxcar.tablet.data.remote
 
 import com.maxcar.tablet.domain.DeviceApiError
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.Interceptor
@@ -69,7 +70,11 @@ class DeviceApiClient(
         response.use {
             val bodyText = it.body.string()
             if (it.isSuccessful) {
-                return decode(bodyText)
+                return try {
+                    decode(bodyText)
+                } catch (e: SerializationException) {
+                    throw DeviceApiError.Unexpected("The server returned an unexpected response.")
+                }
             }
             val errorBody = runCatching {
                 json.decodeFromString(ApiErrorBody.serializer(), bodyText)

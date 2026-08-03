@@ -11,13 +11,22 @@ import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.domain.DeviceApiError
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.newSingleThreadContext
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -85,6 +94,7 @@ class DeviceRepositoryTest {
         val state = db.deviceStateDao().get()
         assertEquals("TB-001", state?.deviceCode)
         assertEquals("CAR-001", state?.vehicleCode)
+        assertTrue(repository.isEnrolled.first())
     }
 
     @Test
@@ -166,5 +176,69 @@ class DeviceRepositoryTest {
         assertTrue(result.exceptionOrNull() is DeviceApiError.Unauthorized)
         assertNull(tokenStore.readToken())
         assertFalse(repository.isEnrolled.first())
+    }
+
+    @Test
+    fun `refreshConfig persists the remote config and updates lastSyncAt`() = runTest {
+        tokenStore.saveToken("tok-1")
+        db.deviceStateDao().upsert(
+            com.maxcar.tablet.data.local.DeviceStateEntity(
+                deviceId = "d1",
+                deviceCode = "TB-001",
+                vehicleId = null,
+                vehicleCode = null,
+                lastHeartbeatAt = null,
+                lastSyncAt = null,
+                updatedAt = 0,
+            ),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"deviceId":"d1","deviceCode":"TB-001","heartbeatIntervalSeconds":600,
+                   |"syncIntervalSeconds":1800,"kioskEnabled":true,"loggingLevel":"debug","configVersion":2}
+                """.trimMargin(),
+            ),
+        )
+
+        val result = repository.refreshConfig()
+
+        assertTrue(result.isSuccess)
+        assertEquals(600, db.remoteConfigDao().get()?.heartbeatIntervalSeconds)
+        assertEquals(2, db.remoteConfigDao().get()?.configVersion)
+        assertNotNull(db.deviceStateDao().get()?.lastSyncAt)
+    }
+
+    @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
+    @Test
+    fun `enroll runs the blocking network call off the calling (Main) dispatcher`() = runTest {
+        // Regresses the tablet activation bug: DeviceApiClient blocks the
+        // calling thread (OkHttp's synchronous execute()), and callers
+        // reach DeviceRepository from viewModelScope, whose default
+        // dispatcher is Main. On a real device, running the HTTP call on
+        // that thread throws NetworkOnMainThreadException on every attempt
+        // — Robolectric doesn't enforce that policy, so this test instead
+        // asserts directly that the call never runs on the "Main" thread.
+        val mainThread = newSingleThreadContext("test-main")
+        Dispatchers.setMain(mainThread)
+        try {
+            var callThreadName: String? = null
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    callThreadName = Thread.currentThread().name
+                    return MockResponse().setBody(
+                        """{"deviceToken":"tok-1","deviceId":"d1","deviceCode":"TB-001"}""",
+                    )
+                }
+            }
+
+            val result = withContext(Dispatchers.Main) { repository.enroll("GOODCODE") }
+
+            assertTrue(result.isSuccess)
+            assertNotNull(callThreadName)
+            assertNotEquals("test-main", callThreadName)
+        } finally {
+            Dispatchers.resetMain()
+            mainThread.close()
+        }
     }
 }

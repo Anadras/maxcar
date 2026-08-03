@@ -15,7 +15,9 @@ import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.EnrollRequest
 import com.maxcar.tablet.data.remote.HeartbeatRequest
 import com.maxcar.tablet.domain.DeviceApiError
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -44,16 +46,24 @@ class DeviceRepository(
     /** Exchanges a human-typed enrollment code for a device credential. */
     suspend fun enroll(code: String): Result<DeviceStateEntity> = runCatching {
         val installationId = installationIdStore.getOrCreate()
-        val response = apiClient.enroll(
-            EnrollRequest(
-                code = code,
-                installationId = installationId.toString(),
-                appVersion = BuildConfig.VERSION_NAME,
-                manufacturer = Build.MANUFACTURER,
-                model = Build.MODEL,
-                androidVersion = Build.VERSION.RELEASE,
-            ),
-        )
+        // The OkHttp call inside DeviceApiClient blocks the calling thread
+        // (client.newCall(request).execute()). Callers reach this from
+        // viewModelScope, whose default dispatcher is Main — without this
+        // withContext, a real device throws NetworkOnMainThreadException on
+        // every attempt (Robolectric/JVM tests don't enforce that policy,
+        // so this only surfaces on hardware).
+        val response = withContext(Dispatchers.IO) {
+            apiClient.enroll(
+                EnrollRequest(
+                    code = code,
+                    installationId = installationId.toString(),
+                    appVersion = BuildConfig.VERSION_NAME,
+                    manufacturer = Build.MANUFACTURER,
+                    model = Build.MODEL,
+                    androidVersion = Build.VERSION.RELEASE,
+                ),
+            )
+        }
         secureTokenStore.saveToken(response.deviceToken)
         val state = DeviceStateEntity(
             deviceId = response.deviceId,
@@ -67,7 +77,7 @@ class DeviceRepository(
         deviceStateDao.upsert(state)
         appPreferences.setEnrolled(true)
         state
-    }
+    }.onFailure { logFailure("enroll", it) }
 
     /**
      * Sends one heartbeat. On success, clears the corresponding pending
@@ -88,17 +98,19 @@ class DeviceRepository(
             return Result.failure(DeviceApiError.Unauthorized("Not enrolled."))
         }
         val result = runCatching {
-            val response = apiClient.heartbeat(
-                token,
-                HeartbeatRequest(
-                    batteryLevel = batteryLevel,
-                    networkType = networkType,
-                    storageFreeBytes = storageFreeBytes,
-                    appVersion = BuildConfig.VERSION_NAME,
-                    deviceTime = Instant.now().toString(),
-                    clientEventId = clientEventId.toString(),
-                ),
-            )
+            val response = withContext(Dispatchers.IO) {
+                apiClient.heartbeat(
+                    token,
+                    HeartbeatRequest(
+                        batteryLevel = batteryLevel,
+                        networkType = networkType,
+                        storageFreeBytes = storageFreeBytes,
+                        appVersion = BuildConfig.VERSION_NAME,
+                        deviceTime = Instant.now().toString(),
+                        clientEventId = clientEventId.toString(),
+                    ),
+                )
+            }
             deviceStateDao.get()?.let {
                 deviceStateDao.upsert(
                     it.copy(lastHeartbeatAt = response.recordedAt, updatedAt = System.currentTimeMillis()),
@@ -107,6 +119,7 @@ class DeviceRepository(
             Unit
         }
         result.onFailure { error ->
+            logFailure("heartbeat", error)
             when (error) {
                 is DeviceApiError.Unauthorized -> handleRevocation()
                 is DeviceApiError.NetworkUnavailable ->
@@ -126,21 +139,24 @@ class DeviceRepository(
         val token = secureTokenStore.readToken() ?: return
         for (event in pendingEventDao.oldest(limit)) {
             val result = runCatching {
-                apiClient.heartbeat(
-                    token,
-                    HeartbeatRequest(
-                        batteryLevel = event.batteryLevel,
-                        networkType = event.networkType,
-                        storageFreeBytes = event.storageFreeBytes,
-                        appVersion = event.appVersion,
-                        deviceTime = Instant.ofEpochMilli(event.deviceTimeMillis).toString(),
-                        clientEventId = event.clientEventId,
-                    ),
-                )
+                withContext(Dispatchers.IO) {
+                    apiClient.heartbeat(
+                        token,
+                        HeartbeatRequest(
+                            batteryLevel = event.batteryLevel,
+                            networkType = event.networkType,
+                            storageFreeBytes = event.storageFreeBytes,
+                            appVersion = event.appVersion,
+                            deviceTime = Instant.ofEpochMilli(event.deviceTimeMillis).toString(),
+                            clientEventId = event.clientEventId,
+                        ),
+                    )
+                }
             }
             result.onSuccess {
                 pendingEventDao.delete(event)
             }.onFailure { error ->
+                logFailure("flushPendingEvents", error)
                 pendingEventDao.recordAttempt(event.id, System.currentTimeMillis())
                 if (error is DeviceApiError.Unauthorized) handleRevocation()
                 return
@@ -152,7 +168,7 @@ class DeviceRepository(
         val token = secureTokenStore.readToken()
             ?: return Result.failure(DeviceApiError.Unauthorized("Not enrolled."))
         return runCatching {
-            val response = apiClient.getConfig(token)
+            val response = withContext(Dispatchers.IO) { apiClient.getConfig(token) }
             deviceStateDao.get()?.let {
                 deviceStateDao.upsert(it.copy(lastSyncAt = Instant.now().toString()))
             }
@@ -167,6 +183,7 @@ class DeviceRepository(
             remoteConfigDao.upsert(config)
             config
         }.onFailure { error ->
+            logFailure("refreshConfig", error)
             if (error is DeviceApiError.Unauthorized) handleRevocation()
         }
     }
@@ -203,7 +220,16 @@ class DeviceRepository(
         )
     }
 
+    /** Logs only the operation name and the exception's own class — never a
+     * message, cause, stack trace, request/response body, activation code
+     * or device token. [DeviceApiError] messages already come straight from
+     * the server, so even they aren't safe to log verbatim here. */
+    private fun logFailure(step: String, error: Throwable) {
+        android.util.Log.w(LOG_TAG, "$step failed: ${error::class.simpleName}")
+    }
+
     private companion object {
+        const val LOG_TAG = "MaxcarDeviceRepo"
         val RETENTION_MILLIS = TimeUnit.DAYS.toMillis(7)
     }
 }

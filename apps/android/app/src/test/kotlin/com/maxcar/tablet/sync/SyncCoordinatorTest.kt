@@ -7,7 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.AppPreferences
-import com.maxcar.tablet.data.local.FakeTokenStore
+import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.repository.DeviceRepository
@@ -21,7 +21,6 @@ import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -49,7 +48,7 @@ class SyncCoordinatorTest {
 
     private lateinit var server: MockWebServer
     private lateinit var db: AppDatabase
-    private lateinit var tokenStore: FakeTokenStore
+    private lateinit var deviceKeyStore: FakeDeviceKeyStore
     private lateinit var coordinator: SyncCoordinator
     private lateinit var commandExecutor: DeviceCommandExecutor
 
@@ -76,13 +75,28 @@ class SyncCoordinatorTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         val appPreferences = AppPreferences(dataStore)
-        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
-        val apiClient = DeviceApiClient(baseUrl = server.url("/").toString())
+        deviceKeyStore = FakeDeviceKeyStore()
+        deviceKeyStore.getOrCreateKeyInfo()
+        kotlinx.coroutines.runBlocking {
+            db.deviceStateDao().upsert(
+                com.maxcar.tablet.data.local.DeviceStateEntity(
+                    deviceId = "d1",
+                    deviceCode = "TB-01",
+                    vehicleId = null,
+                    vehicleCode = null,
+                    keyId = "k1",
+                    lastHeartbeatAt = null,
+                    lastSyncAt = null,
+                    updatedAt = 0,
+                ),
+            )
+        }
+        val apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = deviceKeyStore)
 
         val deviceRepository = DeviceRepository(
             apiClient = apiClient,
+            deviceKeyStore = deviceKeyStore,
             installationIdStore = InstallationIdStore(dataStore),
-            secureTokenStore = tokenStore,
             appPreferences = appPreferences,
             deviceStateDao = db.deviceStateDao(),
             remoteConfigDao = db.remoteConfigDao(),
@@ -92,7 +106,7 @@ class SyncCoordinatorTest {
         val mediaDownloadManager = MediaDownloadManager(
             context = context,
             apiClient = apiClient,
-            tokenStore = tokenStore,
+            deviceIdentity = deviceRepository,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
             minFreeBytes = -1,
@@ -100,13 +114,13 @@ class SyncCoordinatorTest {
         val geoRulesSyncManager = GeoRulesSyncManager(
             context = context,
             apiClient = apiClient,
-            tokenStore = tokenStore,
+            deviceIdentity = deviceRepository,
             geoRuleDao = db.geoRuleDao(),
             minFreeBytes = -1,
         )
         val geoRepository = GeoRepository(
             apiClient = apiClient,
-            tokenStore = tokenStore,
+            deviceIdentity = deviceRepository,
             geofenceEventDao = db.geofenceEventDao(),
         )
         val geoEngine = GeoEngine(
@@ -118,7 +132,7 @@ class SyncCoordinatorTest {
         )
         commandExecutor = DeviceCommandExecutor(
             apiClient = apiClient,
-            tokenStore = tokenStore,
+            deviceIdentity = deviceRepository,
             mediaDownloadManager = mediaDownloadManager,
             geoRulesSyncManager = geoRulesSyncManager,
             appPreferences = appPreferences,

@@ -5,7 +5,6 @@ import android.os.StatFs
 import com.maxcar.tablet.data.local.AppPreferences
 import com.maxcar.tablet.data.local.PlaylistItemDao
 import com.maxcar.tablet.data.local.PlaylistItemEntity
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.ManifestPlaylistItem
 import com.maxcar.tablet.domain.DeviceApiError
@@ -27,7 +26,7 @@ import kotlin.math.abs
 class MediaDownloadManager(
     private val context: Context,
     private val apiClient: DeviceApiClient,
-    private val tokenStore: TokenStore,
+    private val deviceIdentity: DeviceIdentityProvider,
     private val playlistItemDao: PlaylistItemDao,
     private val appPreferences: AppPreferences,
     // Overridable so tests can exercise the low-storage path without
@@ -79,9 +78,9 @@ class MediaDownloadManager(
      * the next call, since only READY items are skipped.
      */
     suspend fun sync(): Result<Unit> = runCatching {
-        val token = tokenStore.readToken()
-            ?: throw DeviceApiError.CredentialUnavailable("No local credential.")
-        val manifest = withContext(Dispatchers.IO) { apiClient.getManifest(token) }
+        val keyId = deviceIdentity.currentKeyId()
+            ?: throw DeviceApiError.CredentialUnavailable("No local device identity.")
+        val manifest = withContext(Dispatchers.IO) { apiClient.getManifest(keyId) }
         val incoming = manifest.playlist.associateBy { it.creativeId }
         val existing = playlistItemDao.getAll().associateBy { it.creativeId }
         val now = System.currentTimeMillis()
@@ -140,15 +139,14 @@ class MediaDownloadManager(
 
         appPreferences.setManifestVersion(manifest.manifestVersion)
     }.onFailure { error ->
-        // Duplicated from DeviceRepository.handleRevocation rather than
-        // shared across the two classes: only a server-confirmed 401
-        // (DeviceApiError.Unauthorized) may ever clear the credential — a
-        // missing local token (CredentialUnavailable) never does, since it
-        // was never actually rejected by the server. Media sync has no
-        // other reason to depend on DeviceRepository.
+        // Only a server-confirmed 401 (DeviceApiError.Unauthorized) ever
+        // touches the device identity — a missing local key
+        // (CredentialUnavailable) never does, since it was never actually
+        // rejected by the server. Delegated to DeviceRepository (via
+        // [deviceIdentity]) so the recovery logic lives in exactly one
+        // place instead of being duplicated across every sync class.
         if (error is DeviceApiError.Unauthorized) {
-            tokenStore.clear()
-            appPreferences.setEnrolled(false)
+            deviceIdentity.handleUnauthorizedDeviceKey()
         }
     }
 

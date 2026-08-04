@@ -36,18 +36,6 @@ interface RemoteConfigDao {
 }
 
 @Dao
-interface DeviceCredentialDao {
-    @Upsert
-    suspend fun upsert(entity: DeviceCredentialEntity)
-
-    @Query("SELECT * FROM device_credential WHERE id = ${DeviceCredentialEntity.SINGLETON_ID}")
-    suspend fun get(): DeviceCredentialEntity?
-
-    @Query("DELETE FROM device_credential")
-    suspend fun clear()
-}
-
-@Dao
 interface PendingEventDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(event: PendingEventEntity): Long

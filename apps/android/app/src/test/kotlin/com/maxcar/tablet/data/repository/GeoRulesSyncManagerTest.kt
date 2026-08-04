@@ -4,10 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxcar.tablet.data.local.AppDatabase
-import com.maxcar.tablet.data.local.FakeTokenStore
+import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.local.GeoRuleEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -30,7 +29,7 @@ class GeoRulesSyncManagerTest {
 
     private lateinit var server: MockWebServer
     private lateinit var db: AppDatabase
-    private lateinit var tokenStore: FakeTokenStore
+    private lateinit var deviceIdentity: FakeDeviceIdentityProvider
     private lateinit var manager: GeoRulesSyncManager
 
     @Before
@@ -42,12 +41,15 @@ class GeoRulesSyncManagerTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
+        deviceIdentity = FakeDeviceIdentityProvider()
 
         manager = GeoRulesSyncManager(
             context = context,
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
-            tokenStore = tokenStore,
+            apiClient = DeviceApiClient(
+                baseUrl = server.url("/").toString(),
+                deviceKeyStore = FakeDeviceKeyStore().apply { getOrCreateKeyInfo() },
+            ),
+            deviceIdentity = deviceIdentity,
             geoRuleDao = db.geoRuleDao(),
             minFreeBytes = -1,
         )
@@ -183,7 +185,7 @@ class GeoRulesSyncManagerTest {
     }
 
     @Test
-    fun `sync clears the credential only on an explicit 401`() = runTest {
+    fun `sync drops the local key pairing only on an explicit 401`() = runTest {
         server.enqueue(
             MockResponse()
                 .setBody("""{"error":"unauthorized","message":"Invalid or revoked device credential."}""")
@@ -193,6 +195,6 @@ class GeoRulesSyncManagerTest {
         val result = manager.sync()
 
         assertTrue(result.isFailure)
-        assertNull(tokenStore.readToken())
+        assertEquals(1, deviceIdentity.unauthorizedCallCount)
     }
 }

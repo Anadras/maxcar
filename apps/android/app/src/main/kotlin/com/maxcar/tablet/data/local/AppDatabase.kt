@@ -14,15 +14,13 @@ import androidx.room.RoomDatabase
         PlaybackEventEntity::class,
         GeoRuleEntity::class,
         GeofenceEventEntity::class,
-        DeviceCredentialEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceStateDao(): DeviceStateDao
     abstract fun remoteConfigDao(): RemoteConfigDao
-    abstract fun deviceCredentialDao(): DeviceCredentialDao
     abstract fun pendingEventDao(): PendingEventDao
     abstract fun playlistItemDao(): PlaylistItemDao
     abstract fun playbackEventDao(): PlaybackEventDao

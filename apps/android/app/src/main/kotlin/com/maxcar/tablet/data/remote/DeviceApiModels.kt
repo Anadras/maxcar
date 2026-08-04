@@ -2,10 +2,16 @@ package com.maxcar.tablet.data.remote
 
 import kotlinx.serialization.Serializable
 
+// --- MAX-010.6: cryptographic device identity (enrollment & recovery) ---
+
 @Serializable
-data class EnrollRequest(
+data class EnrollKeyStartRequest(
     val code: String,
     val installationId: String,
+    val publicKey: String,
+    val publicKeyFingerprint: String,
+    val algorithm: String,
+    val hardwareBacked: Boolean? = null,
     val appVersion: String? = null,
     val manufacturer: String? = null,
     val model: String? = null,
@@ -13,10 +19,48 @@ data class EnrollRequest(
 )
 
 @Serializable
-data class EnrollResponse(
-    val deviceToken: String,
+data class EnrollKeyStartResponse(
+    val enrollmentAttemptId: String,
+    val challenge: String,
+    val expiresAt: String,
+)
+
+@Serializable
+data class EnrollKeyCompleteRequest(
+    val enrollmentAttemptId: String,
+    val signature: String,
+)
+
+@Serializable
+data class EnrollKeyCompleteResponse(
     val deviceId: String,
     val deviceCode: String,
+    val keyId: String,
+    val vehicleId: String? = null,
+    val vehicleCode: String? = null,
+)
+
+@Serializable
+data class RecoverKeyStartRequest(val publicKeyFingerprint: String)
+
+@Serializable
+data class RecoverKeyStartResponse(
+    val recoveryAttemptId: String,
+    val challenge: String,
+    val expiresAt: String,
+)
+
+@Serializable
+data class RecoverKeyCompleteRequest(
+    val recoveryAttemptId: String,
+    val signature: String,
+)
+
+@Serializable
+data class RecoverKeyCompleteResponse(
+    val deviceId: String,
+    val deviceCode: String,
+    val keyId: String,
     val vehicleId: String? = null,
     val vehicleCode: String? = null,
 )

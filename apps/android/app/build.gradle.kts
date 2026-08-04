@@ -20,7 +20,12 @@ android {
 
     defaultConfig {
         applicationId = "com.maxcar.tablet"
-        minSdk = 26
+        // MAX-010.6: device identity is signed with SHA256withECDSAinP1363Format,
+        // which Android only added in API 30. The pilot fleet's actual hardware
+        // (Black Shark tablets) runs API 35, so raising the floor to 30 costs
+        // nothing in practice and avoids carrying a DER-to-P1363 conversion path
+        // for devices that don't exist in this fleet.
+        minSdk = 30
         targetSdk = 37
         versionCode = 1
         versionName = "0.1.0"

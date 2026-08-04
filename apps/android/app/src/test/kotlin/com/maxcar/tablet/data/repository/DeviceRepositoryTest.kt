@@ -6,7 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.AppPreferences
-import com.maxcar.tablet.data.local.FakeTokenStore
+import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.domain.DeviceApiError
@@ -37,12 +37,15 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.util.UUID
 
+private const val CHALLENGE_B64 = "Y2hhbGxlbmdl"
+
 @RunWith(RobolectricTestRunner::class)
 class DeviceRepositoryTest {
 
     private lateinit var server: MockWebServer
     private lateinit var db: AppDatabase
-    private lateinit var tokenStore: FakeTokenStore
+    private lateinit var deviceKeyStore: FakeDeviceKeyStore
+    private lateinit var appPreferences: AppPreferences
     private lateinit var repository: DeviceRepository
 
     @Before
@@ -60,13 +63,14 @@ class DeviceRepositoryTest {
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
 
-        tokenStore = FakeTokenStore()
+        deviceKeyStore = FakeDeviceKeyStore()
+        appPreferences = AppPreferences(dataStore)
 
         repository = DeviceRepository(
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = deviceKeyStore),
+            deviceKeyStore = deviceKeyStore,
             installationIdStore = InstallationIdStore(dataStore),
-            secureTokenStore = tokenStore,
-            appPreferences = AppPreferences(dataStore),
+            appPreferences = appPreferences,
             deviceStateDao = db.deviceStateDao(),
             remoteConfigDao = db.remoteConfigDao(),
             pendingEventDao = db.pendingEventDao(),
@@ -80,73 +84,92 @@ class DeviceRepositoryTest {
         server.shutdown()
     }
 
-    @Test
-    fun `enroll persists device state, saves the token and marks enrolled`() = runTest {
-        server.enqueue(
-            MockResponse().setBody(
-                """{"deviceToken":"tok-1","deviceId":"d1","deviceCode":"TB-001","vehicleId":"v1","vehicleCode":"CAR-001"}""",
-            ),
-        )
-
-        val result = repository.enroll("GOODCODE")
-
-        assertTrue(result.isSuccess)
-        assertEquals("tok-1", tokenStore.readToken())
-        val state = db.deviceStateDao().get()
-        assertEquals("TB-001", state?.deviceCode)
-        assertEquals("CAR-001", state?.vehicleCode)
-        assertTrue(repository.isEnrolled.first())
-    }
-
-    @Test
-    fun `enroll never marks the device enrolled if the token silently fails to persist`() = runTest {
-        // Reproduces a real pilot-device failure: saveToken() returned
-        // normally (no exception, no log) but the value never actually
-        // landed on disk, so every sync after "successful" enrollment saw
-        // CredentialUnavailable forever. enroll() must verify the token
-        // round-trips before ever committing isEnrolled = true.
-        val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
-        val dataStore = PreferenceDataStoreFactory.create(
-            scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
-        ) { prefsFile }
-        val brokenTokenStore = FakeTokenStore(simulateSilentSaveFailure = true)
-        val brokenRepository = DeviceRepository(
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
-            installationIdStore = InstallationIdStore(dataStore),
-            secureTokenStore = brokenTokenStore,
-            appPreferences = AppPreferences(dataStore),
-            deviceStateDao = db.deviceStateDao(),
-            remoteConfigDao = db.remoteConfigDao(),
-            pendingEventDao = db.pendingEventDao(),
-            playbackEventDao = db.playbackEventDao(),
-        )
-        server.enqueue(
-            MockResponse().setBody(
-                """{"deviceToken":"tok-1","deviceId":"d1","deviceCode":"TB-001","vehicleId":"v1","vehicleCode":"CAR-001"}""",
-            ),
-        )
-
-        val result = brokenRepository.enroll("GOODCODE")
-
-        assertTrue(result.isFailure)
-        assertNull(brokenTokenStore.readToken())
-        assertFalse(brokenRepository.isEnrolled.first())
-    }
-
-    @Test
-    fun `a successful heartbeat updates lastHeartbeatAt`() = runTest {
-        tokenStore.saveToken("tok-1")
+    /** Pre-enrolls the repository's state directly (no network round trip):
+     * generates the fake Keystore key and writes the matching device_state
+     * row, exactly what a successful [DeviceRepository.enroll] would have
+     * left behind. */
+    private suspend fun preEnroll(keyId: String = "k1") {
+        deviceKeyStore.getOrCreateKeyInfo()
+        appPreferences.setEnrolled(true)
         db.deviceStateDao().upsert(
             com.maxcar.tablet.data.local.DeviceStateEntity(
                 deviceId = "d1",
                 deviceCode = "TB-001",
                 vehicleId = null,
                 vehicleCode = null,
+                keyId = keyId,
                 lastHeartbeatAt = null,
                 lastSyncAt = null,
                 updatedAt = 0,
             ),
         )
+    }
+
+    private fun enrollDispatcher(
+        completeBody: String =
+            """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1","vehicleId":"v1","vehicleCode":"CAR-001"}""",
+    ) = object : Dispatcher() {
+        override fun dispatch(request: RecordedRequest) = when (request.path) {
+            "/device-enroll-key-start" -> MockResponse().setBody(
+                """{"enrollmentAttemptId":"a1","challenge":"$CHALLENGE_B64","expiresAt":"2026-01-01T00:05:00Z"}""",
+            )
+            "/device-enroll-key-complete" -> MockResponse().setBody(completeBody)
+            else -> MockResponse().setResponseCode(404)
+        }
+    }
+
+    @Test
+    fun `enroll generates a device key, persists the activated key id, and marks enrolled`() = runTest {
+        server.dispatcher = enrollDispatcher()
+
+        val result = repository.enroll("GOODCODE")
+
+        assertTrue(result.isSuccess)
+        assertTrue(deviceKeyStore.hasKey())
+        val state = db.deviceStateDao().get()
+        assertEquals("TB-001", state?.deviceCode)
+        assertEquals("CAR-001", state?.vehicleCode)
+        assertEquals("k1", state?.keyId)
+        assertTrue(repository.isEnrolled.first())
+
+        val startRequest = server.takeRequest()
+        assertTrue(startRequest.body.readUtf8().contains("GOODCODE"))
+    }
+
+    @Test
+    fun `enroll reuses the same Keystore key on a retry instead of generating a new one`() = runTest {
+        server.dispatcher = enrollDispatcher()
+        val firstAttemptKeyInfo = deviceKeyStore.getOrCreateKeyInfo()
+
+        repository.enroll("GOODCODE")
+
+        assertEquals(firstAttemptKeyInfo.fingerprintHex, deviceKeyStore.currentKeyInfo()?.fingerprintHex)
+    }
+
+    @Test
+    fun `enroll never marks the device enrolled if the server rejects completion`() = runTest {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-enroll-key-start" -> MockResponse().setBody(
+                    """{"enrollmentAttemptId":"a1","challenge":"$CHALLENGE_B64","expiresAt":"2026-01-01T00:05:00Z"}""",
+                )
+                "/device-enroll-key-complete" -> MockResponse()
+                    .setResponseCode(401)
+                    .setBody("""{"error":"unauthorized","message":"Enrollment attempt already completed."}""")
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+
+        val result = repository.enroll("GOODCODE")
+
+        assertTrue(result.isFailure)
+        assertNull(db.deviceStateDao().get())
+        assertFalse(repository.isEnrolled.first())
+    }
+
+    @Test
+    fun `a successful heartbeat updates lastHeartbeatAt`() = runTest {
+        preEnroll()
         server.enqueue(
             MockResponse().setBody(
                 """{"deviceId":"d1","deviceCode":"TB-001","recordedAt":"2026-01-01T00:00:00Z"}""",
@@ -161,16 +184,16 @@ class DeviceRepositoryTest {
 
     @Test
     fun `a heartbeat that can't reach the server is queued, not dropped`() = runTest {
-        tokenStore.saveToken("tok-1")
+        preEnroll()
         server.shutdown() // nothing is listening: every call fails with a network error
 
         val result = repository.sendHeartbeat(batteryLevel = 50, networkType = "offline", storageFreeBytes = null)
 
         assertTrue(result.exceptionOrNull() is DeviceApiError.NetworkUnavailable)
         assertEquals(1, db.pendingEventDao().count())
-        // The credential is untouched: a network failure is never treated
-        // as a revocation.
-        assertNotNull(tokenStore.readToken())
+        // The identity is untouched: a network failure is never treated as
+        // a rejection.
+        assertEquals("k1", db.deviceStateDao().get()?.keyId)
     }
 
     @Test
@@ -179,7 +202,7 @@ class DeviceRepositoryTest {
         // on the *first* event's failure, so a single stuck item at the
         // front of the queue (oldest first) blocked every healthy item
         // queued behind it forever.
-        tokenStore.saveToken("tok-1")
+        preEnroll()
         val now = System.currentTimeMillis()
         db.pendingEventDao().insert(
             com.maxcar.tablet.data.local.PendingEventEntity(
@@ -222,7 +245,7 @@ class DeviceRepositoryTest {
 
     @Test
     fun `flushPendingEvents delivers a queued heartbeat once the server is reachable again`() = runTest {
-        tokenStore.saveToken("tok-1")
+        preEnroll()
         db.pendingEventDao().insert(
             com.maxcar.tablet.data.local.PendingEventEntity(
                 clientEventId = "queued-1",
@@ -246,35 +269,29 @@ class DeviceRepositoryTest {
     }
 
     @Test
-    fun `an unauthorized heartbeat clears the credential and marks the device as not enrolled`() = runTest {
-        tokenStore.saveToken("tok-1")
+    fun `an unauthorized heartbeat drops the local key pairing but leaves enrollment alone`() = runTest {
+        preEnroll()
         server.enqueue(
             MockResponse().setBody(
-                """{"error":"unauthorized","message":"Invalid or revoked device credential."}""",
+                """{"error":"unauthorized","message":"Unknown device key."}""",
             ).setResponseCode(401),
         )
 
         val result = repository.sendHeartbeat(batteryLevel = 50, networkType = "wifi", storageFreeBytes = null)
 
         assertTrue(result.exceptionOrNull() is DeviceApiError.Unauthorized)
-        assertNull(tokenStore.readToken())
-        assertFalse(repository.isEnrolled.first())
+        // Only the local key_id pairing is dropped — the next cycle
+        // retries through recovery instead of bouncing straight to the
+        // enrollment screen (see DeviceRepository.handleUnauthorizedDeviceKey).
+        assertNull(db.deviceStateDao().get()?.keyId)
+        assertTrue(repository.isEnrolled.first())
+        // Device/vehicle history is preserved, never wiped by a rejection.
+        assertEquals("d1", db.deviceStateDao().get()?.deviceId)
     }
 
     @Test
     fun `refreshConfig persists the remote config and updates lastSyncAt`() = runTest {
-        tokenStore.saveToken("tok-1")
-        db.deviceStateDao().upsert(
-            com.maxcar.tablet.data.local.DeviceStateEntity(
-                deviceId = "d1",
-                deviceCode = "TB-001",
-                vehicleId = null,
-                vehicleCode = null,
-                lastHeartbeatAt = null,
-                lastSyncAt = null,
-                updatedAt = 0,
-            ),
-        )
+        preEnroll()
         server.enqueue(
             MockResponse().setBody(
                 """{"deviceId":"d1","deviceCode":"TB-001","heartbeatIntervalSeconds":600,
@@ -312,7 +329,7 @@ class DeviceRepositoryTest {
 
     @Test
     fun `flushPlaybackEvents removes only the events the server confirmed`() = runTest {
-        tokenStore.saveToken("tok-1")
+        preEnroll()
         repository.recordPlaybackEvent(
             campaignId = "c1", creativeId = "cr1", status = "completed",
             startedAt = "2026-01-01T00:00:00Z", completedAt = "2026-01-01T00:00:10Z",
@@ -344,8 +361,8 @@ class DeviceRepositoryTest {
     }
 
     @Test
-    fun `flushPlaybackEvents on 401 revokes the credential instead of dropping the queue`() = runTest {
-        tokenStore.saveToken("tok-1")
+    fun `flushPlaybackEvents on 401 drops the local key pairing instead of dropping the queue`() = runTest {
+        preEnroll()
         repository.recordPlaybackEvent(
             campaignId = "c1", creativeId = "cr1", status = "completed",
             startedAt = "2026-01-01T00:00:00Z", completedAt = null,
@@ -353,21 +370,21 @@ class DeviceRepositoryTest {
         )
         server.enqueue(
             MockResponse()
-                .setBody("""{"error":"unauthorized","message":"Invalid or revoked device credential."}""")
+                .setBody("""{"error":"unauthorized","message":"Unknown device key."}""")
                 .setResponseCode(401),
         )
 
         repository.flushPlaybackEvents()
 
-        assertNull(tokenStore.readToken())
-        assertFalse(repository.isEnrolled.first())
-        // The event itself is left alone; only the credential is cleared.
+        assertNull(db.deviceStateDao().get()?.keyId)
+        assertTrue(repository.isEnrolled.first())
+        // The event itself is left alone; only the identity pairing is cleared.
         assertEquals(1, db.playbackEventDao().count())
     }
 
     @Test
     fun `flushPlaybackEvents on a network failure leaves the queue intact for the next attempt`() = runTest {
-        tokenStore.saveToken("tok-1")
+        preEnroll()
         repository.recordPlaybackEvent(
             campaignId = "c1", creativeId = "cr1", status = "completed",
             startedAt = "2026-01-01T00:00:00Z", completedAt = null,
@@ -378,36 +395,25 @@ class DeviceRepositoryTest {
         repository.flushPlaybackEvents()
 
         assertEquals(1, db.playbackEventDao().count())
-        assertNotNull(tokenStore.readToken())
+        assertEquals("k1", db.deviceStateDao().get()?.keyId)
     }
 
-    // --- MAX-011 Bloco A: a missing local credential must never be treated
-    // as a server-confirmed revocation. Regresses the "tablet keeps asking
-    // for a new activation code" bug: DeviceRepository.sendHeartbeat/
-    // refreshConfig used to throw a *self-synthesized*
-    // DeviceApiError.Unauthorized whenever the local token store returned
-    // null (Keystore hiccup, a not-yet-flushed write, anything) — and the
-    // very same handler that reacts to a real server 401 caught that too,
-    // silently clearing `isEnrolled` on a purely local read failure with no
-    // server round trip at all. ---
+    // --- MAX-011 Bloco A (carried forward into MAX-010.6): a missing local
+    // identity must never be treated as a server-confirmed rejection. ---
 
     @Test
-    fun `a locally unreadable credential never clears enrollment, unlike a real server 401`() = runTest {
-        // Simulates enrollment being marked true (e.g. by a prior
-        // successful enroll()) while the token itself is, for whatever
-        // reason, unreadable right now — the exact state a Keystore fault
-        // or an interrupted write can produce.
+    fun `no Keystore key and no local state never clears enrollment, unlike a real server 401`() = runTest {
         val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
         val dataStore = PreferenceDataStoreFactory.create(
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         val appPreferences = AppPreferences(dataStore)
         appPreferences.setEnrolled(true)
-        val brokenTokenStore = FakeTokenStore() // never had saveToken() called: readToken() == null
+        val brokenKeyStore = FakeDeviceKeyStore() // hasKey() == false: nothing to recover with
         val brokenRepository = DeviceRepository(
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = brokenKeyStore),
+            deviceKeyStore = brokenKeyStore,
             installationIdStore = InstallationIdStore(dataStore),
-            secureTokenStore = brokenTokenStore,
             appPreferences = appPreferences,
             deviceStateDao = db.deviceStateDao(),
             remoteConfigDao = db.remoteConfigDao(),
@@ -422,22 +428,23 @@ class DeviceRepositoryTest {
         assertTrue(appPreferences.isEnrolled.first())
         assertTrue(appPreferences.credentialMissingLocally.first())
         // No network call was ever made — this never reached the server,
-        // so it can't possibly be a server-confirmed revocation.
+        // so it can't possibly be a server-confirmed rejection.
         assertEquals(0, server.requestCount)
     }
 
     @Test
-    fun `refreshConfig behaves the same way as sendHeartbeat for a missing local credential`() = runTest {
+    fun `refreshConfig behaves the same way as sendHeartbeat for a missing local identity`() = runTest {
         val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
         val dataStore = PreferenceDataStoreFactory.create(
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         val appPreferences = AppPreferences(dataStore)
         appPreferences.setEnrolled(true)
+        val brokenKeyStore = FakeDeviceKeyStore()
         val brokenRepository = DeviceRepository(
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = brokenKeyStore),
+            deviceKeyStore = brokenKeyStore,
             installationIdStore = InstallationIdStore(dataStore),
-            secureTokenStore = FakeTokenStore(),
             appPreferences = appPreferences,
             deviceStateDao = db.deviceStateDao(),
             remoteConfigDao = db.remoteConfigDao(),
@@ -452,31 +459,91 @@ class DeviceRepositoryTest {
     }
 
     @Test
-    fun `a real server 401 still clears enrollment exactly as before`() = runTest {
-        // The other half of the regression: fixing the false-positive path
-        // must not weaken the true-positive one.
-        tokenStore.saveToken("tok-1")
-        server.enqueue(
-            MockResponse()
-                .setBody("""{"error":"unauthorized","message":"Invalid or revoked device credential."}""")
-                .setResponseCode(401),
-        )
+    fun `a lost local key_id is recovered automatically when the Keystore key still exists`() = runTest {
+        // The exact scenario MAX-010.6 exists for: a Room reset or a lost
+        // row leaves device_state without a key_id, but the Keystore key
+        // that produced it is still intact — resolveKeyId must recover the
+        // pairing via a signed challenge instead of surfacing
+        // CredentialUnavailable, and the heartbeat that triggered it
+        // should complete successfully in the very same call.
+        deviceKeyStore.getOrCreateKeyInfo() // the Keystore key survives...
+        // ...but no device_state row (or a null key_id) is present locally.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-recover-key-start" -> MockResponse().setBody(
+                    """{"recoveryAttemptId":"r1","challenge":"$CHALLENGE_B64","expiresAt":"2026-01-01T00:05:00Z"}""",
+                )
+                "/device-recover-key-complete" -> MockResponse().setBody(
+                    """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1","vehicleId":"v1","vehicleCode":"CAR-001"}""",
+                )
+                "/device-heartbeat" -> MockResponse().setBody(
+                    """{"deviceId":"d1","deviceCode":"TB-001","recordedAt":"2026-01-01T00:00:00Z"}""",
+                )
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
 
-        val result = repository.sendHeartbeat(batteryLevel = 50, networkType = "wifi", storageFreeBytes = null)
+        val result = repository.sendHeartbeat(batteryLevel = 90, networkType = "wifi", storageFreeBytes = null)
 
-        assertTrue(result.exceptionOrNull() is DeviceApiError.Unauthorized)
-        assertNull(tokenStore.readToken())
-        assertFalse(repository.isEnrolled.first())
+        assertTrue(result.isSuccess)
+        assertEquals("k1", db.deviceStateDao().get()?.keyId)
+        assertTrue(repository.isEnrolled.first())
+        assertFalse(repository.credentialMissingLocally.first())
     }
 
     @Test
-    fun `reenrollAfterCredentialLoss is the only path back to the enrollment screen after a local fault`() = runTest {
-        tokenStore.saveToken("tok-1")
+    fun `recovery fails closed for a genuinely revoked key, surfacing the missing-credential banner`() = runTest {
+        // The Keystore key survives and the device is marked enrolled, but
+        // there is no local key_id pairing (e.g. a prior handled-
+        // Unauthorized cycle already dropped it) — resolveKeyId must try
+        // recovery, and when the server refuses it (the key was actually
+        // revoked), fail closed to CredentialUnavailable rather than
+        // silently retrying forever or crashing.
+        val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
+        val dataStore = PreferenceDataStoreFactory.create(
+            scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
+        ) { prefsFile }
+        val appPreferences = AppPreferences(dataStore)
+        appPreferences.setEnrolled(true)
+        deviceKeyStore.getOrCreateKeyInfo()
+        val repositoryWithoutLocalKeyId = DeviceRepository(
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = deviceKeyStore),
+            deviceKeyStore = deviceKeyStore,
+            installationIdStore = InstallationIdStore(dataStore),
+            appPreferences = appPreferences,
+            deviceStateDao = db.deviceStateDao(),
+            remoteConfigDao = db.remoteConfigDao(),
+            pendingEventDao = db.pendingEventDao(),
+            playbackEventDao = db.playbackEventDao(),
+        )
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-recover-key-start" -> MockResponse()
+                    .setResponseCode(401)
+                    .setBody("""{"error":"unauthorized","message":"Unknown or revoked device key."}""")
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+
+        val result = repositoryWithoutLocalKeyId.sendHeartbeat(
+            batteryLevel = 50, networkType = "wifi", storageFreeBytes = null,
+        )
+
+        assertTrue(result.exceptionOrNull() is DeviceApiError.CredentialUnavailable)
+        assertTrue(appPreferences.credentialMissingLocally.first())
+    }
+
+    @Test
+    fun `reenrollAfterCredentialLoss clears local device state without touching the Keystore key`() = runTest {
+        preEnroll()
 
         repository.reenrollAfterCredentialLoss()
 
-        assertNull(tokenStore.readToken())
+        assertNull(db.deviceStateDao().get())
         assertFalse(repository.isEnrolled.first())
+        // The key itself is preserved: a fresh enroll() call reuses it
+        // rather than needing to register a brand-new one.
+        assertTrue(deviceKeyStore.hasKey())
     }
 
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)
@@ -496,9 +563,14 @@ class DeviceRepositoryTest {
             server.dispatcher = object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
                     callThreadName = Thread.currentThread().name
-                    return MockResponse().setBody(
-                        """{"deviceToken":"tok-1","deviceId":"d1","deviceCode":"TB-001"}""",
-                    )
+                    return when (request.path) {
+                        "/device-enroll-key-start" -> MockResponse().setBody(
+                            """{"enrollmentAttemptId":"a1","challenge":"$CHALLENGE_B64","expiresAt":"2026-01-01T00:05:00Z"}""",
+                        )
+                        else -> MockResponse().setBody(
+                            """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1"}""",
+                        )
+                    }
                 }
             }
 

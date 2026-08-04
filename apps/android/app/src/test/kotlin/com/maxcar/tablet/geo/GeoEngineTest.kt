@@ -5,8 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.GeoRuleEntity
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
+import com.maxcar.tablet.data.repository.DeviceIdentityProvider
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,10 +25,9 @@ import org.robolectric.RobolectricTestRunner
 /** Never used by these tests — [GeoEngine] only reads
  * [GeoRulesSyncManager.readyRules] (a pass-through over Room), it never
  * calls [GeoRulesSyncManager.sync] here. */
-private class UnusedTokenStore : TokenStore {
-    override suspend fun readToken(): String? = null
-    override suspend fun saveToken(token: String) = true
-    override suspend fun clear() = Unit
+private class UnusedDeviceIdentityProvider : DeviceIdentityProvider {
+    override suspend fun currentKeyId(): String? = null
+    override suspend fun handleUnauthorizedDeviceKey() = Unit
 }
 
 /**
@@ -86,7 +85,7 @@ class GeoEngineTest {
         val geoRulesSyncManager = GeoRulesSyncManager(
             context = context,
             apiClient = DeviceApiClient(baseUrl = "http://localhost/"),
-            tokenStore = UnusedTokenStore(),
+            deviceIdentity = UnusedDeviceIdentityProvider(),
             geoRuleDao = db.geoRuleDao(),
         )
         geoEngine = GeoEngine(

@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.StatFs
 import com.maxcar.tablet.data.local.GeoRuleDao
 import com.maxcar.tablet.data.local.GeoRuleEntity
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.GeoRuleItem
 import com.maxcar.tablet.domain.DeviceApiError
@@ -29,7 +28,7 @@ import java.security.MessageDigest
 class GeoRulesSyncManager(
     private val context: Context,
     private val apiClient: DeviceApiClient,
-    private val tokenStore: TokenStore,
+    private val deviceIdentity: DeviceIdentityProvider,
     private val geoRuleDao: GeoRuleDao,
     private val minFreeBytes: Long = MediaDownloadManager.MIN_FREE_BYTES,
 ) {
@@ -44,9 +43,9 @@ class GeoRulesSyncManager(
     suspend fun readyCount(): Int = geoRuleDao.countReady()
 
     suspend fun sync(): Result<Unit> = runCatching {
-        val token = tokenStore.readToken()
-            ?: throw DeviceApiError.CredentialUnavailable("No local credential.")
-        val response = withContext(Dispatchers.IO) { apiClient.getGeoRules(token) }
+        val keyId = deviceIdentity.currentKeyId()
+            ?: throw DeviceApiError.CredentialUnavailable("No local device identity.")
+        val response = withContext(Dispatchers.IO) { apiClient.getGeoRules(keyId) }
         val incoming = response.rules.associateBy { it.geofenceId }
         val existing = geoRuleDao.getAll().associateBy { it.geofenceId }
         val now = System.currentTimeMillis()
@@ -94,9 +93,9 @@ class GeoRulesSyncManager(
             geoRuleDao.deleteNotIn(incoming.keys.toList())
         }
     }.onFailure { error ->
-        // Only a server-confirmed 401 clears the credential — a merely
-        // unreadable local token (CredentialUnavailable) never does.
-        if (error is DeviceApiError.Unauthorized) tokenStore.clear()
+        // Only a server-confirmed 401 touches the device identity — a
+        // merely unusable local key (CredentialUnavailable) never does.
+        if (error is DeviceApiError.Unauthorized) deviceIdentity.handleUnauthorizedDeviceKey()
     }
 
     private suspend fun downloadOne(rule: GeoRuleItem, downloadUrl: String) {

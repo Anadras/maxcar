@@ -6,12 +6,11 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.AppPreferences
-import com.maxcar.tablet.data.local.FakeTokenStore
+import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -35,8 +34,9 @@ class MediaDownloadManagerTest {
 
     private lateinit var server: MockWebServer
     private lateinit var db: AppDatabase
-    private lateinit var tokenStore: FakeTokenStore
+    private lateinit var deviceIdentity: FakeDeviceIdentityProvider
     private lateinit var appPreferences: AppPreferences
+    private lateinit var apiClient: DeviceApiClient
     private lateinit var manager: MediaDownloadManager
 
     @Before
@@ -53,12 +53,16 @@ class MediaDownloadManagerTest {
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         appPreferences = AppPreferences(dataStore)
-        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
+        deviceIdentity = FakeDeviceIdentityProvider()
+        apiClient = DeviceApiClient(
+            baseUrl = server.url("/").toString(),
+            deviceKeyStore = FakeDeviceKeyStore().apply { getOrCreateKeyInfo() },
+        )
 
         manager = MediaDownloadManager(
             context = context,
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
-            tokenStore = tokenStore,
+            apiClient = apiClient,
+            deviceIdentity = deviceIdentity,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
             // Robolectric's app-private storage reports ~0 bytes available
@@ -184,8 +188,8 @@ class MediaDownloadManagerTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val strictManager = MediaDownloadManager(
             context = context,
-            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
-            tokenStore = tokenStore,
+            apiClient = apiClient,
+            deviceIdentity = deviceIdentity,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
             // The real production default; Robolectric's app-private
@@ -254,7 +258,7 @@ class MediaDownloadManagerTest {
     }
 
     @Test
-    fun `sync clears the credential only on an explicit 401, matching the MAX-006 revocation rule`() = runTest {
+    fun `sync drops the local key pairing only on an explicit 401, matching the MAX-006 revocation rule`() = runTest {
         server.enqueue(
             okhttp3.mockwebserver.MockResponse()
                 .setBody("""{"error":"unauthorized","message":"Invalid or revoked device credential."}""")
@@ -264,20 +268,21 @@ class MediaDownloadManagerTest {
         val result = manager.sync()
 
         assertTrue(result.isFailure)
-        assertNull(tokenStore.readToken())
+        assertEquals(1, deviceIdentity.unauthorizedCallCount)
     }
 
     @Test
-    fun `sync never clears the credential when it simply can't be read locally (MAX-011 regression)`() = runTest {
-        tokenStore.clear() // no server round trip should even be attempted
+    fun `sync never touches the identity when it simply can't be resolved locally (MAX-011 regression)`() = runTest {
+        deviceIdentity.setKeyId(null) // no server round trip should even be attempted
         server.enqueue(okhttp3.mockwebserver.MockResponse().setResponseCode(500))
 
         val result = manager.sync()
 
         assertTrue(result.exceptionOrNull() is com.maxcar.tablet.domain.DeviceApiError.CredentialUnavailable)
         assertEquals(0, server.requestCount)
-        // Nothing to clear (the token was already null), but the important
-        // part is this never called setEnrolled(false) either — see the
+        // Nothing to react to (the key_id was already null), but the
+        // important part is this never called handleUnauthorizedDeviceKey
+        // either — see the
         // equivalent DeviceRepository-level test for the direct assertion.
     }
 }

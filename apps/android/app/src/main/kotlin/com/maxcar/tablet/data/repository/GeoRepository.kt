@@ -1,7 +1,6 @@
 package com.maxcar.tablet.data.repository
 
 import com.maxcar.tablet.data.local.GeofenceEventDao
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.GeofenceEventRequest
 import com.maxcar.tablet.domain.DeviceApiError
@@ -19,7 +18,7 @@ import java.util.concurrent.TimeUnit
  */
 class GeoRepository(
     private val apiClient: DeviceApiClient,
-    private val tokenStore: TokenStore,
+    private val deviceIdentity: DeviceIdentityProvider,
     private val geofenceEventDao: GeofenceEventDao,
 ) {
     suspend fun pendingEventCount(): Int = geofenceEventDao.count()
@@ -28,7 +27,7 @@ class GeoRepository(
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         geofenceEventDao.pruneOlderThan(retentionCutoff)
 
-        val token = tokenStore.readToken() ?: return
+        val keyId = deviceIdentity.currentKeyId() ?: return
         val pending = geofenceEventDao.oldest(limit)
         if (pending.isEmpty()) return
 
@@ -46,7 +45,7 @@ class GeoRepository(
         }
 
         val result = runCatching {
-            withContext(Dispatchers.IO) { apiClient.sendGeofenceEvents(token, requests) }
+            withContext(Dispatchers.IO) { apiClient.sendGeofenceEvents(keyId, requests) }
         }
         result.onSuccess { response ->
             response.results.filter { it.ok }.forEach {
@@ -55,7 +54,7 @@ class GeoRepository(
         }.onFailure { error ->
             android.util.Log.w(LOG_TAG, "flushGeofenceEvents failed: ${error::class.simpleName}")
             if (error is DeviceApiError.Unauthorized) {
-                tokenStore.clear()
+                deviceIdentity.handleUnauthorizedDeviceKey()
             } else {
                 pending.forEach { geofenceEventDao.recordAttempt(it.clientEventId) }
             }

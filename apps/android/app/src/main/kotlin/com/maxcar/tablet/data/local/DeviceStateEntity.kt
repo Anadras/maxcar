@@ -16,6 +16,11 @@ data class DeviceStateEntity(
     val deviceCode: String,
     val vehicleId: String?,
     val vehicleCode: String?,
+    // MAX-010.6: the active device_key_credentials.key_id, non-secret —
+    // pairs with the private key that never leaves DeviceKeyStore. Null
+    // only transiently mid-recovery (see DeviceRepository.handleUnauthorizedDeviceKey),
+    // never persisted as null for an otherwise-enrolled device.
+    val keyId: String?,
     val lastHeartbeatAt: String?,
     val lastSyncAt: String?,
     val updatedAt: Long,

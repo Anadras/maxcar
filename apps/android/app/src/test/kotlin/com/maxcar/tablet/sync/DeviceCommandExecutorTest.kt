@@ -6,13 +6,13 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.AppPreferences
-import com.maxcar.tablet.data.local.FakeTokenStore
+import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
+import com.maxcar.tablet.data.repository.FakeDeviceIdentityProvider
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -52,16 +52,19 @@ class DeviceCommandExecutorTest {
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         appPreferences = AppPreferences(dataStore)
-        val tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
-        val apiClient = DeviceApiClient(baseUrl = server.url("/").toString())
+        val deviceIdentity = FakeDeviceIdentityProvider()
+        val apiClient = DeviceApiClient(
+            baseUrl = server.url("/").toString(),
+            deviceKeyStore = FakeDeviceKeyStore().apply { getOrCreateKeyInfo() },
+        )
 
         executor = DeviceCommandExecutor(
             apiClient = apiClient,
-            tokenStore = tokenStore,
+            deviceIdentity = deviceIdentity,
             mediaDownloadManager = MediaDownloadManager(
                 context = context,
                 apiClient = apiClient,
-                tokenStore = tokenStore,
+                deviceIdentity = deviceIdentity,
                 playlistItemDao = db.playlistItemDao(),
                 appPreferences = appPreferences,
                 minFreeBytes = -1,
@@ -69,7 +72,7 @@ class DeviceCommandExecutorTest {
             geoRulesSyncManager = GeoRulesSyncManager(
                 context = context,
                 apiClient = apiClient,
-                tokenStore = tokenStore,
+                deviceIdentity = deviceIdentity,
                 geoRuleDao = db.geoRuleDao(),
                 minFreeBytes = -1,
             ),

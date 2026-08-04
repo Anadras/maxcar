@@ -3,6 +3,7 @@ package com.maxcar.tablet.data.repository
 import android.os.Build
 import com.maxcar.tablet.BuildConfig
 import com.maxcar.tablet.data.local.AppPreferences
+import com.maxcar.tablet.data.local.DeviceKeyStore
 import com.maxcar.tablet.data.local.DeviceStateDao
 import com.maxcar.tablet.data.local.DeviceStateEntity
 import com.maxcar.tablet.data.local.InstallationIdStore
@@ -12,60 +13,116 @@ import com.maxcar.tablet.data.local.PlaybackEventDao
 import com.maxcar.tablet.data.local.PlaybackEventEntity
 import com.maxcar.tablet.data.local.RemoteConfigDao
 import com.maxcar.tablet.data.local.RemoteConfigEntity
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
-import com.maxcar.tablet.data.remote.EnrollRequest
+import com.maxcar.tablet.data.remote.EnrollKeyCompleteRequest
+import com.maxcar.tablet.data.remote.EnrollKeyStartRequest
 import com.maxcar.tablet.data.remote.HeartbeatRequest
 import com.maxcar.tablet.data.remote.PlaybackEventRequest
+import com.maxcar.tablet.data.remote.RecoverKeyCompleteRequest
+import com.maxcar.tablet.data.remote.RecoverKeyStartRequest
 import com.maxcar.tablet.domain.DeviceApiError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+/** What every other sync class (MediaDownloadManager, GeoRulesSyncManager,
+ * GeoRepository, DeviceCommandExecutor) needs from [DeviceRepository]:
+ * today's signing key id — resolving a lost-local-metadata recovery
+ * automatically if the Keystore key is still intact — and how to react
+ * when the server rejects that identity. Kept as a narrow interface so
+ * those classes never re-derive MAX-010.6's recovery logic themselves. */
+interface DeviceIdentityProvider {
+    /** The key_id to sign requests with, or null if there is currently no
+     * usable device identity (never enrolled, or recovery just failed). */
+    suspend fun currentKeyId(): String?
+
+    /** The server rejected the key_id used for the last signed request
+     * (unknown key, revoked key, or a bad signature). */
+    suspend fun handleUnauthorizedDeviceKey()
+}
+
 /**
- * The single place that knows how enrollment, the device credential, the
- * heartbeat queue and remote config relate to each other. UI and
- * WorkManager workers both go through this, never through
+ * The single place that knows how enrollment, the device's cryptographic
+ * identity, the heartbeat queue and remote config relate to each other. UI
+ * and WorkManager workers both go through this, never through
  * [DeviceApiClient] or the DAOs directly.
+ *
+ * MAX-010.6: there is no static bearer token anywhere in this class. Every
+ * device-facing call is authenticated by signing it with [deviceKeyStore]'s
+ * Keystore-resident private key; [DeviceStateEntity.keyId] is the
+ * non-secret identifier that pairs a signature with the right public key
+ * server-side. If that local pairing is ever lost while the Keystore key
+ * itself survives (a Room reset, a lost row, `adb install -r` on a build
+ * that changed the schema), [resolveKeyId] recovers it automatically via a
+ * signed challenge — no new human-typed activation code needed. See
+ * docs/architecture/DEVICE_KEY_AUTH.md.
  */
 class DeviceRepository(
     private val apiClient: DeviceApiClient,
+    private val deviceKeyStore: DeviceKeyStore,
     private val installationIdStore: InstallationIdStore,
-    private val secureTokenStore: TokenStore,
     private val appPreferences: AppPreferences,
     private val deviceStateDao: DeviceStateDao,
     private val remoteConfigDao: RemoteConfigDao,
     private val pendingEventDao: PendingEventDao,
     private val playbackEventDao: PlaybackEventDao,
-) {
+) : DeviceIdentityProvider {
     val isEnrolled: Flow<Boolean> = appPreferences.isEnrolled
     val deviceState: Flow<DeviceStateEntity?> = deviceStateDao.observe()
     val remoteConfig: Flow<RemoteConfigEntity?> = remoteConfigDao.observe()
 
-    /** True when enrolled but the local credential is unreadable — see
-     * [markCredentialMissingIfEnrolled]. Drives a visible recovery banner,
-     * never an automatic re-enrollment. */
+    /** True when enrolled but no usable device identity could be resolved
+     * (Keystore key missing, or recovery itself failed) — see
+     * [resolveKeyId]. Drives a visible recovery banner, never an automatic
+     * re-enrollment. */
     val credentialMissingLocally: Flow<Boolean> = appPreferences.credentialMissingLocally
 
     suspend fun installationId(): UUID = installationIdStore.getOrCreate()
 
-    /** Exchanges a human-typed enrollment code for a device credential. */
+    override suspend fun currentKeyId(): String? = resolveKeyId("currentKeyId")
+
+    override suspend fun handleUnauthorizedDeviceKey() {
+        // The server rejected this key_id — could be a genuine revocation
+        // or a stale/mismatched local pairing. Never delete the Keystore
+        // key itself and never touch device/vehicle history: just drop the
+        // *local* key_id so the very next cycle's resolveKeyId() retries
+        // through the recovery flow. Recovery cleanly fails closed if the
+        // key really was revoked (start_device_key_recovery rejects a
+        // revoked fingerprint the same as an unknown one), which surfaces
+        // as the existing credentialMissingLocally banner — no separate
+        // "revoked" state needed on top of that.
+        deviceStateDao.get()?.let {
+            deviceStateDao.upsert(it.copy(keyId = null, updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    /** Exchanges a human-typed enrollment code for an activated device key.
+     * Generates the tablet's Keystore key pair first if one doesn't exist
+     * yet (idempotent: a retry reuses the same key and the same public
+     * key/fingerprint), proves possession of it by signing the server's
+     * challenge, then persists the resulting device/vehicle/key identity. */
     suspend fun enroll(code: String): Result<DeviceStateEntity> = runCatching {
         val installationId = installationIdStore.getOrCreate()
-        // The OkHttp call inside DeviceApiClient blocks the calling thread
+        val keyInfo = deviceKeyStore.getOrCreateKeyInfo()
+        // The OkHttp calls inside DeviceApiClient block the calling thread
         // (client.newCall(request).execute()). Callers reach this from
         // viewModelScope, whose default dispatcher is Main — without this
         // withContext, a real device throws NetworkOnMainThreadException on
         // every attempt (Robolectric/JVM tests don't enforce that policy,
         // so this only surfaces on hardware).
-        val response = withContext(Dispatchers.IO) {
-            apiClient.enroll(
-                EnrollRequest(
+        val startResponse = withContext(Dispatchers.IO) {
+            apiClient.enrollKeyStart(
+                EnrollKeyStartRequest(
                     code = code,
                     installationId = installationId.toString(),
+                    publicKey = keyInfo.publicKeyDerBase64,
+                    publicKeyFingerprint = keyInfo.fingerprintHex,
+                    algorithm = KEY_ALGORITHM,
+                    hardwareBacked = keyInfo.hardwareBacked,
                     appVersion = BuildConfig.VERSION_NAME,
                     manufacturer = Build.MANUFACTURER,
                     model = Build.MODEL,
@@ -73,38 +130,38 @@ class DeviceRepository(
                 ),
             )
         }
-        // A read-back right after saveToken() cannot catch a real disk
-        // failure: Android's SharedPreferences always serves reads from its
-        // in-memory cache, which saveToken() already populated, regardless
-        // of whether the file write actually landed. This is the exact
-        // failure a live pilot device hit — enrollment looked successful
-        // all the way through the next heartbeat, yet the credential was
-        // never on disk, so every sync after that (once the process
-        // restarted and the cache was gone) saw CredentialUnavailable
-        // forever. Only saveToken()'s own success signal can catch it.
-        check(secureTokenStore.saveToken(response.deviceToken)) {
-            "Device token did not persist after saveToken()."
+        val signature = deviceKeyStore.sign(Base64.getDecoder().decode(startResponse.challenge))
+        val completeResponse = withContext(Dispatchers.IO) {
+            apiClient.enrollKeyComplete(
+                EnrollKeyCompleteRequest(
+                    enrollmentAttemptId = startResponse.enrollmentAttemptId,
+                    signature = Base64.getEncoder().encodeToString(signature),
+                ),
+            )
         }
         val state = DeviceStateEntity(
-            deviceId = response.deviceId,
-            deviceCode = response.deviceCode,
-            vehicleId = response.vehicleId,
-            vehicleCode = response.vehicleCode,
+            deviceId = completeResponse.deviceId,
+            deviceCode = completeResponse.deviceCode,
+            vehicleId = completeResponse.vehicleId,
+            vehicleCode = completeResponse.vehicleCode,
+            keyId = completeResponse.keyId,
             lastHeartbeatAt = null,
             lastSyncAt = null,
             updatedAt = System.currentTimeMillis(),
         )
         deviceStateDao.upsert(state)
         appPreferences.setEnrolled(true)
+        appPreferences.setCredentialMissingLocally(false)
         state
     }.onFailure { logFailure("enroll", it) }
 
     /**
      * Sends one heartbeat. On success, clears the corresponding pending
-     * event if this was a retry. On [DeviceApiError.Unauthorized] (revoked
-     * or invalid credential), the device falls back to "needs
-     * re-enrollment" — but its local data is left alone; only an explicit
-     * revocation response does this, never a network failure or timeout.
+     * event if this was a retry. On [DeviceApiError.Unauthorized] (an
+     * unknown, revoked, or otherwise rejected key), the local key_id
+     * pairing is dropped so the next cycle retries via recovery — its
+     * local data is otherwise left alone, and enrollment is never cleared
+     * by a mere network failure or timeout.
      */
     suspend fun sendHeartbeat(
         batteryLevel: Int?,
@@ -131,16 +188,12 @@ class DeviceRepository(
     ): Result<Unit> {
         val sentAtMillis = System.currentTimeMillis()
         val clockSkewSeconds = appPreferences.clockSkewSnapshot()
-        val token = secureTokenStore.readToken()
-        if (token == null) {
-            markCredentialMissingIfEnrolled("sendHeartbeat")
-            return Result.failure(DeviceApiError.CredentialUnavailable("No local credential."))
-        }
-        appPreferences.setCredentialMissingLocally(false)
+        val keyId = resolveKeyId("sendHeartbeat")
+            ?: return Result.failure(DeviceApiError.CredentialUnavailable("No local device identity."))
         val result = runCatching {
             val response = withContext(Dispatchers.IO) {
                 apiClient.heartbeat(
-                    token,
+                    keyId,
                     HeartbeatRequest(
                         batteryLevel = batteryLevel,
                         networkType = networkType,
@@ -193,7 +246,7 @@ class DeviceRepository(
         result.onFailure { error ->
             logFailure("heartbeat", error)
             when (error) {
-                is DeviceApiError.Unauthorized -> handleRevocation()
+                is DeviceApiError.Unauthorized -> handleUnauthorizedDeviceKey()
                 is DeviceApiError.NetworkUnavailable ->
                     queuePendingHeartbeat(batteryLevel, networkType, storageFreeBytes, clientEventId)
                 else -> Unit
@@ -213,16 +266,12 @@ class DeviceRepository(
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         pendingEventDao.pruneOlderThan(retentionCutoff)
 
-        val token = secureTokenStore.readToken()
-        if (token == null) {
-            markCredentialMissingIfEnrolled("flushPendingEvents")
-            return
-        }
+        val keyId = resolveKeyId("flushPendingEvents") ?: return
         for (event in pendingEventDao.oldest(limit)) {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     apiClient.heartbeat(
-                        token,
+                        keyId,
                         HeartbeatRequest(
                             batteryLevel = event.batteryLevel,
                             networkType = event.networkType,
@@ -240,11 +289,10 @@ class DeviceRepository(
                 logFailure("flushPendingEvents", error)
                 pendingEventDao.recordAttempt(event.id, System.currentTimeMillis())
                 when (error) {
-                    // A confirmed revocation: every remaining item would
-                    // fail the exact same way, and the device is about to
-                    // bounce to the enrollment screen regardless.
+                    // A confirmed rejection: every remaining item would
+                    // fail the exact same way this cycle.
                     is DeviceApiError.Unauthorized -> {
-                        handleRevocation()
+                        handleUnauthorizedDeviceKey()
                         return
                     }
                     // The server is unreachable at all: retrying the next
@@ -304,11 +352,7 @@ class DeviceRepository(
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         playbackEventDao.pruneOlderThan(retentionCutoff)
 
-        val token = secureTokenStore.readToken()
-        if (token == null) {
-            markCredentialMissingIfEnrolled("flushPlaybackEvents")
-            return
-        }
+        val keyId = resolveKeyId("flushPlaybackEvents") ?: return
         val pending = playbackEventDao.oldest(limit)
         if (pending.isEmpty()) return
 
@@ -328,7 +372,7 @@ class DeviceRepository(
         }
 
         val result = runCatching {
-            withContext(Dispatchers.IO) { apiClient.sendPlaybackEvents(token, requests) }
+            withContext(Dispatchers.IO) { apiClient.sendPlaybackEvents(keyId, requests) }
         }
         result.onSuccess { response ->
             response.results.filter { it.ok }.forEach {
@@ -337,7 +381,7 @@ class DeviceRepository(
         }.onFailure { error ->
             logFailure("flushPlaybackEvents", error)
             if (error is DeviceApiError.Unauthorized) {
-                handleRevocation()
+                handleUnauthorizedDeviceKey()
             } else {
                 pending.forEach { playbackEventDao.recordAttempt(it.clientEventId) }
             }
@@ -345,14 +389,10 @@ class DeviceRepository(
     }
 
     suspend fun refreshConfig(): Result<RemoteConfigEntity> {
-        val token = secureTokenStore.readToken()
-        if (token == null) {
-            markCredentialMissingIfEnrolled("refreshConfig")
-            return Result.failure(DeviceApiError.CredentialUnavailable("No local credential."))
-        }
-        appPreferences.setCredentialMissingLocally(false)
+        val keyId = resolveKeyId("refreshConfig")
+            ?: return Result.failure(DeviceApiError.CredentialUnavailable("No local device identity."))
         return runCatching {
-            val response = withContext(Dispatchers.IO) { apiClient.getConfig(token) }
+            val response = withContext(Dispatchers.IO) { apiClient.getConfig(keyId) }
             deviceStateDao.get()?.let {
                 deviceStateDao.upsert(it.copy(lastSyncAt = Instant.now().toString()))
             }
@@ -370,7 +410,7 @@ class DeviceRepository(
             config
         }.onFailure { error ->
             logFailure("refreshConfig", error)
-            if (error is DeviceApiError.Unauthorized) handleRevocation()
+            if (error is DeviceApiError.Unauthorized) handleUnauthorizedDeviceKey()
         }
     }
 
@@ -383,24 +423,76 @@ class DeviceRepository(
         (remoteConfigDao.get() ?: RemoteConfigEntity.defaults())
             .heartbeatIntervalSeconds.toLong()
 
-    /** A revoked/invalid credential means "needs re-enrollment", not "data
-     * loss": we clear only the secret and the enrolled flag. Device/vehicle
-     * history and the pending queue are left alone; re-enrollment repopulates
-     * DeviceStateEntity from the server's response like the first time. */
-    private suspend fun handleRevocation() {
-        secureTokenStore.clear()
-        appPreferences.setEnrolled(false)
-        appPreferences.setCredentialMissingLocally(false)
+    /** The one place that decides which key_id to sign a request with.
+     * Prefers the locally paired key_id when the Keystore key that
+     * produced it is still present (the common, steady-state case). If
+     * the Keystore key exists but no local key_id is paired with it — a
+     * Room reset, a lost row, a handled-Unauthorized cycle — it recovers
+     * the pairing via a signed challenge instead of asking for a new
+     * activation code. Returns null (and marks [credentialMissingLocally]
+     * if the device is otherwise enrolled) only when there's truly no
+     * usable identity: no Keystore key at all, or recovery itself just
+     * failed. */
+    private suspend fun resolveKeyId(step: String): String? {
+        val localKeyId = deviceStateDao.get()?.keyId
+        if (localKeyId != null && deviceKeyStore.hasKey()) {
+            appPreferences.setCredentialMissingLocally(false)
+            return localKeyId
+        }
+        if (deviceKeyStore.hasKey()) {
+            recoverIdentity(step)?.let { return it }
+        }
+        markCredentialMissingIfEnrolled(step)
+        return null
     }
 
-    /** A local token read came back empty. If the device isn't marked
-     * enrolled, this is expected and harmless — nothing to flag. If it
-     * *is* marked enrolled, this is a broken local state (EncryptedShared-
-     * Preferences/Keystore fault, not a server decision) that needs to be
-     * visible to an operator, never silently treated as a revocation. */
+    /** MAX-010.6 recovery: the Keystore key survived (reboot, `adb install
+     * -r`, a Room schema wipe) but the local device_id/key_id pairing
+     * didn't. Re-derives the public key/fingerprint straight from the
+     * Keystore — no locally-stored state needed for that — and proves
+     * possession the same way enrollment does, just keyed by fingerprint
+     * instead of a human-typed code. */
+    private suspend fun recoverIdentity(step: String): String? = runCatching {
+        val keyInfo = deviceKeyStore.currentKeyInfo() ?: return null
+        val startResponse = withContext(Dispatchers.IO) {
+            apiClient.recoverKeyStart(RecoverKeyStartRequest(keyInfo.fingerprintHex))
+        }
+        val signature = deviceKeyStore.sign(Base64.getDecoder().decode(startResponse.challenge))
+        val completeResponse = withContext(Dispatchers.IO) {
+            apiClient.recoverKeyComplete(
+                RecoverKeyCompleteRequest(
+                    recoveryAttemptId = startResponse.recoveryAttemptId,
+                    signature = Base64.getEncoder().encodeToString(signature),
+                ),
+            )
+        }
+        val existing = deviceStateDao.get()
+        deviceStateDao.upsert(
+            DeviceStateEntity(
+                deviceId = completeResponse.deviceId,
+                deviceCode = completeResponse.deviceCode,
+                vehicleId = completeResponse.vehicleId,
+                vehicleCode = completeResponse.vehicleCode,
+                keyId = completeResponse.keyId,
+                lastHeartbeatAt = existing?.lastHeartbeatAt,
+                lastSyncAt = existing?.lastSyncAt,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+        appPreferences.setEnrolled(true)
+        appPreferences.setCredentialMissingLocally(false)
+        completeResponse.keyId
+    }.onFailure { logFailure("$step.recovery", it) }.getOrNull()
+
+    /** A local key read came back empty (no Keystore key, or recovery just
+     * failed). If the device isn't marked enrolled, this is expected and
+     * harmless — nothing to flag. If it *is* marked enrolled, this is a
+     * broken local state (a Keystore fault, or a genuinely revoked key
+     * that recovery correctly refused) that needs to be visible to an
+     * operator, never silently treated as an automatic de-enrollment. */
     private suspend fun markCredentialMissingIfEnrolled(step: String) {
         if (appPreferences.isEnrolledSnapshot()) {
-            android.util.Log.w(LOG_TAG, "$step: enrolled but local credential is unreadable")
+            android.util.Log.w(LOG_TAG, "$step: enrolled but no local device identity is usable")
             appPreferences.setCredentialMissingLocally(true)
         }
     }
@@ -410,9 +502,14 @@ class DeviceRepository(
      * diagnostics screen as "Reativar este tablet" once
      * [AppPreferences.credentialMissingLocally] has been showing true for
      * a while and the operator has confirmed the tablet really does need a
-     * new activation code. */
+     * new activation code. Clears local device/enrollment state only —
+     * the Keystore key itself is left alone, so a fresh [enroll] call
+     * reuses it instead of generating (and needing to re-register) a new
+     * one. */
     suspend fun reenrollAfterCredentialLoss() {
-        handleRevocation()
+        deviceStateDao.clear()
+        appPreferences.setEnrolled(false)
+        appPreferences.setCredentialMissingLocally(false)
     }
 
     private suspend fun queuePendingHeartbeat(
@@ -436,14 +533,16 @@ class DeviceRepository(
 
     /** Logs only the operation name and the exception's own class — never a
      * message, cause, stack trace, request/response body, activation code
-     * or device token. [DeviceApiError] messages already come straight from
-     * the server, so even they aren't safe to log verbatim here. */
+     * or device key material. [DeviceApiError] messages already come
+     * straight from the server, so even they aren't safe to log verbatim
+     * here. */
     private fun logFailure(step: String, error: Throwable) {
         android.util.Log.w(LOG_TAG, "$step failed: ${error::class.simpleName}")
     }
 
     private companion object {
         const val LOG_TAG = "MaxcarDeviceRepo"
+        const val KEY_ALGORITHM = "ECDSA_P256_SHA256"
         val RETENTION_MILLIS = TimeUnit.DAYS.toMillis(7)
     }
 }

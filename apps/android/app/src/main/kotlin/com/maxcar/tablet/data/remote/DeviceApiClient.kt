@@ -1,9 +1,11 @@
 package com.maxcar.tablet.data.remote
 
+import com.maxcar.tablet.data.local.DeviceKeyStore
 import com.maxcar.tablet.domain.DeviceApiError
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -14,14 +16,20 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+private val EMPTY_BODY = ByteArray(0)
 
 /**
- * Thin HTTP client for the three device endpoints. No Supabase SDK, no
- * Supabase JWT, no service role key: this app only ever knows the base URL
- * and its own bearer token (or none yet, for /device-enroll).
+ * Thin HTTP client for the device endpoints. MAX-010.6: no bearer token is
+ * ever sent for the data endpoints — each call is signed with the
+ * tablet's own Android-Keystore-backed key via [DeviceRequestSigner].
+ * Enrollment and recovery instead prove possession of that same key by
+ * signing a server-issued challenge (see [enrollKeyComplete]/
+ * [recoverKeyComplete]) — the start calls themselves carry no secret and
+ * are never signed, since no key session exists yet at that point.
  */
 class DeviceApiClient(
     private val baseUrl: String,
+    private val deviceKeyStore: DeviceKeyStore? = null,
     private val json: Json = Json { ignoreUnknownKeys = true },
     okHttpClient: OkHttpClient? = null,
 ) {
@@ -32,106 +40,83 @@ class DeviceApiClient(
         .addInterceptor(RedactingLoggingInterceptor())
         .build()
 
-    fun enroll(request: EnrollRequest): EnrollResponse {
+    fun enrollKeyStart(request: EnrollKeyStartRequest): EnrollKeyStartResponse {
         val body = json.encodeToString(request).toRequestBody(JSON_MEDIA_TYPE)
         val httpRequest = Request.Builder()
-            .url(baseUrl + "device-enroll")
+            .url(baseUrl + "device-enroll-key-start")
             .post(body)
             .build()
-        return execute(httpRequest) { json.decodeFromString(EnrollResponse.serializer(), it) }
+        return execute(httpRequest) { json.decodeFromString(EnrollKeyStartResponse.serializer(), it) }
     }
 
-    fun heartbeat(token: String, request: HeartbeatRequest): HeartbeatResponse {
+    fun enrollKeyComplete(request: EnrollKeyCompleteRequest): EnrollKeyCompleteResponse {
         val body = json.encodeToString(request).toRequestBody(JSON_MEDIA_TYPE)
         val httpRequest = Request.Builder()
-            .url(baseUrl + "device-heartbeat")
-            .header("Authorization", "Bearer $token")
+            .url(baseUrl + "device-enroll-key-complete")
             .post(body)
             .build()
-        return execute(httpRequest) { json.decodeFromString(HeartbeatResponse.serializer(), it) }
+        return execute(httpRequest) { json.decodeFromString(EnrollKeyCompleteResponse.serializer(), it) }
     }
 
-    fun getConfig(token: String): ConfigResponse {
+    fun recoverKeyStart(request: RecoverKeyStartRequest): RecoverKeyStartResponse {
+        val body = json.encodeToString(request).toRequestBody(JSON_MEDIA_TYPE)
         val httpRequest = Request.Builder()
-            .url(baseUrl + "device-config")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return execute(httpRequest) { json.decodeFromString(ConfigResponse.serializer(), it) }
-    }
-
-    fun getManifest(token: String): ManifestResponse {
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-manifest")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return execute(httpRequest) { json.decodeFromString(ManifestResponse.serializer(), it) }
-    }
-
-    fun sendPlaybackEvents(
-        token: String,
-        events: List<PlaybackEventRequest>,
-    ): PlaybackEventsResponse {
-        val body = json.encodeToString(PlaybackEventsRequest(events)).toRequestBody(JSON_MEDIA_TYPE)
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-playback-events")
-            .header("Authorization", "Bearer $token")
+            .url(baseUrl + "device-recover-key-start")
             .post(body)
             .build()
-        return execute(httpRequest) { json.decodeFromString(PlaybackEventsResponse.serializer(), it) }
+        return execute(httpRequest) { json.decodeFromString(RecoverKeyStartResponse.serializer(), it) }
     }
+
+    fun recoverKeyComplete(request: RecoverKeyCompleteRequest): RecoverKeyCompleteResponse {
+        val body = json.encodeToString(request).toRequestBody(JSON_MEDIA_TYPE)
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-recover-key-complete")
+            .post(body)
+            .build()
+        return execute(httpRequest) { json.decodeFromString(RecoverKeyCompleteResponse.serializer(), it) }
+    }
+
+    fun heartbeat(keyId: String, request: HeartbeatRequest): HeartbeatResponse =
+        signedPost("device-heartbeat", keyId, json.encodeToString(request)) {
+            json.decodeFromString(HeartbeatResponse.serializer(), it)
+        }
+
+    fun getConfig(keyId: String): ConfigResponse =
+        signedGet("device-config", keyId) { json.decodeFromString(ConfigResponse.serializer(), it) }
+
+    fun getManifest(keyId: String): ManifestResponse =
+        signedGet("device-manifest", keyId) { json.decodeFromString(ManifestResponse.serializer(), it) }
+
+    fun sendPlaybackEvents(keyId: String, events: List<PlaybackEventRequest>): PlaybackEventsResponse =
+        signedPost("device-playback-events", keyId, json.encodeToString(PlaybackEventsRequest(events))) {
+            json.decodeFromString(PlaybackEventsResponse.serializer(), it)
+        }
 
     /** GEO geofence rules for the Location Engine (MAX-008); same shape and
      * download pipeline as [getManifest], just for GEO campaigns. */
-    fun getGeoRules(token: String): GeoRulesResponse {
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-geo-rules")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return execute(httpRequest) { json.decodeFromString(GeoRulesResponse.serializer(), it) }
-    }
+    fun getGeoRules(keyId: String): GeoRulesResponse =
+        signedGet("device-geo-rules", keyId) { json.decodeFromString(GeoRulesResponse.serializer(), it) }
 
-    fun sendGeofenceEvents(
-        token: String,
-        events: List<GeofenceEventRequest>,
-    ): GeofenceEventsResponse {
-        val body = json.encodeToString(GeofenceEventsRequest(events)).toRequestBody(JSON_MEDIA_TYPE)
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-geofence-events")
-            .header("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        return execute(httpRequest) { json.decodeFromString(GeofenceEventsResponse.serializer(), it) }
-    }
+    fun sendGeofenceEvents(keyId: String, events: List<GeofenceEventRequest>): GeofenceEventsResponse =
+        signedPost("device-geofence-events", keyId, json.encodeToString(GeofenceEventsRequest(events))) {
+            json.decodeFromString(GeofenceEventsResponse.serializer(), it)
+        }
 
     /** MAX-009 remote commands: fetches whatever is pending for this
      * device (marks them delivered server-side). */
-    fun getPendingCommands(token: String): DeviceCommandsResponse {
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-commands")
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        return execute(httpRequest) { json.decodeFromString(DeviceCommandsResponse.serializer(), it) }
-    }
+    fun getPendingCommands(keyId: String): DeviceCommandsResponse =
+        signedGet("device-commands", keyId) { json.decodeFromString(DeviceCommandsResponse.serializer(), it) }
 
     fun acknowledgeCommand(
-        token: String,
+        keyId: String,
         commandId: String,
         status: String,
         result: String?,
-    ): AcknowledgeCommandResponse {
-        val body = json.encodeToString(AcknowledgeCommandRequest(commandId, status, result))
-            .toRequestBody(JSON_MEDIA_TYPE)
-        val httpRequest = Request.Builder()
-            .url(baseUrl + "device-commands")
-            .header("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        return execute(httpRequest) { json.decodeFromString(AcknowledgeCommandResponse.serializer(), it) }
-    }
+    ): AcknowledgeCommandResponse = signedPost(
+        "device-commands",
+        keyId,
+        json.encodeToString(AcknowledgeCommandRequest(commandId, status, result)),
+    ) { json.decodeFromString(AcknowledgeCommandResponse.serializer(), it) }
 
     /** Streams a signed URL straight to disk without ever holding the full
      * file in memory — a video can be tens of megabytes, and this call
@@ -152,6 +137,39 @@ class DeviceApiClient(
                 body.byteStream().copyTo(output)
             }
         }
+    }
+
+    private fun <T> signedGet(functionName: String, keyId: String, decode: (String) -> T): T {
+        val httpRequest = Request.Builder()
+            .url(baseUrl + functionName)
+            .headers(signedHeaders(keyId, "GET", "/$functionName", EMPTY_BODY))
+            .get()
+            .build()
+        return execute(httpRequest, decode)
+    }
+
+    private fun <T> signedPost(
+        functionName: String,
+        keyId: String,
+        bodyJson: String,
+        decode: (String) -> T,
+    ): T {
+        val bodyBytes = bodyJson.toByteArray(Charsets.UTF_8)
+        val httpRequest = Request.Builder()
+            .url(baseUrl + functionName)
+            .headers(signedHeaders(keyId, "POST", "/$functionName", bodyBytes))
+            .post(bodyBytes.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        return execute(httpRequest, decode)
+    }
+
+    private fun signedHeaders(keyId: String, method: String, path: String, bodyBytes: ByteArray): Headers {
+        val keyStore = deviceKeyStore
+            ?: error("DeviceApiClient has no DeviceKeyStore to sign requests with.")
+        val signed = DeviceRequestSigner.sign(keyStore, keyId, method, path, bodyBytes)
+        val builder = Headers.Builder()
+        signed.toHeaderPairs().forEach { (name, value) -> builder.add(name, value) }
+        return builder.build()
     }
 
     private fun <T> execute(request: Request, decode: (String) -> T): T {
@@ -186,7 +204,7 @@ class DeviceApiClient(
 }
 
 /** Logs method, path and status only — never headers (which carry the
- * bearer token) or bodies (which carry the enrollment code or token). */
+ * signature/key id) or bodies (which carry the enrollment code). */
 private class RedactingLoggingInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()

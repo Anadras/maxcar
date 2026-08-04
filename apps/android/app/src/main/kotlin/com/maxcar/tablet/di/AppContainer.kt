@@ -3,10 +3,10 @@ package com.maxcar.tablet.di
 import android.content.Context
 import androidx.datastore.preferences.preferencesDataStore
 import com.maxcar.tablet.BuildConfig
+import com.maxcar.tablet.data.local.AndroidDeviceKeyStore
 import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.AppPreferences
 import com.maxcar.tablet.data.local.InstallationIdStore
-import com.maxcar.tablet.data.local.SecureTokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.GeoRepository
@@ -36,13 +36,15 @@ class AppContainer(context: Context) {
     val installationIdStore = InstallationIdStore(appContext.dataStore)
     val appPreferences = AppPreferences(appContext.dataStore)
     val database: AppDatabase = AppDatabase.getInstance(appContext)
-    val secureTokenStore = SecureTokenStore(appContext, database.deviceCredentialDao())
-    val apiClient = DeviceApiClient(baseUrl = BuildConfig.DEVICE_API_BASE_URL)
+    // MAX-010.6: the tablet's cryptographic identity — never a static
+    // bearer token. See DeviceRepository's class doc.
+    val deviceKeyStore = AndroidDeviceKeyStore()
+    val apiClient = DeviceApiClient(baseUrl = BuildConfig.DEVICE_API_BASE_URL, deviceKeyStore = deviceKeyStore)
 
     val deviceRepository = DeviceRepository(
         apiClient = apiClient,
+        deviceKeyStore = deviceKeyStore,
         installationIdStore = installationIdStore,
-        secureTokenStore = secureTokenStore,
         appPreferences = appPreferences,
         deviceStateDao = database.deviceStateDao(),
         remoteConfigDao = database.remoteConfigDao(),
@@ -53,7 +55,7 @@ class AppContainer(context: Context) {
     val mediaDownloadManager = MediaDownloadManager(
         context = appContext,
         apiClient = apiClient,
-        tokenStore = secureTokenStore,
+        deviceIdentity = deviceRepository,
         playlistItemDao = database.playlistItemDao(),
         appPreferences = appPreferences,
     )
@@ -67,13 +69,13 @@ class AppContainer(context: Context) {
     val geoRulesSyncManager = GeoRulesSyncManager(
         context = appContext,
         apiClient = apiClient,
-        tokenStore = secureTokenStore,
+        deviceIdentity = deviceRepository,
         geoRuleDao = database.geoRuleDao(),
     )
 
     val geoRepository = GeoRepository(
         apiClient = apiClient,
-        tokenStore = secureTokenStore,
+        deviceIdentity = deviceRepository,
         geofenceEventDao = database.geofenceEventDao(),
     )
 
@@ -87,7 +89,7 @@ class AppContainer(context: Context) {
 
     val commandExecutor = DeviceCommandExecutor(
         apiClient = apiClient,
-        tokenStore = secureTokenStore,
+        deviceIdentity = deviceRepository,
         mediaDownloadManager = mediaDownloadManager,
         geoRulesSyncManager = geoRulesSyncManager,
         appPreferences = appPreferences,

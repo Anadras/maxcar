@@ -30,14 +30,15 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
 
     suspend fun isEnrolledSnapshot(): Boolean = isEnrolled.first()
 
-    /** True when the device is marked enrolled but the local credential
-     * (Keystore-backed, [com.maxcar.tablet.data.local.SecureTokenStore])
-     * could not be read on the last sync attempt — a local storage fault,
-     * never proof the server revoked anything. Drives a visible "reativar
-     * este tablet" banner (an operator-initiated recovery, never an
-     * automatic one) instead of silently bouncing back to the enrollment
-     * screen. Cleared automatically the next time a sync call successfully
-     * reads a token again. */
+    /** True when the device is marked enrolled but no usable device
+     * identity could be resolved on the last sync attempt — the Keystore
+     * key is missing, or MAX-010.6's automatic recovery flow itself
+     * failed — never proof the server revoked anything on its own. Drives
+     * a visible "reativar este tablet" banner (an operator-initiated
+     * recovery, never an automatic one) instead of silently bouncing back
+     * to the enrollment screen. Cleared automatically the next time a sync
+     * call successfully resolves a key_id again (see
+     * [com.maxcar.tablet.data.repository.DeviceRepository]). */
     val credentialMissingLocally: Flow<Boolean> =
         dataStore.data.map { prefs -> prefs[KEY_CREDENTIAL_MISSING_LOCALLY] ?: false }
 

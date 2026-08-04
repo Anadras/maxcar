@@ -1,9 +1,9 @@
 package com.maxcar.tablet.sync
 
 import com.maxcar.tablet.data.local.AppPreferences
-import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.DeviceCommandItem
+import com.maxcar.tablet.data.repository.DeviceIdentityProvider
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
  */
 class DeviceCommandExecutor(
     private val apiClient: DeviceApiClient,
-    private val tokenStore: TokenStore,
+    private val deviceIdentity: DeviceIdentityProvider,
     private val mediaDownloadManager: MediaDownloadManager,
     private val geoRulesSyncManager: GeoRulesSyncManager,
     private val appPreferences: AppPreferences,
@@ -34,16 +34,16 @@ class DeviceCommandExecutor(
     val restartPlayerSignal: SharedFlow<Unit> = _restartPlayerSignal
 
     suspend fun pollAndExecute() {
-        val token = tokenStore.readToken() ?: return
+        val keyId = deviceIdentity.currentKeyId() ?: return
         val response = runCatching {
-            withContext(Dispatchers.IO) { apiClient.getPendingCommands(token) }
+            withContext(Dispatchers.IO) { apiClient.getPendingCommands(keyId) }
         }.getOrNull() ?: return
 
         for (command in response.commands) {
             val (status, result) = execute(command)
             runCatching {
                 withContext(Dispatchers.IO) {
-                    apiClient.acknowledgeCommand(token, command.commandId, status, result)
+                    apiClient.acknowledgeCommand(keyId, command.commandId, status, result)
                 }
             }
         }

@@ -58,23 +58,23 @@ test('operational flow: login through fleet, without touching the database direc
   const toLocalInput = (date: Date) => date.toISOString().slice(0, 16);
   await page.getByLabel('Início').fill(toLocalInput(startsAt));
   await page.getByLabel('Fim').fill(toLocalInput(endsAt));
-  await page.getByRole('button', { name: 'Salvar campanha' }).click();
+  await page.getByRole('button', { name: 'Salvar e continuar' }).click();
   await expect(page).toHaveURL(/\/campanhas\/[0-9a-f-]+/);
   const campaignPath = new URL(page.url()).pathname;
-  await expect(page.getByText('Campanha ainda incompleta')).toBeVisible();
+  await expect(page.getByText('Falta concluir a campanha')).toBeVisible();
 
   // 5. Criativo
   const dir = mkdtempSync(join(tmpdir(), 'maxcar-e2e-'));
   const filePath = join(dir, 'creative.png');
   writeFileSync(filePath, Buffer.from(PNG_BASE64, 'base64'));
-  await page.getByLabel('Nome do criativo').fill('E2E creative');
-  await page.getByLabel('Duração de exibição em segundos').fill('8');
+  await page.getByLabel('Nome da peça').fill('E2E creative');
+  await page.getByLabel('Tempo na tela').fill('8');
   await page.locator('input[name="file"]').setInputFiles(filePath);
-  await page.getByRole('button', { name: 'Enviar criativo' }).click();
+  await page.getByRole('button', { name: 'Enviar arquivo' }).click();
   await expect(page.getByText('E2E creative')).toBeVisible();
 
   // 6. Geofence (pre-selects the campaign; establishment picked by name)
-  await page.getByRole('link', { name: '＋ Adicionar geofence' }).click();
+  await page.getByRole('link', { name: '＋ Definir local e raio' }).click();
   await expect(page).toHaveURL(/\/geofences\/nova\?campaign=/);
   const establishmentSelect = page.getByLabel('Estabelecimento');
   const establishmentValue = await establishmentSelect
@@ -87,11 +87,10 @@ test('operational flow: login through fleet, without touching the database direc
 
   // 7. Ativação — back on the campaign, readiness must now be green
   await page.goto(campaignPath);
-  await expect(page.getByText('Campanha estruturalmente pronta')).toBeVisible();
-  await page.getByRole('link', { name: 'Editar campanha' }).click();
-  await expect(page.getByText('Campanha estruturalmente pronta')).toBeVisible();
-  await page.getByLabel('Status').selectOption('active');
-  await page.getByRole('button', { name: 'Salvar campanha' }).click();
+  await expect(page.getByText('Tudo pronto para publicar')).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Colocar no ar e sincronizar tablets' })
+    .click();
   await expect(page).toHaveURL(
     new RegExp(campaignPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
   );

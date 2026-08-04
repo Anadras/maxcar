@@ -7,6 +7,7 @@ import { notFound } from 'next/navigation';
 import { setCreativeActive, uploadCreative } from './creative-actions';
 import {
   addCampaignToDefaultPlaylist,
+  publishCampaignAndSync,
   removeCampaignFromDefaultPlaylist,
 } from './playlist-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -48,6 +49,9 @@ export default async function CampaignDetailPage({
   if (!campaign || !campaign.campaign_type || !campaign.status) notFound();
   const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
   const canManageGrid = Boolean(auth && canManageFleet(auth.profile.role));
+  const canPublish = Boolean(
+    auth && ['super_admin', 'admin'].includes(auth.profile.role),
+  );
   const inDefaultPlaylist =
     campaign.campaign_type === 'regular' && canManageGrid
       ? await isCampaignInDefaultPlaylist(id)
@@ -97,7 +101,76 @@ export default async function CampaignDetailPage({
           ) : undefined
         }
       />
-      <ReadinessBanner ready={ready} issues={readiness} />
+      <section className={`launch-panel ${ready ? 'is-ready' : ''}`}>
+        <div className="launch-panel-copy">
+          <span className="launch-kicker">PUBLICAÇÃO</span>
+          <h2>
+            {campaign.status === 'active' &&
+            (campaign.campaign_type === 'geo' || inDefaultPlaylist)
+              ? 'Campanha no ar'
+              : ready
+                ? 'Tudo pronto para publicar'
+                : 'Complete os passos abaixo'}
+          </h2>
+          <p>
+            {campaign.status === 'active' &&
+            (campaign.campaign_type === 'geo' || inDefaultPlaylist)
+              ? 'Os tablets recebem as atualizações automaticamente.'
+              : ready
+                ? 'Um único botão ativa a campanha, inclui na programação quando necessário e sincroniza os tablets.'
+                : 'O sistema só libera a publicação quando a campanha estiver completa.'}
+          </p>
+        </div>
+        <ol className="launch-steps">
+          <li className="done">
+            <span>✓</span> Campanha criada
+          </li>
+          <li className={creatives.some((item) => item.active) ? 'done' : ''}>
+            <span>{creatives.some((item) => item.active) ? '✓' : '2'}</span>
+            Arquivo enviado
+          </li>
+          {campaign.campaign_type === 'geo' && (
+            <li className={geofences.some((item) => item.active) ? 'done' : ''}>
+              <span>{geofences.some((item) => item.active) ? '✓' : '3'}</span>
+              Local e raio definidos
+            </li>
+          )}
+          <li
+            className={
+              campaign.status === 'active' &&
+              (campaign.campaign_type === 'geo' || inDefaultPlaylist)
+                ? 'done'
+                : ''
+            }
+          >
+            <span>
+              {campaign.status === 'active' &&
+              (campaign.campaign_type === 'geo' || inDefaultPlaylist)
+                ? '✓'
+                : campaign.campaign_type === 'geo'
+                  ? '4'
+                  : '3'}
+            </span>
+            Publicar e sincronizar
+          </li>
+        </ol>
+        {canPublish &&
+          ready &&
+          !(
+            campaign.status === 'active' &&
+            (campaign.campaign_type === 'geo' || inDefaultPlaylist)
+          ) && (
+            <form action={publishCampaignAndSync.bind(null, id)}>
+              <button
+                className="button button-primary launch-button"
+                type="submit"
+              >
+                Colocar no ar e sincronizar tablets
+              </button>
+            </form>
+          )}
+      </section>
+      {!ready && <ReadinessBanner ready={ready} issues={readiness} />}
       <SectionCard title="Resumo">
         <dl className="detail-grid campaign-summary">
           <div>
@@ -149,23 +222,25 @@ export default async function CampaignDetailPage({
           </div>
         </dl>
       </SectionCard>
-      <SectionCard
-        title="Criativos privados"
-        subtitle="Previews assinados expiram em 10 minutos."
-      >
-        <CreativeGallery
-          creatives={creatives}
-          canWrite={canWrite}
-          toggleAction={setCreativeActive.bind(null, id)}
-        />
-        {canWrite && (
-          <CreativeUploadForm action={uploadCreative.bind(null, id)} />
-        )}
-      </SectionCard>
+      <div id="arquivos-da-campanha">
+        <SectionCard
+          title="Imagem ou vídeo"
+          subtitle="Envie o material que será mostrado no tablet."
+        >
+          <CreativeGallery
+            creatives={creatives}
+            canWrite={canWrite}
+            toggleAction={setCreativeActive.bind(null, id)}
+          />
+          {canWrite && (
+            <CreativeUploadForm action={uploadCreative.bind(null, id)} />
+          )}
+        </SectionCard>
+      </div>
       {campaign.campaign_type === 'regular' && canManageGrid && (
         <SectionCard
-          title="Grade regular do piloto"
-          subtitle="Tablets sem grade própria reproduzem a grade padrão do piloto."
+          title="Programação dos tablets"
+          subtitle="Campanhas normais precisam fazer parte da programação. O botão de publicação faz isso automaticamente."
         >
           <p>
             Status atual:{' '}
@@ -186,11 +261,11 @@ export default async function CampaignDetailPage({
                 confirmMessage={`Remover "${campaign.name}" da grade padrão do piloto? Tablets que dependem dela deixarão de reproduzi-la no próximo sync.`}
                 pendingLabel="Removendo…"
               >
-                Remover da grade do piloto
+                Retirar da programação
               </ConfirmSubmitButton>
             ) : (
               <button className="button button-primary" type="submit">
-                Incluir na grade do piloto
+                Incluir na programação
               </button>
             )}
           </form>
@@ -198,15 +273,15 @@ export default async function CampaignDetailPage({
       )}
       {campaign.campaign_type === 'geo' && (
         <SectionCard
-          title="Geofences"
-          subtitle="O ponto vem do cadastro do estabelecimento."
+          title="Local de ativação"
+          subtitle="Escolha o estabelecimento e a distância em que o anúncio deve entrar na fila."
           action={
             canWrite ? (
               <Link
                 className="button button-secondary"
                 href={`/geofences/nova?campaign=${id}`}
               >
-                ＋ Adicionar geofence
+                ＋ Definir local e raio
               </Link>
             ) : undefined
           }
@@ -214,10 +289,10 @@ export default async function CampaignDetailPage({
           {geofences.length === 0 ? (
             <div className="empty-state compact-empty">
               <span>◎</span>
-              <strong>Nenhuma geofence</strong>
+              <strong>Local ainda não definido</strong>
               <p>
-                Associe um estabelecimento e um raio para concluir a campanha
-                GEO.
+                Escolha uma unidade do cliente e o raio para concluir a
+                campanha.
               </p>
             </div>
           ) : (

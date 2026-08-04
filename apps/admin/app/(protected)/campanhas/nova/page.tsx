@@ -28,8 +28,8 @@ export default async function NewCampaignPage({
       <FlashMessage error={params.error} />
       <PageHeader
         eyebrow="NOVA CAMPANHA"
-        title="Configurar campanha"
-        description="Cadastre a programação. Criativos e geofences entram na etapa seguinte."
+        title="Criar campanha"
+        description="Preencha o essencial agora. Na próxima etapa você envia a arte e coloca a campanha no ar."
       />
       <CampaignForm
         advertisers={advertisers.filter((item) => item.status === 'active')}

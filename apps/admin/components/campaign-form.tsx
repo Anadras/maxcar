@@ -27,8 +27,8 @@ export function CampaignForm({
         <header>
           <span>01</span>
           <div>
-            <h2>Informações básicas</h2>
-            <p>Cliente, identidade e ciclo da campanha.</p>
+            <h2>O que será divulgado</h2>
+            <p>Escolha o cliente, dê um nome e defina onde ela aparece.</p>
           </div>
         </header>
         <div className="record-form">
@@ -68,29 +68,35 @@ export function CampaignForm({
                 campaign?.campaign_type ?? preselectedType ?? 'regular'
               }
             >
-              <option value="regular">REGULAR — grade normal</option>
-              <option value="geo">GEO — ativação por proximidade</option>
+              <option value="regular">Normal — toca na programação</option>
+              <option value="geo">
+                Por proximidade — toca perto de um local
+              </option>
             </select>
           </label>
-          <label>
-            Status
-            <select name="status" defaultValue={campaign?.status ?? 'draft'}>
-              <option value="draft">Rascunho</option>
-              <option value="scheduled">Agendada</option>
-              {campaign && <option value="active">Ativa</option>}
-              <option value="paused">Pausada</option>
-              <option value="completed">Concluída</option>
-              <option value="cancelled">Cancelada</option>
-            </select>
-          </label>
+          {campaign ? (
+            <label>
+              Situação
+              <select name="status" defaultValue={campaign.status ?? 'draft'}>
+                <option value="draft">Em preparação</option>
+                <option value="scheduled">Programada</option>
+                <option value="active">No ar</option>
+                <option value="paused">Pausada</option>
+                <option value="completed">Encerrada</option>
+                <option value="cancelled">Cancelada</option>
+              </select>
+            </label>
+          ) : (
+            <input type="hidden" name="status" value="draft" />
+          )}
         </div>
       </section>
       <section className="form-section">
         <header>
           <span>02</span>
           <div>
-            <h2>Programação</h2>
-            <p>Período absoluto e janela diária operacional.</p>
+            <h2>Quando a campanha fica disponível</h2>
+            <p>O sistema começa e encerra a campanha automaticamente.</p>
           </div>
         </header>
         <div className="record-form">
@@ -116,91 +122,94 @@ export function CampaignForm({
               required
             />
           </label>
-          <label>
-            Fuso operacional
-            <select name="utcOffset" defaultValue="-04:00">
-              <option value="-04:00">Campo Grande · UTC−04:00</option>
-              <option value="-03:00">Brasília · UTC−03:00</option>
-            </select>
-          </label>
-          <div />
-          <label>
-            Horário diário inicial
-            <input
-              name="dailyStartTime"
-              type="time"
-              defaultValue={campaign?.daily_start_time?.slice(0, 5) ?? ''}
-            />
-          </label>
-          <label>
-            Horário diário final
-            <input
-              name="dailyEndTime"
-              type="time"
-              defaultValue={campaign?.daily_end_time?.slice(0, 5) ?? ''}
-            />
-          </label>
-          <fieldset className="active-days full-field">
-            <legend>Dias ativos</legend>
-            {ACTIVE_DAY_LABELS.map((label, day) => (
-              <label key={label}>
+          <input type="hidden" name="utcOffset" value="-04:00" />
+          <details className="advanced-fields full-field">
+            <summary>Definir dias e horários específicos (opcional)</summary>
+            <div className="record-form">
+              <label>
+                Horário inicial
                 <input
-                  type="checkbox"
-                  name="activeDays"
-                  value={day}
-                  defaultChecked={activeDays.includes(day)}
+                  name="dailyStartTime"
+                  type="time"
+                  defaultValue={campaign?.daily_start_time?.slice(0, 5) ?? ''}
                 />
-                <span>{label}</span>
               </label>
-            ))}
-          </fieldset>
+              <label>
+                Horário final
+                <input
+                  name="dailyEndTime"
+                  type="time"
+                  defaultValue={campaign?.daily_end_time?.slice(0, 5) ?? ''}
+                />
+              </label>
+              <fieldset className="active-days full-field">
+                <legend>Dias ativos</legend>
+                {ACTIVE_DAY_LABELS.map((label, day) => (
+                  <label key={label}>
+                    <input
+                      type="checkbox"
+                      name="activeDays"
+                      value={day}
+                      defaultChecked={activeDays.includes(day)}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+          </details>
         </div>
       </section>
       <section className="form-section">
         <header>
           <span>03</span>
           <div>
-            <h2>Entrega</h2>
-            <p>Prioridade, cooldown e limite diário.</p>
+            <h2>Regras de exibição</h2>
+            <p>Os valores recomendados já estão preenchidos.</p>
           </div>
         </header>
         <div className="record-form">
-          <label>
-            Prioridade
-            <select name="priority" defaultValue={campaign?.priority ?? 50}>
-              <option value="20">Baixa · 20</option>
-              <option value="50">Normal · 50</option>
-              <option value="70">Alta · 70</option>
-              <option value="90">Premium · 90</option>
-            </select>
-          </label>
-          <label>
-            Cooldown em segundos
-            <input
-              name="cooldownSeconds"
-              type="number"
-              min="0"
-              max="86400"
-              defaultValue={campaign?.cooldown_seconds ?? 0}
-              required
-            />
-          </label>
-          <label>
-            Limite diário opcional
-            <input
-              name="maxDailyImpressions"
-              type="number"
-              min="1"
-              defaultValue={campaign?.max_daily_impressions ?? ''}
-            />
-          </label>
+          <details className="advanced-fields full-field">
+            <summary>Ajustar frequência e prioridade (opcional)</summary>
+            <div className="record-form">
+              <label>
+                Prioridade
+                <select name="priority" defaultValue={campaign?.priority ?? 50}>
+                  <option value="20">Baixa</option>
+                  <option value="50">Normal</option>
+                  <option value="70">Alta</option>
+                  <option value="90">Premium</option>
+                </select>
+              </label>
+              <label>
+                Intervalo antes de repetir (segundos)
+                <input
+                  name="cooldownSeconds"
+                  type="number"
+                  min="0"
+                  max="86400"
+                  defaultValue={campaign?.cooldown_seconds ?? 0}
+                  required
+                />
+              </label>
+              <label>
+                Limite diário (opcional)
+                <input
+                  name="maxDailyImpressions"
+                  type="number"
+                  min="1"
+                  defaultValue={campaign?.max_daily_impressions ?? ''}
+                />
+              </label>
+            </div>
+          </details>
           <div className="eligibility-card">
             <span>i</span>
             <div>
-              <strong>Ativação protegida</strong>
+              <strong>Você poderá revisar antes de publicar</strong>
               <p>
-                Campanhas ativas exigem período e criativo. GEO também exige
-                geofence.
+                Depois de salvar, envie a imagem ou o vídeo. Se for por
+                proximidade, escolha também o estabelecimento e o raio.
               </p>
             </div>
           </div>
@@ -213,7 +222,7 @@ export function CampaignForm({
         >
           Cancelar
         </Link>
-        <SubmitButton>Salvar campanha</SubmitButton>
+        <SubmitButton>Salvar e continuar</SubmitButton>
       </div>
     </form>
   );

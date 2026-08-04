@@ -8,11 +8,16 @@ export function CreativeUploadForm({
   return (
     <form action={action} className="creative-upload-form">
       <label>
-        Nome do criativo
-        <input name="name" required maxLength={160} />
+        Nome da peça
+        <input
+          name="name"
+          required
+          maxLength={160}
+          placeholder="Ex.: Oferta de agosto"
+        />
       </label>
       <label>
-        Duração de exibição em segundos
+        Tempo na tela
         <input
           name="durationSeconds"
           type="number"
@@ -30,23 +35,11 @@ export function CreativeUploadForm({
           accept=".jpg,.jpeg,.png,.webp,.mp4,.webm,image/jpeg,image/png,image/webp,video/mp4,video/webm"
           required
         />
-        <small>
-          Imagem até 10 MB; vídeo até 50 MB. MP4/H.264 é o formato preferencial
-          para o futuro Android.
-        </small>
+        <small>Imagem até 10 MB ou vídeo MP4 até 50 MB.</small>
       </label>
-      <div className="upload-pipeline full-field">
-        <span>1. Preparando</span>
-        <b>→</b>
-        <span>2. Enviando</span>
-        <b>→</b>
-        <span>3. Processando</span>
-        <b>→</b>
-        <span>4. Concluído</span>
-      </div>
       <div className="form-actions full-field">
         <SubmitButton pendingLabel="Preparando → enviando → processando…">
-          Enviar criativo
+          Enviar arquivo
         </SubmitButton>
       </div>
     </form>

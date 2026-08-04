@@ -9,7 +9,6 @@ import {
   CAMPAIGN_STATUS_LABELS,
   CAMPAIGN_TYPE_LABELS,
   formatCampaignPeriod,
-  priorityLabel,
 } from '@/lib/campaigns';
 import { listAdvertisers } from '@/lib/data/advertisers';
 import { getCampaignMetrics, listCampaigns } from '@/lib/data/campaigns';
@@ -44,22 +43,22 @@ export default async function CampaignsPage({
     <div className="page">
       <FlashMessage success={params.success} error={params.error} />
       <PageHeader
-        eyebrow="CONTEÚDO E PUBLICIDADE"
+        eyebrow="PUBLICIDADE"
         title="Campanhas"
-        description="Programação REGULAR e ativações GEO conectadas ao Supabase."
+        description="Crie, publique e acompanhe tudo que aparece nos tablets."
         action={
           canWrite ? (
             <Link className="button button-primary" href="/campanhas/nova">
-              ＋ Nova campanha
+              ＋ Criar campanha
             </Link>
           ) : undefined
         }
       />
       <div className="mini-stats">
         <article>
-          <span>ATIVAS AGORA</span>
+          <span>NO AR AGORA</span>
           <strong>{metrics.active}</strong>
-          <small>{metrics.geo} campanhas GEO cadastradas</small>
+          <small>{metrics.geo} por proximidade cadastradas</small>
         </article>
         <article>
           <span>AGENDADAS</span>
@@ -67,7 +66,7 @@ export default async function CampaignsPage({
           <small>Programação futura</small>
         </article>
         <article>
-          <span>TOTAL EXIBIDO</span>
+          <span>RESULTADOS DA BUSCA</span>
           <strong>{campaigns.length}</strong>
           <small>Filtros atuais</small>
         </article>
@@ -100,8 +99,8 @@ export default async function CampaignsPage({
             aria-label="Filtrar por tipo"
           >
             <option value="">Todos os tipos</option>
-            <option value="regular">REGULAR</option>
-            <option value="geo">GEO</option>
+            <option value="regular">Programação normal</option>
+            <option value="geo">Por proximidade</option>
           </select>
           <select
             name="status"
@@ -139,9 +138,7 @@ export default async function CampaignsPage({
                   <th>Tipo</th>
                   <th>Status</th>
                   <th>Período</th>
-                  <th>Prioridade</th>
-                  <th>Criativos</th>
-                  <th>Geofences</th>
+                  <th>Preparação</th>
                   <th>Reproduções</th>
                   <th>Ações</th>
                 </tr>
@@ -152,7 +149,6 @@ export default async function CampaignsPage({
                     <tr key={campaign.id}>
                       <td>
                         <strong>{campaign.name}</strong>
-                        <small>{campaign.id.slice(0, 8)}</small>
                       </td>
                       <td>{campaign.advertiser_name ?? 'Acesso restrito'}</td>
                       <td>
@@ -172,18 +168,24 @@ export default async function CampaignsPage({
                         )}
                       </td>
                       <td>
-                        {priorityLabel(campaign.priority ?? 50)} ·{' '}
-                        {campaign.priority}
+                        {(campaign.creative_count ?? 0) < 1
+                          ? 'Falta enviar o arquivo'
+                          : campaign.campaign_type === 'geo' &&
+                              (campaign.geofence_count ?? 0) < 1
+                            ? 'Falta definir o local'
+                            : campaign.status === 'active'
+                              ? 'No ar'
+                              : 'Pronta para publicar'}
                       </td>
-                      <td>{campaign.creative_count ?? 0}</td>
-                      <td>{campaign.geofence_count ?? 0}</td>
                       <td>
                         {(campaign.impression_count ?? 0).toLocaleString(
                           'pt-BR',
                         )}
                       </td>
                       <td>
-                        <Link href={`/campanhas/${campaign.id}`}>Abrir</Link>
+                        <Link href={`/campanhas/${campaign.id}`}>
+                          Continuar →
+                        </Link>
                       </td>
                     </tr>
                   ) : null,

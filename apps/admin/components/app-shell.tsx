@@ -14,21 +14,26 @@ interface NavItem {
   roles?: AppRole[];
 }
 
-const overviewNav: NavItem[] = [{ label: 'Dashboard', href: '/', icon: '▦' }];
-
-const commercialNav: NavItem[] = [
+const primaryNav: NavItem[] = [
+  { label: 'Início', href: '/', icon: '▦' },
+  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
   {
     label: 'Clientes',
     href: '/clientes',
     icon: '◇',
     roles: ['super_admin', 'admin', 'commercial'],
   },
-  { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
-  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
-  { label: 'Geofences', href: '/geofences', icon: '◎' },
+  {
+    label: 'Tablets',
+    href: '/dispositivos',
+    icon: '▣',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
+  { label: 'Relatórios', href: '/relatorios', icon: '▥' },
 ];
 
-const operationsNav: NavItem[] = [
+const recordsNav: NavItem[] = [
+  { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
   {
     label: 'Motoristas',
     href: '/motoristas',
@@ -41,17 +46,10 @@ const operationsNav: NavItem[] = [
     icon: '◆',
     roles: ['super_admin', 'admin', 'operations'],
   },
-  {
-    label: 'Dispositivos',
-    href: '/dispositivos',
-    icon: '▣',
-    roles: ['super_admin', 'admin', 'operations'],
-  },
-  { label: 'Tablet / Player', href: '/player', icon: '▷' },
+  { label: 'Áreas de proximidade', href: '/geofences', icon: '◎' },
 ];
 
 const adminNav: NavItem[] = [
-  { label: 'Relatórios', href: '/relatorios', icon: '▥' },
   {
     label: 'Usuários',
     href: '/usuarios',
@@ -63,10 +61,9 @@ const adminNav: NavItem[] = [
 ];
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
-  { label: 'VISÃO GERAL', items: overviewNav },
-  { label: 'COMERCIAL', items: commercialNav },
-  { label: 'OPERAÇÃO', items: operationsNav },
-  { label: 'ADMINISTRAÇÃO', items: adminNav },
+  { label: 'PRINCIPAL', items: primaryNav },
+  { label: 'CADASTROS', items: recordsNav },
+  { label: 'MAIS OPÇÕES', items: adminNav },
 ];
 
 export function AppShell({
@@ -113,26 +110,46 @@ export function AppShell({
           </button>
         </div>
         <nav aria-label="Navegação principal">
-          {visibleGroups.map((group, index) => (
-            <div key={group.label}>
-              <p
-                className={`nav-label ${index > 0 ? 'nav-label-secondary' : ''}`}
+          {visibleGroups.map((group, index) => {
+            const links = group.items.map(({ label, href, icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={() => setMenuOpen(false)}
+                className={
+                  pathname === href ||
+                  (href !== '/' && pathname.startsWith(`${href}/`))
+                    ? 'active'
+                    : ''
+                }
               >
-                {group.label}
-              </p>
-              {group.items.map(({ label, href, icon }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={() => setMenuOpen(false)}
-                  className={pathname === href ? 'active' : ''}
-                >
-                  <span aria-hidden="true">{icon}</span>
-                  {label}
-                </Link>
-              ))}
-            </div>
-          ))}
+                <span aria-hidden="true">{icon}</span>
+                {label}
+              </Link>
+            ));
+            if (index === 0) {
+              return (
+                <div key={group.label}>
+                  <p className="nav-label">{group.label}</p>
+                  {links}
+                </div>
+              );
+            }
+            const groupIsActive = group.items.some(
+              (item) =>
+                pathname === item.href || pathname.startsWith(`${item.href}/`),
+            );
+            return (
+              <details
+                className="nav-more"
+                key={group.label}
+                open={groupIsActive ? true : undefined}
+              >
+                <summary>{group.label}</summary>
+                {links}
+              </details>
+            );
+          })}
         </nav>
         <div className="pilot-card">
           <div>

@@ -14,12 +14,12 @@ export function ReadinessBanner({
       <div>
         <strong>
           {ready
-            ? 'Campanha estruturalmente pronta'
-            : 'Campanha ainda incompleta'}
+            ? 'Campanha pronta para publicar'
+            : 'Falta concluir a campanha'}
         </strong>
         <p>
           {ready
-            ? 'Pode ser ativada com segurança.'
+            ? 'Revise e coloque no ar quando quiser.'
             : issues
                 .map((issue) => CAMPAIGN_READINESS_ISSUE_LABELS[issue])
                 .join(' ')}

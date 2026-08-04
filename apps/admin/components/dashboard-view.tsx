@@ -1,267 +1,185 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  MetricCard,
-  Modal,
-  PageHeader,
-  SectionCard,
-  StatusBadge,
-} from '@/components/ui';
+import Link from 'next/link';
+import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
-
-type MapSelection = {
-  kind: 'car';
-  title: string;
-  status: string;
-  tablet: string;
-  driver: string;
-  battery: string;
-  network: string;
-  gps: string;
-  lastSeen: string;
-} | null;
 
 interface DashboardDevice {
   id: string;
   code: string;
   vehicleCode: string | null;
-  driverName: string | null;
   heartbeatAt: string | null;
-  batteryLevel: number | null;
-  networkConnected: boolean | null;
-  gpsAvailable: boolean | null;
   connection: 'online' | 'attention' | 'offline' | 'inactive';
+  playerState: string | null;
+  mediaReadyCount: number | null;
+  operationalStatus: string | null;
+  lastError: string | null;
 }
 
-export interface DashboardMetric {
-  label: string;
-  value: string;
-  detail: string;
-  tone: string;
-  href?: string;
+interface DashboardCounts {
+  advertisers: number;
+  establishments: number;
+  activeCampaigns: number;
+  campaigns: number;
+  creatives: number;
+  programmedCampaigns: number;
+  deviceCounts: {
+    total: number;
+    online: number;
+    attention: number;
+    offline: number;
+  };
 }
 
-export interface DashboardMetricGroup {
-  title: string;
-  metrics: DashboardMetric[];
+function tabletSummary(device: DashboardDevice) {
+  if (device.connection === 'offline') return 'Sem contato com o painel';
+  if (device.lastError) return 'Precisa de atenção';
+  if ((device.mediaReadyCount ?? 0) === 0) return 'Aguardando conteúdo';
+  if (device.playerState === 'playing') return 'Reproduzindo normalmente';
+  return 'Conteúdo pronto';
 }
-
-const today = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit',
-  month: 'long',
-}).format(new Date());
 
 export function DashboardView({
-  metricGroups,
+  counts,
   devices,
 }: {
-  metricGroups: DashboardMetricGroup[];
+  counts: DashboardCounts;
   devices: DashboardDevice[];
 }) {
-  const [selected, setSelected] = useState<MapSelection>(null);
+  const setupSteps = [
+    {
+      label: 'Cadastrar cliente',
+      detail: 'Quem está anunciando',
+      done: counts.advertisers > 0,
+      href: counts.advertisers > 0 ? '/clientes' : '/clientes/novo',
+    },
+    {
+      label: 'Adicionar estabelecimento',
+      detail: 'Onde o cliente está',
+      done: counts.establishments > 0,
+      href:
+        counts.establishments > 0
+          ? '/estabelecimentos'
+          : '/estabelecimentos/novo',
+    },
+    {
+      label: 'Criar campanha',
+      detail: 'Período e tipo de exibição',
+      done: counts.campaigns > 0,
+      href: counts.campaigns > 0 ? '/campanhas' : '/campanhas/nova',
+    },
+    {
+      label: 'Enviar imagem ou vídeo',
+      detail: 'O material que aparece na tela',
+      done: counts.creatives > 0,
+      href: '/campanhas',
+    },
+    {
+      label: 'Colocar na programação',
+      detail: 'Publicar e enviar aos tablets',
+      done: counts.programmedCampaigns > 0 && counts.activeCampaigns > 0,
+      href: '/campanhas',
+    },
+    {
+      label: 'Confirmar reprodução',
+      detail: 'Ver se o tablet recebeu e começou a tocar',
+      done: devices.some(
+        (device) =>
+          device.playerState === 'playing' && (device.mediaReadyCount ?? 0) > 0,
+      ),
+      href: '/dispositivos',
+    },
+  ];
+
   return (
-    <div className="page">
+    <div className="page simplified-dashboard">
       <PageHeader
-        eyebrow="CENTRAL DE OPERAÇÕES"
-        title="Visão geral"
-        description="Acompanhe a rede MAXCAR em tempo real."
-        action={<div className="date-pill">● Hoje, {today}</div>}
+        eyebrow="MAXCAR"
+        title="Início"
+        description="Publique campanhas e confira os tablets sem precisar entender a parte técnica."
+        action={
+          <Link className="button button-primary" href="/campanhas/nova">
+            ＋ Criar campanha
+          </Link>
+        }
       />
-      {metricGroups.map((group) => (
-        <div key={group.title} className="metric-group">
-          <h2 className="metric-group-title">{group.title}</h2>
-          <div className="metric-grid">
-            {group.metrics.map((metric) => (
-              <MetricCard key={metric.label} {...metric} />
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className="dashboard-grid">
+
+      <div className="simple-metrics">
+        <Link href="/campanhas?status=active">
+          <span>Campanhas no ar</span>
+          <strong>{counts.activeCampaigns}</strong>
+        </Link>
+        <Link href="/dispositivos">
+          <span>Tablets reproduzindo</span>
+          <strong>
+            {
+              devices.filter((device) => device.playerState === 'playing')
+                .length
+            }
+          </strong>
+        </Link>
+        <Link href="/dispositivos?connection=offline">
+          <span>Precisam de atenção</span>
+          <strong>
+            {counts.deviceCounts.attention + counts.deviceCounts.offline}
+          </strong>
+        </Link>
+      </div>
+
+      <div className="simple-dashboard-grid">
         <SectionCard
-          title="Mapa operacional"
-          subtitle="Veículos e zonas GEO em Campo Grande"
-          className="map-card"
-          action={
-            <div className="map-legend">
-              <span>
-                <i className="car-dot" /> Veículos
-              </span>
-              <span>
-                <i className="geo-dot" /> Geofences
-              </span>
-            </div>
-          }
+          title="Como colocar uma campanha no ar"
+          subtitle="Siga esta ordem. O sistema mostra o que já está concluído."
         >
-          <div
-            className="operation-map"
-            aria-label="Mapa operacional conceitual"
-          >
-            <div className="map-road road-one" />
-            <div className="map-road road-two" />
-            <div className="map-road road-three" />
-            <div className="map-block block-one" />
-            <div className="map-block block-two" />
-            <div className="map-block block-three" />
-            {devices.slice(0, 5).map((device, index) => (
-              <button
-                key={device.id}
-                className={`map-car ${['car-one', 'car-two', 'car-three', 'car-four', 'car-five'][index]}`}
-                onClick={() =>
-                  setSelected({
-                    kind: 'car',
-                    title: device.vehicleCode ?? 'Sem veículo',
-                    status: CONNECTION_LABEL[device.connection],
-                    tablet: device.code,
-                    driver: device.driverName ?? 'Sem motorista',
-                    battery:
-                      device.batteryLevel === null
-                        ? 'Sem telemetria'
-                        : `${device.batteryLevel}%`,
-                    network:
-                      device.networkConnected === null
-                        ? 'Sem telemetria'
-                        : device.networkConnected
-                          ? 'Conectada'
-                          : 'Desconectada',
-                    gps:
-                      device.gpsAvailable === null
-                        ? 'Sem telemetria'
-                        : device.gpsAvailable
-                          ? 'Disponível'
-                          : 'Indisponível',
-                    lastSeen: formatRelativeTime(device.heartbeatAt),
-                  })
-                }
-                aria-label={`Abrir veículo ${device.vehicleCode ?? device.code}`}
-              >
-                ◆<small>{device.vehicleCode ?? device.code}</small>
-              </button>
-            ))}
-            <div className="map-label label-centro">CENTRO</div>
-            <div className="map-label label-afonso">AV. AFONSO PENA</div>
-            <div className="map-controls">
-              <button aria-label="Aumentar zoom">+</button>
-              <button aria-label="Diminuir zoom">−</button>
-            </div>
-            <div className="map-footer">
-              <i />{' '}
-              {
-                devices.filter((device) => device.connection === 'online')
-                  .length
-              }{' '}
-              tablets online <span>•</span> {devices.length} monitorados
-            </div>
-          </div>
-        </SectionCard>
-        <SectionCard
-          title="Atividade recente"
-          subtitle="Eventos da rede em tempo real"
-          className="activity-card"
-          action={<button className="text-button">Ver tudo →</button>}
-        >
-          <div className="activity-list">
-            {devices.slice(0, 6).map((device, index) => (
-              <article key={device.id}>
-                <span className={`activity-icon activity-${index}`}>
-                  {device.connection === 'offline' ? '!' : '◎'}
-                </span>
+          <ol className="setup-checklist">
+            {setupSteps.map((step, index) => (
+              <li key={step.label} className={step.done ? 'done' : ''}>
+                <span>{step.done ? '✓' : index + 1}</span>
                 <div>
-                  <strong>{CONNECTION_LABEL[device.connection]}</strong>
-                  <p>
-                    <b>{device.code}</b> · {device.vehicleCode ?? 'Sem veículo'}
-                  </p>
+                  <strong>{step.label}</strong>
+                  <small>{step.detail}</small>
                 </div>
-                <time>{formatRelativeTime(device.heartbeatAt)}</time>
-              </article>
+                <Link href={step.href}>
+                  {step.done ? 'Ver' : 'Fazer agora'} →
+                </Link>
+              </li>
             ))}
-          </div>
-          <div className="network-health">
-            <header>
-              <strong>Saúde da rede</strong>
-              <StatusBadge value="Operacional" />
-            </header>
-            <div>
-              <span>Player</span>
-              <b>
-                {devices.length
-                  ? `${Math.round((devices.filter((device) => device.connection === 'online').length / devices.length) * 100)}%`
-                  : '0%'}
-              </b>
+          </ol>
+        </SectionCard>
+
+        <SectionCard
+          title="Tablets"
+          subtitle="Situação real informada pelos aparelhos."
+          action={<Link href="/dispositivos">Ver todos →</Link>}
+        >
+          {devices.length === 0 ? (
+            <div className="empty-state compact-empty">
+              <span>▣</span>
+              <strong>Nenhum tablet cadastrado</strong>
+              <p>Cadastre o primeiro tablet para começar o piloto.</p>
             </div>
-            <progress
-              value={
-                devices.filter((device) => device.connection === 'online')
-                  .length
-              }
-              max={Math.max(devices.length, 1)}
-            />
-            <div>
-              <span>GPS</span>
-              <b>
-                {devices.length
-                  ? `${Math.round((devices.filter((device) => device.gpsAvailable).length / devices.length) * 100)}%`
-                  : '0%'}
-              </b>
+          ) : (
+            <div className="simple-device-list">
+              {devices.slice(0, 5).map((device) => (
+                <Link href={`/dispositivos/${device.id}`} key={device.id}>
+                  <span className={`device-light ${device.connection}`} />
+                  <div>
+                    <strong>{device.code}</strong>
+                    <small>
+                      {device.vehicleCode ?? 'Sem veículo'} ·{' '}
+                      {tabletSummary(device)}
+                    </small>
+                  </div>
+                  <div className="device-list-status">
+                    <StatusBadge value={CONNECTION_LABEL[device.connection]} />
+                    <small>{formatRelativeTime(device.heartbeatAt)}</small>
+                  </div>
+                </Link>
+              ))}
             </div>
-            <progress
-              value={devices.filter((device) => device.gpsAvailable).length}
-              max={Math.max(devices.length, 1)}
-            />
-            <div>
-              <span>Sincronização</span>
-              <b>
-                {devices.length
-                  ? `${Math.round((devices.filter((device) => device.networkConnected).length / devices.length) * 100)}%`
-                  : '0%'}
-              </b>
-            </div>
-            <progress
-              value={devices.filter((device) => device.networkConnected).length}
-              max={Math.max(devices.length, 1)}
-            />
-          </div>
+          )}
         </SectionCard>
       </div>
-      <Modal
-        title={selected?.title ?? ''}
-        open={selected !== null}
-        onClose={() => setSelected(null)}
-      >
-        {selected?.kind === 'car' ? (
-          <div className="detail-grid">
-            <div>
-              <span>Status</span>
-              <StatusBadge value={selected.status} />
-            </div>
-            <div>
-              <span>GPS</span>
-              <strong>{selected.gps}</strong>
-            </div>
-            <div>
-              <span>Rede</span>
-              <strong>{selected.network}</strong>
-            </div>
-            <div>
-              <span>Tablet</span>
-              <strong>{selected.tablet}</strong>
-            </div>
-            <div>
-              <span>Bateria</span>
-              <strong>{selected.battery}</strong>
-            </div>
-            <div>
-              <span>Último heartbeat</span>
-              <strong>{selected.lastSeen}</strong>
-            </div>
-            <div>
-              <span>Motorista</span>
-              <strong>{selected.driver}</strong>
-            </div>
-          </div>
-        ) : null}
-      </Modal>
     </div>
   );
 }

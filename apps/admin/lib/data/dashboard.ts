@@ -11,6 +11,9 @@ export async function getDashboardCounts() {
     { count: geoCampaigns, error: geoError },
     { count: activeDrivers, error: driversError },
     { count: activeVehicles, error: vehiclesError },
+    { count: campaigns, error: campaignsError },
+    { count: creatives, error: creativesError },
+    { count: programmedCampaigns, error: playlistError },
     fleet,
   ] = await Promise.all([
     supabase.from('advertisers').select('*', { count: 'exact', head: true }),
@@ -31,6 +34,15 @@ export async function getDashboardCounts() {
       .from('vehicles')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'active'),
+    supabase.from('campaigns').select('*', { count: 'exact', head: true }),
+    supabase
+      .from('campaign_creatives')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true),
+    supabase
+      .from('playlist_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('active', true),
     listDevices(),
   ]);
   const error =
@@ -39,7 +51,10 @@ export async function getDashboardCounts() {
     activeError ??
     geoError ??
     driversError ??
-    vehiclesError;
+    vehiclesError ??
+    campaignsError ??
+    creativesError ??
+    playlistError;
   if (error) throw error;
   const monitoredDevices = fleet.map((device) => ({
     id: device.id,
@@ -51,6 +66,10 @@ export async function getDashboardCounts() {
     networkConnected: device.network_connected,
     gpsAvailable: device.gps_available,
     connection: device.connection_status,
+    playerState: device.player_state,
+    mediaReadyCount: device.media_ready_count,
+    operationalStatus: device.operational_status,
+    lastError: device.last_error,
   }));
   return {
     advertisers: advertisers ?? 0,
@@ -59,6 +78,9 @@ export async function getDashboardCounts() {
     geoCampaigns: geoCampaigns ?? 0,
     activeDrivers: activeDrivers ?? 0,
     activeVehicles: activeVehicles ?? 0,
+    campaigns: campaigns ?? 0,
+    creatives: creatives ?? 0,
+    programmedCampaigns: programmedCampaigns ?? 0,
     devices: monitoredDevices,
     deviceCounts: {
       total: monitoredDevices.length,

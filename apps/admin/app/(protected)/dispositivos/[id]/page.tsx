@@ -74,6 +74,52 @@ const KIOSK_LEVEL_LABEL: Record<string, string> = {
   device_owner: 'Device Owner (bloqueio profissional)',
 };
 
+function playbackDiagnosis(device: {
+  connection_status: string;
+  player_state: string | null;
+  media_ready_count: number | null;
+  manifest_version: string | null;
+  last_error: string | null;
+}) {
+  if (device.connection_status === 'offline') {
+    return {
+      tone: 'attention',
+      title: 'Tablet sem contato com o painel',
+      message:
+        'A programação que já estiver salva continua funcionando, mas novas campanhas não chegam até a conexão voltar.',
+    };
+  }
+  if (device.last_error) {
+    return {
+      tone: 'danger',
+      title: 'O tablet encontrou um erro ao preparar a mídia',
+      message:
+        'Envie uma nova sincronização. Se o problema continuar, confira o arquivo da campanha.',
+    };
+  }
+  if ((device.media_ready_count ?? 0) === 0) {
+    return {
+      tone: 'attention',
+      title: 'Nenhum conteúdo pronto para reproduzir',
+      message: device.manifest_version
+        ? 'O tablet sincronizou, mas não encontrou campanha ativa e publicada para baixar.'
+        : 'O tablet ainda não recebeu sua primeira programação.',
+    };
+  }
+  if (device.player_state !== 'playing') {
+    return {
+      tone: 'attention',
+      title: 'Conteúdo pronto, mas o player não está reproduzindo',
+      message: 'Sincronize e reinicie o player usando as ações abaixo.',
+    };
+  }
+  return {
+    tone: 'success',
+    title: 'Reprodução funcionando',
+    message: `${device.media_ready_count} mídia(s) pronta(s) no tablet.`,
+  };
+}
+
 export default async function DeviceDetailPage({
   params,
   searchParams,
@@ -91,6 +137,7 @@ export default async function DeviceDetailPage({
   const canSimulate =
     process.env.NODE_ENV !== 'production' &&
     auth?.profile.role === 'super_admin';
+  const diagnosis = playbackDiagnosis(device);
   return (
     <div className="page record-page">
       <FlashMessage success={query.success} error={query.error} />
@@ -116,7 +163,24 @@ export default async function DeviceDetailPage({
           ) : undefined
         }
       />
-      <SectionCard title="Saúde atual">
+      <section className={`device-diagnosis ${diagnosis.tone}`}>
+        <div>
+          <span>{diagnosis.tone === 'success' ? '✓' : '!'}</span>
+          <div>
+            <h2>{diagnosis.title}</h2>
+            <p>{diagnosis.message}</p>
+          </div>
+        </div>
+        {canManage && diagnosis.tone !== 'success' && (
+          <form action={issueDeviceCommand.bind(null, id)}>
+            <input type="hidden" name="commandType" value="sync_now" />
+            <button className="button button-primary" type="submit">
+              Sincronizar agora
+            </button>
+          </form>
+        )}
+      </section>
+      <SectionCard title="Resumo do tablet">
         <dl className="detail-grid">
           <div>
             <dt>Conexão</dt>
@@ -125,7 +189,7 @@ export default async function DeviceDetailPage({
             </dd>
           </div>
           <div>
-            <dt>Ciclo operacional</dt>
+            <dt>Situação</dt>
             <dd>
               <StatusBadge value={device.status} />
             </dd>
@@ -163,7 +227,7 @@ export default async function DeviceDetailPage({
             </dd>
           </div>
           <div>
-            <dt>Rede</dt>
+            <dt>Internet</dt>
             <dd>
               {device.network_connected === null
                 ? 'Sem telemetria'
@@ -208,255 +272,263 @@ export default async function DeviceDetailPage({
           </div>
         </dl>
       </SectionCard>
-      <SectionCard
-        title="GPS / GEO"
-        subtitle="Estado do motor de geolocalização (MAX-008) no heartbeat mais recente."
-      >
-        <dl className="detail-grid">
-          <div>
-            <dt>Permissão de localização</dt>
-            <dd>
-              {device.location_permission_granted === null
-                ? 'Sem telemetria'
-                : device.location_permission_granted
-                  ? 'Concedida'
-                  : 'Negada'}
-            </dd>
-          </div>
-          <div>
-            <dt>Precisão</dt>
-            <dd>
-              {device.location_accuracy_meters === null
-                ? 'Não informada'
-                : `${Number(device.location_accuracy_meters).toFixed(0)} m`}
-            </dd>
-          </div>
-          <div>
-            <dt>Última entrada em geofence</dt>
-            <dd>{formatRelativeTime(device.last_geofence_entry_at)}</dd>
-          </div>
-          <div>
-            <dt>Última campanha GEO exibida</dt>
-            <dd>{device.lastGeoCampaignName ?? 'Nenhuma'}</dd>
-          </div>
-          <div>
-            <dt>Último erro de localização</dt>
-            <dd>{device.last_location_error ?? 'Nenhum'}</dd>
-          </div>
-        </dl>
-      </SectionCard>
-      <SectionCard
-        title="Player"
-        subtitle="Estado reportado no heartbeat mais recente que incluiu telemetria de player."
-      >
-        <dl className="detail-grid">
-          <div>
-            <dt>Estado</dt>
-            <dd>
-              {device.player_state ? (
-                <StatusBadge value={device.player_state} />
-              ) : (
-                'Sem telemetria de player ainda'
+      <details className="technical-details">
+        <summary>Ver informações técnicas e manutenção</summary>
+        <SectionCard
+          title="GPS / GEO"
+          subtitle="Localização informada pelo tablet."
+        >
+          <dl className="detail-grid">
+            <div>
+              <dt>Permissão de localização</dt>
+              <dd>
+                {device.location_permission_granted === null
+                  ? 'Sem telemetria'
+                  : device.location_permission_granted
+                    ? 'Concedida'
+                    : 'Negada'}
+              </dd>
+            </div>
+            <div>
+              <dt>Precisão</dt>
+              <dd>
+                {device.location_accuracy_meters === null
+                  ? 'Não informada'
+                  : `${Number(device.location_accuracy_meters).toFixed(0)} m`}
+              </dd>
+            </div>
+            <div>
+              <dt>Última entrada em geofence</dt>
+              <dd>{formatRelativeTime(device.last_geofence_entry_at)}</dd>
+            </div>
+            <div>
+              <dt>Última campanha GEO exibida</dt>
+              <dd>{device.lastGeoCampaignName ?? 'Nenhuma'}</dd>
+            </div>
+            <div>
+              <dt>Último erro de localização</dt>
+              <dd>{device.last_location_error ?? 'Nenhum'}</dd>
+            </div>
+          </dl>
+        </SectionCard>
+        <SectionCard
+          title="Player"
+          subtitle="Estado reportado no heartbeat mais recente que incluiu telemetria de player."
+        >
+          <dl className="detail-grid">
+            <div>
+              <dt>Estado</dt>
+              <dd>
+                {device.player_state ? (
+                  <StatusBadge value={device.player_state} />
+                ) : (
+                  'Sem telemetria de player ainda'
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Mídias prontas</dt>
+              <dd>
+                {device.media_ready_count === null
+                  ? 'Não informado'
+                  : device.media_ready_count}
+              </dd>
+            </div>
+            <div>
+              <dt>Versão do manifesto</dt>
+              <dd>{device.manifest_version ?? 'Não sincronizado'}</dd>
+            </div>
+            <div>
+              <dt>Última sincronização da grade</dt>
+              <dd>{formatRelativeTime(device.manifest_synced_at)}</dd>
+            </div>
+            <div>
+              <dt>Último criativo reproduzido</dt>
+              <dd>{device.currentCreativeName ?? 'Não informado'}</dd>
+            </div>
+            <div>
+              <dt>Campanha atual</dt>
+              <dd>{device.currentCampaignName ?? 'Não informado'}</dd>
+            </div>
+            <div>
+              <dt>Último erro do player</dt>
+              <dd>{device.last_error ?? 'Nenhum'}</dd>
+            </div>
+          </dl>
+        </SectionCard>
+        <SectionCard
+          title="Sincronização"
+          subtitle="Estado do Motor de Sincronização (MAX-009) no heartbeat mais recente."
+        >
+          <dl className="detail-grid">
+            <div>
+              <dt>Status operacional</dt>
+              <dd>
+                {device.operational_status ? (
+                  <StatusBadge
+                    value={
+                      OPERATIONAL_STATUS_LABEL[device.operational_status] ??
+                      device.operational_status
+                    }
+                  />
+                ) : (
+                  'Sem telemetria'
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Fila de eventos pendentes</dt>
+              <dd>
+                {device.pending_event_count === null
+                  ? 'Não informado'
+                  : device.pending_event_count}
+              </dd>
+            </div>
+            <div>
+              <dt>Divergência de relógio</dt>
+              <dd>
+                {device.clock_skew_seconds === null ? (
+                  'Não informada'
+                ) : Math.abs(device.clock_skew_seconds) >=
+                  SEVERE_CLOCK_SKEW_SECONDS ? (
+                  <StatusBadge
+                    value={`Atenção: ${device.clock_skew_seconds}s de diferença`}
+                  />
+                ) : (
+                  `${device.clock_skew_seconds}s`
+                )}
+              </dd>
+            </div>
+          </dl>
+        </SectionCard>
+        {canManage && (
+          <SectionCard
+            title="Comandos remotos"
+            subtitle="Conjunto fechado de operações seguras — nunca shell arbitrário. Entregue no próximo ciclo de sincronização do tablet."
+          >
+            <div className="lifecycle-actions-row">
+              {(Object.keys(COMMAND_LABEL) as DeviceCommandType[]).map(
+                (commandType) => (
+                  <form
+                    key={commandType}
+                    action={issueDeviceCommand.bind(null, id)}
+                  >
+                    <input
+                      type="hidden"
+                      name="commandType"
+                      value={commandType}
+                    />
+                    <button className="button button-secondary" type="submit">
+                      {COMMAND_LABEL[commandType]}
+                    </button>
+                  </form>
+                ),
               )}
-            </dd>
-          </div>
-          <div>
-            <dt>Mídias prontas</dt>
-            <dd>
-              {device.media_ready_count === null
-                ? 'Não informado'
-                : device.media_ready_count}
-            </dd>
-          </div>
-          <div>
-            <dt>Versão do manifesto</dt>
-            <dd>{device.manifest_version ?? 'Não sincronizado'}</dd>
-          </div>
-          <div>
-            <dt>Última sincronização da grade</dt>
-            <dd>{formatRelativeTime(device.manifest_synced_at)}</dd>
-          </div>
-          <div>
-            <dt>Último criativo reproduzido</dt>
-            <dd>{device.currentCreativeName ?? 'Não informado'}</dd>
-          </div>
-          <div>
-            <dt>Campanha atual</dt>
-            <dd>{device.currentCampaignName ?? 'Não informado'}</dd>
-          </div>
-          <div>
-            <dt>Último erro do player</dt>
-            <dd>{device.last_error ?? 'Nenhum'}</dd>
-          </div>
-        </dl>
-      </SectionCard>
-      <SectionCard
-        title="Sincronização"
-        subtitle="Estado do Motor de Sincronização (MAX-009) no heartbeat mais recente."
-      >
-        <dl className="detail-grid">
-          <div>
-            <dt>Status operacional</dt>
-            <dd>
-              {device.operational_status ? (
+            </div>
+            {commands.length === 0 ? (
+              <p className="section-empty">Nenhum comando enviado ainda.</p>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Comando</th>
+                      <th>Status</th>
+                      <th>Enviado em</th>
+                      <th>Entregue em</th>
+                      <th>Concluído em</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commands.map((command) => (
+                      <tr key={command.id}>
+                        <td>{COMMAND_LABEL[command.command_type]}</td>
+                        <td>
+                          <StatusBadge
+                            value={
+                              COMMAND_STATUS_LABEL[command.status] ??
+                              command.status
+                            }
+                          />
+                        </td>
+                        <td>{formatDateTime(command.created_at)}</td>
+                        <td>{formatDateTime(command.delivered_at)}</td>
+                        <td>{formatDateTime(command.completed_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </SectionCard>
+        )}
+        <SectionCard
+          title="Kiosk e manutenção"
+          subtitle="Camada de proteção realmente alcançada pelo tablet (nunca apenas a tentada) e o PIN técnico local. Ver docs/architecture/ANDROID_KIOSK.md."
+        >
+          <dl className="detail-grid">
+            <div>
+              <dt>Camada de kiosk ativa</dt>
+              <dd>
+                {device.kiosk_level ? (
+                  <StatusBadge
+                    value={
+                      KIOSK_LEVEL_LABEL[device.kiosk_level] ??
+                      device.kiosk_level
+                    }
+                  />
+                ) : (
+                  'Sem telemetria'
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>PIN de manutenção</dt>
+              <dd>
                 <StatusBadge
                   value={
-                    OPERATIONAL_STATUS_LABEL[device.operational_status] ??
-                    device.operational_status
+                    device.maintenancePinConfigured
+                      ? 'Configurado'
+                      : 'Não configurado'
                   }
                 />
-              ) : (
-                'Sem telemetria'
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>Fila de eventos pendentes</dt>
-            <dd>
-              {device.pending_event_count === null
-                ? 'Não informado'
-                : device.pending_event_count}
-            </dd>
-          </div>
-          <div>
-            <dt>Divergência de relógio</dt>
-            <dd>
-              {device.clock_skew_seconds === null ? (
-                'Não informada'
-              ) : Math.abs(device.clock_skew_seconds) >=
-                SEVERE_CLOCK_SKEW_SECONDS ? (
-                <StatusBadge
-                  value={`Atenção: ${device.clock_skew_seconds}s de diferença`}
-                />
-              ) : (
-                `${device.clock_skew_seconds}s`
-              )}
-            </dd>
-          </div>
-        </dl>
-      </SectionCard>
-      {canManage && (
-        <SectionCard
-          title="Comandos remotos"
-          subtitle="Conjunto fechado de operações seguras — nunca shell arbitrário. Entregue no próximo ciclo de sincronização do tablet."
-        >
-          <div className="lifecycle-actions-row">
-            {(Object.keys(COMMAND_LABEL) as DeviceCommandType[]).map(
-              (commandType) => (
-                <form
-                  key={commandType}
-                  action={issueDeviceCommand.bind(null, id)}
-                >
-                  <input type="hidden" name="commandType" value={commandType} />
-                  <button className="button button-secondary" type="submit">
-                    {COMMAND_LABEL[commandType]}
-                  </button>
-                </form>
-              ),
-            )}
-          </div>
-          {commands.length === 0 ? (
-            <p className="section-empty">Nenhum comando enviado ainda.</p>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Comando</th>
-                    <th>Status</th>
-                    <th>Enviado em</th>
-                    <th>Entregue em</th>
-                    <th>Concluído em</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commands.map((command) => (
-                    <tr key={command.id}>
-                      <td>{COMMAND_LABEL[command.command_type]}</td>
-                      <td>
-                        <StatusBadge
-                          value={
-                            COMMAND_STATUS_LABEL[command.status] ??
-                            command.status
-                          }
-                        />
-                      </td>
-                      <td>{formatDateTime(command.created_at)}</td>
-                      <td>{formatDateTime(command.delivered_at)}</td>
-                      <td>{formatDateTime(command.completed_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              </dd>
             </div>
+          </dl>
+          {auth?.profile.role === 'super_admin' && (
+            <form
+              action={setDeviceMaintenancePin.bind(null, id)}
+              className="heartbeat-form"
+            >
+              <label>
+                Novo PIN (4 a 8 dígitos)
+                <input
+                  name="pin"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]{4,8}"
+                  autoComplete="off"
+                  required
+                />
+              </label>
+              <label>
+                Confirmar PIN
+                <input
+                  name="confirmPin"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]{4,8}"
+                  autoComplete="off"
+                  required
+                />
+              </label>
+              <button className="button button-secondary" type="submit">
+                {device.maintenancePinConfigured ? 'Trocar PIN' : 'Definir PIN'}
+              </button>
+            </form>
           )}
         </SectionCard>
-      )}
-      <SectionCard
-        title="Kiosk e manutenção"
-        subtitle="Camada de proteção realmente alcançada pelo tablet (nunca apenas a tentada) e o PIN técnico local. Ver docs/architecture/ANDROID_KIOSK.md."
-      >
-        <dl className="detail-grid">
-          <div>
-            <dt>Camada de kiosk ativa</dt>
-            <dd>
-              {device.kiosk_level ? (
-                <StatusBadge
-                  value={
-                    KIOSK_LEVEL_LABEL[device.kiosk_level] ?? device.kiosk_level
-                  }
-                />
-              ) : (
-                'Sem telemetria'
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>PIN de manutenção</dt>
-            <dd>
-              <StatusBadge
-                value={
-                  device.maintenancePinConfigured
-                    ? 'Configurado'
-                    : 'Não configurado'
-                }
-              />
-            </dd>
-          </div>
-        </dl>
-        {auth?.profile.role === 'super_admin' && (
-          <form
-            action={setDeviceMaintenancePin.bind(null, id)}
-            className="heartbeat-form"
-          >
-            <label>
-              Novo PIN (4 a 8 dígitos)
-              <input
-                name="pin"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]{4,8}"
-                autoComplete="off"
-                required
-              />
-            </label>
-            <label>
-              Confirmar PIN
-              <input
-                name="confirmPin"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]{4,8}"
-                autoComplete="off"
-                required
-              />
-            </label>
-            <button className="button button-secondary" type="submit">
-              {device.maintenancePinConfigured ? 'Trocar PIN' : 'Definir PIN'}
-            </button>
-          </form>
-        )}
-      </SectionCard>
+      </details>
       {canManage && enrollment && (
         <SectionCard
           title="Ativação do tablet"

@@ -8,6 +8,8 @@ import com.maxcar.tablet.data.local.DeviceStateEntity
 import com.maxcar.tablet.data.local.RemoteConfigEntity
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.MediaDownloadManager
+import com.maxcar.tablet.geo.GeoEngine
+import com.maxcar.tablet.geo.GeoStatus
 import com.maxcar.tablet.work.DeviceTelemetry
 import com.maxcar.tablet.work.DeviceWorkScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +28,7 @@ data class DeviceHomeUiState(
     val connectionCheck: ConnectionCheckStatus = ConnectionCheckStatus.IDLE,
     val connectionCheckMessage: String? = null,
     val readyMediaCount: Int = 0,
+    val geoStatus: GeoStatus = GeoStatus(),
 )
 
 class DeviceHomeViewModel(
@@ -33,6 +36,7 @@ class DeviceHomeViewModel(
     private val mediaDownloadManager: MediaDownloadManager,
     private val appContext: Context,
     private val telemetryProvider: () -> DeviceTelemetry,
+    private val geoEngine: GeoEngine,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DeviceHomeUiState())
@@ -43,15 +47,32 @@ class DeviceHomeViewModel(
             repository.deviceState,
             repository.remoteConfig,
             mediaDownloadManager.readyPlaylist,
-        ) { state, config, ready -> Triple(state, config, ready.size) }
-            .onEach { (state, config, readyCount) ->
+            geoEngine.status,
+        ) { state, config, ready, geoStatus -> Data4(state, config, ready.size, geoStatus) }
+            .onEach { data ->
                 _uiState.value = _uiState.value.copy(
-                    deviceState = state,
-                    remoteConfig = config,
-                    readyMediaCount = readyCount,
+                    deviceState = data.state,
+                    remoteConfig = data.config,
+                    readyMediaCount = data.readyCount,
+                    geoStatus = data.geoStatus,
                 )
             }.launchIn(viewModelScope)
     }
+
+    /** Dev-only simulated GEO test (MAX-008 item 20): feeds a fake fix
+     * through the real state machine/priority queue so the whole GEO path
+     * can be exercised on a bench without a car — see DeviceHomeScreen's
+     * BuildConfig.DEBUG gate, the only place this is reachable from. */
+    fun simulateGeoLocation(latitude: Double, longitude: Double) {
+        geoEngine.simulateLocation(latitude, longitude)
+    }
+
+    private data class Data4(
+        val state: DeviceStateEntity?,
+        val config: RemoteConfigEntity?,
+        val readyCount: Int,
+        val geoStatus: GeoStatus,
+    )
 
     /** "Sincronizar agora" (item 42): triggers an immediate grade sync
      * without waiting for the periodic schedule. */
@@ -96,9 +117,10 @@ class DeviceHomeViewModel(
         private val mediaDownloadManager: MediaDownloadManager,
         private val appContext: Context,
         private val telemetryProvider: () -> DeviceTelemetry,
+        private val geoEngine: GeoEngine,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            DeviceHomeViewModel(repository, mediaDownloadManager, appContext, telemetryProvider) as T
+            DeviceHomeViewModel(repository, mediaDownloadManager, appContext, telemetryProvider, geoEngine) as T
     }
 }

@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
-select plan(24);
+select plan(26);
 
 -- The development seed already ships one playlist with no device_id, which
 -- is now, by construction, the pilot's global default grade. Deactivate it
@@ -213,18 +213,37 @@ select is(
   'the failure reason is persisted for diagnostics'
 );
 
+-- MAX-008 reuses this same function for GEO campaign playback (source is
+-- derived from the campaign's own campaign_type, never client-supplied);
+-- see 011_geo_rules_and_events.test.sql for the dedicated GEO coverage.
+select is(
+  (select recorded from public.record_device_playback_event(
+    :'tok1', '92000000-0000-4000-8000-000000000004', '93000000-0000-4000-8000-000000000003',
+    'completed', now(), now(), 5000, 100, null, false,
+    '96000000-0000-4000-8000-000000000003'::uuid
+  )),
+  true,
+  'a GEO campaign can also be logged as a playback event'
+);
+select is(
+  (select source::text from public.impressions
+   where client_event_id = '96000000-0000-4000-8000-000000000003'),
+  'geo',
+  'the impression source is derived from the campaign''s own type, not hardcoded'
+);
+
 select throws_ok(
   format(
     $$select public.record_device_playback_event(
-        %L, '92000000-0000-4000-8000-000000000004', '93000000-0000-4000-8000-000000000003',
+        %L, '00000000-0000-4000-8000-000000000000', '93000000-0000-4000-8000-000000000003',
         'completed', now(), now(), 5000, 100, null, false,
-        '96000000-0000-4000-8000-000000000003'::uuid
+        '96000000-0000-4000-8000-000000000009'::uuid
       )$$,
     :'tok1'
   ),
   '22023',
-  'campaignId must reference a REGULAR campaign.',
-  'a GEO campaign cannot be logged as a playback event'
+  'campaignId does not reference a known campaign.',
+  'an unknown campaign cannot be logged as a playback event'
 );
 
 select throws_ok(

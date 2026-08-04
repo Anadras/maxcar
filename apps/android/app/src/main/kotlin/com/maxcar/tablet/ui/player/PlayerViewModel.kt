@@ -11,9 +11,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.maxcar.tablet.data.local.AppPreferences
+import com.maxcar.tablet.data.local.GeoRuleEntity
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.MediaDownloadManager
+import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,6 +38,7 @@ class PlayerViewModel(
     private val mediaDownloadManager: MediaDownloadManager,
     private val appPreferences: AppPreferences,
     private val appContext: Context,
+    private val geoEngine: GeoEngine,
 ) : ViewModel() {
 
     // Muted by default (item 48): advertising inside a private vehicle
@@ -50,6 +53,14 @@ class PlayerViewModel(
     private var pendingQueue: List<PlaylistItemEntity>? = null
     private var index = 0
     private var consecutiveFailures = 0
+
+    // Set only while a spliced-in GEO item is showing; unset the moment it
+    // finishes. Its mere presence is what enforces "at most one GEO, then
+    // back to REGULAR" (MAX-008 item 14): a GEO item's own finish handler
+    // always calls advance() next, never re-checks for another GEO
+    // candidate — offering one only ever happens right after a REGULAR
+    // item completes.
+    private var playingGeoItem: GeoRuleEntity? = null
 
     private var itemStartedElapsedMs = 0L
     private var itemStartedAtIso = ""
@@ -108,16 +119,29 @@ class PlayerViewModel(
     }
 
     private fun playCurrent() {
-        imageJob?.cancel()
         if (queue.isEmpty()) {
             _uiState.value = PlayerUiState.Empty
             return
         }
-        val item = queue[index]
+        playItem(queue[index], index + 1, queue.size)
+    }
+
+    /** Splices a GEO creative in as the very next item (MAX-008 item 3):
+     * called only from [finishCurrentItem], after a REGULAR item has
+     * already finished normally — never while something is still playing,
+     * and never in place of a queued REGULAR item, which stays exactly
+     * where it is and plays right after this one. */
+    private fun playGeoCandidate(rule: GeoRuleEntity) {
+        playingGeoItem = rule
+        playItem(rule.toPlaylistItem(), index + 1, queue.size)
+    }
+
+    private fun playItem(item: PlaylistItemEntity, positionInQueue: Int, queueSize: Int) {
+        imageJob?.cancel()
         itemStartedElapsedMs = SystemClock.elapsedRealtime()
         itemStartedAtIso = Instant.now().toString()
         val offline = DeviceTelemetry.collect(appContext).networkType == "offline"
-        _uiState.value = PlayerUiState.Playing(item, index + 1, queue.size, offline)
+        _uiState.value = PlayerUiState.Playing(item, positionInQueue, queueSize, offline)
         reportStatus(STATE_PLAYING, item.campaignId, item.creativeId, null)
 
         val localPath = item.localPath
@@ -140,7 +164,8 @@ class PlayerViewModel(
     }
 
     private fun finishCurrentItem(completed: Boolean, failureReason: String?) {
-        val item = queue.getOrNull(index) ?: return
+        val geoItem = playingGeoItem
+        val item = geoItem?.toPlaylistItem() ?: queue.getOrNull(index) ?: return
         val durationMs = SystemClock.elapsedRealtime() - itemStartedElapsedMs
         val offline = (uiState.value as? PlayerUiState.Playing)?.offline ?: false
         viewModelScope.launch {
@@ -156,6 +181,19 @@ class PlayerViewModel(
                 offline = offline,
             )
         }
+
+        if (geoItem != null) {
+            // A GEO play never counts toward the REGULAR queue's own
+            // failure budget — it isn't part of that grade.
+            playingGeoItem = null
+            if (!completed) reportStatus(STATE_PLAYING, item.campaignId, item.creativeId, failureReason)
+            viewModelScope.launch {
+                if (!completed) delay(FAILURE_BACKOFF_MS)
+                advance()
+            }
+            return
+        }
+
         consecutiveFailures = if (completed) 0 else consecutiveFailures + 1
         if (!completed) reportStatus(STATE_PLAYING, item.campaignId, item.creativeId, failureReason)
         viewModelScope.launch {
@@ -163,7 +201,17 @@ class PlayerViewModel(
             // grade fails back to back (item 22: never a hot-looping
             // retry on the same error).
             if (!completed) delay(FAILURE_BACKOFF_MS)
-            advance()
+            // A GEO candidate is only ever offered right after a REGULAR
+            // item finishes *successfully* (MAX-008 item 3): a failed item
+            // already needs its own retry/backoff attention, not a GEO ad
+            // layered on top of it.
+            val geoCandidate = if (completed) geoEngine.consumeCandidate() else null
+            if (geoCandidate != null) {
+                geoEngine.onGeoPlayed(geoCandidate.geofenceId, geoCandidate.campaignId)
+                playGeoCandidate(geoCandidate)
+            } else {
+                advance()
+            }
         }
     }
 
@@ -207,10 +255,11 @@ class PlayerViewModel(
         private val mediaDownloadManager: MediaDownloadManager,
         private val appPreferences: AppPreferences,
         private val appContext: Context,
+        private val geoEngine: GeoEngine,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlayerViewModel(deviceRepository, mediaDownloadManager, appPreferences, appContext) as T
+            PlayerViewModel(deviceRepository, mediaDownloadManager, appPreferences, appContext, geoEngine) as T
     }
 
     private companion object {
@@ -223,3 +272,24 @@ class PlayerViewModel(
         const val STATE_EMPTY = "empty"
     }
 }
+
+/** A GEO rule plays through the exact same [PlaylistItemEntity]-shaped
+ * player logic as a REGULAR item (MAX-008 item 24: one media pipeline, no
+ * GEO streaming) — position/manifestVersion are meaningless for a
+ * transient splice-in, so they carry harmless placeholder values never
+ * read back for a GEO play. */
+private fun GeoRuleEntity.toPlaylistItem(): PlaylistItemEntity = PlaylistItemEntity(
+    creativeId = creativeId,
+    campaignId = campaignId,
+    type = type,
+    mimeType = mimeType,
+    durationSeconds = durationSeconds,
+    fileSizeBytes = fileSizeBytes,
+    sha256 = sha256,
+    position = 0,
+    manifestVersion = rulesVersion,
+    downloadStatus = downloadStatus,
+    localPath = localPath,
+    lastError = lastError,
+    updatedAt = updatedAt,
+)

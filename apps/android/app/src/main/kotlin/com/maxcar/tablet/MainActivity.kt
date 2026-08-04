@@ -1,11 +1,15 @@
 package com.maxcar.tablet
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -18,11 +22,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.MediaDownloadManager
+import com.maxcar.tablet.geo.LocationForegroundService
 import com.maxcar.tablet.ui.enrollment.EnrollmentScreen
 import com.maxcar.tablet.ui.enrollment.EnrollmentViewModel
 import com.maxcar.tablet.ui.home.DeviceHomeScreen
@@ -49,9 +55,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private val homeViewModel: DeviceHomeViewModel by viewModels {
-        DeviceHomeViewModel.Factory(repository, mediaDownloadManager, applicationContext) {
-            DeviceTelemetry.collect(applicationContext)
-        }
+        DeviceHomeViewModel.Factory(
+            repository,
+            mediaDownloadManager,
+            applicationContext,
+            { DeviceTelemetry.collect(applicationContext) },
+            (application as MaxcarApplication).container.geoEngine,
+        )
     }
 
     private val playerViewModel: PlayerViewModel by viewModels {
@@ -60,12 +70,23 @@ class MainActivity : ComponentActivity() {
             mediaDownloadManager,
             (application as MaxcarApplication).container.appPreferences,
             applicationContext,
+            (application as MaxcarApplication).container.geoEngine,
         )
     }
+
+    /** Requested once at startup, not gated behind any user flow (item 4):
+     * the pilot has no use for the app without location, so there's no
+     * "decide later" screen to build — a denial simply means GEO stays
+     * inactive and the panel reports permission as not granted, while
+     * REGULAR playback keeps working normally. */
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { /* GeoEngine re-checks the permission itself the next time it starts. */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        requestLocationPermissionIfNeeded()
         setContent {
             MaxcarTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -81,12 +102,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestLocationPermissionIfNeeded() {
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            locationPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+            )
+        }
+    }
+
     /** Fullscreen immersive + keep-screen-on only while the player is the
      * active screen (items 24/25) — the diagnostic screen keeps the normal
      * system UI and lets the tablet sleep like any other tool. Lock Task
      * is attempted defensively: without Device Owner provisioning (not
      * done for this pilot — see ANDROID_PILOT_TABLET_SETUP.md) Android
-     * either ignores it or shows OEM screen-pinning UX, never a crash. */
+     * either ignores it or shows OEM screen-pinning UX, never a crash.
+     * [LocationForegroundService] (MAX-008) follows the same lifetime: GPS
+     * only runs while the player is actually the operational screen, never
+     * in the background behind diagnostics. */
     private fun applyKioskMode(playerActive: Boolean) {
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         if (playerActive) {
@@ -96,11 +132,20 @@ class MainActivity : ComponentActivity() {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             runCatching { startLockTask() }
                 .onFailure { Log.w("MaxcarMainActivity", "startLockTask unavailable: ${it::class.simpleName}") }
+            startLocationForegroundService()
         } else {
             controller.show(WindowInsetsCompat.Type.systemBars())
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             runCatching { stopLockTask() }
+            stopService(Intent(this, LocationForegroundService::class.java))
         }
+    }
+
+    private fun startLocationForegroundService() {
+        val intent = Intent(this, LocationForegroundService::class.java)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+        }.onFailure { Log.w("MaxcarMainActivity", "LocationForegroundService unavailable: ${it::class.simpleName}") }
     }
 }
 

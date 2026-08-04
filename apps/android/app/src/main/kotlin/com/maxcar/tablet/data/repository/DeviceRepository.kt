@@ -101,6 +101,14 @@ class DeviceRepository(
         currentCampaignId: String? = null,
         currentCreativeId: String? = null,
         lastError: String? = null,
+        latitude: Double? = null,
+        longitude: Double? = null,
+        gpsAvailable: Boolean = false,
+        locationAccuracyMeters: Double? = null,
+        locationPermissionGranted: Boolean? = null,
+        lastLocationError: String? = null,
+        lastGeofenceEntryAt: String? = null,
+        lastGeoCampaignId: String? = null,
     ): Result<Unit> {
         val token = secureTokenStore.readToken()
         if (token == null) {
@@ -124,6 +132,14 @@ class DeviceRepository(
                         currentCampaignId = currentCampaignId,
                         currentCreativeId = currentCreativeId,
                         lastError = lastError,
+                        latitude = latitude,
+                        longitude = longitude,
+                        gpsAvailable = gpsAvailable,
+                        locationAccuracyMeters = locationAccuracyMeters,
+                        locationPermissionGranted = locationPermissionGranted,
+                        lastLocationError = lastLocationError,
+                        lastGeofenceEntryAt = lastGeofenceEntryAt,
+                        lastGeoCampaignId = lastGeoCampaignId,
                     ),
                 )
             }

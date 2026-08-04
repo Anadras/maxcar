@@ -12,8 +12,10 @@ import androidx.room.RoomDatabase
         PendingEventEntity::class,
         PlaylistItemEntity::class,
         PlaybackEventEntity::class,
+        GeoRuleEntity::class,
+        GeofenceEventEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -22,6 +24,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun pendingEventDao(): PendingEventDao
     abstract fun playlistItemDao(): PlaylistItemDao
     abstract fun playbackEventDao(): PlaybackEventDao
+    abstract fun geoRuleDao(): GeoRuleDao
+    abstract fun geofenceEventDao(): GeofenceEventDao
 
     companion object {
         @Volatile

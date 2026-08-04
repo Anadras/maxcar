@@ -7,11 +7,11 @@ e excluir permanentemente. Para o log dessas ações, veja
 
 ## Três ações diferentes, três propósitos diferentes
 
-| Ação          | O registro continua visível? | Pode operar? | Reversível? |
-| ------------- | ----------------------------- | ------------- | ----------- |
-| **Desativar** | Sim, nas listas normais       | Não           | Sim (Reativar) |
-| **Arquivar**  | Não, some das listas padrão   | Não           | Sim (Restaurar) |
-| **Excluir**   | Não, o registro deixa de existir | —          | **Não**     |
+| Ação          | O registro continua visível?     | Pode operar? | Reversível?     |
+| ------------- | -------------------------------- | ------------ | --------------- |
+| **Desativar** | Sim, nas listas normais          | Não          | Sim (Reativar)  |
+| **Arquivar**  | Não, some das listas padrão      | Não          | Sim (Restaurar) |
+| **Excluir**   | Não, o registro deixa de existir | —            | **Não**         |
 
 Desativar muda o `status` operacional existente (o mesmo enum já usado por
 `drivers.status`/`vehicles.status`/`devices.status`); arquivar é uma

@@ -34,7 +34,7 @@ async function getDevicesWithLatestHeartbeats() {
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -68,6 +68,12 @@ async function getDevicesWithLatestHeartbeats() {
       current_campaign_id: heartbeat?.current_campaign_id ?? null,
       current_creative_id: heartbeat?.current_creative_id ?? null,
       last_error: heartbeat?.last_error ?? null,
+      location_accuracy_meters: heartbeat?.location_accuracy_meters ?? null,
+      location_permission_granted:
+        heartbeat?.location_permission_granted ?? null,
+      last_location_error: heartbeat?.last_location_error ?? null,
+      last_geofence_entry_at: heartbeat?.last_geofence_entry_at ?? null,
+      last_geo_campaign_id: heartbeat?.last_geo_campaign_id ?? null,
       manifest_synced_at: heartbeat?.manifest_version
         ? (heartbeat?.recorded_at ?? null)
         : null,
@@ -141,7 +147,23 @@ export async function getDevice(id: string) {
     currentCreativeName = creative?.name ?? null;
   }
 
-  return { ...device, heartbeats, currentCampaignName, currentCreativeName };
+  let lastGeoCampaignName: string | null = null;
+  if (device.last_geo_campaign_id) {
+    const { data: geoCampaign } = await supabase
+      .from('campaigns')
+      .select('name')
+      .eq('id', device.last_geo_campaign_id)
+      .maybeSingle();
+    lastGeoCampaignName = geoCampaign?.name ?? null;
+  }
+
+  return {
+    ...device,
+    heartbeats,
+    currentCampaignName,
+    currentCreativeName,
+    lastGeoCampaignName,
+  };
 }
 
 export async function getDeviceEnrollment(deviceId: string) {

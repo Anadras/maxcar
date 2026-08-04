@@ -7,23 +7,23 @@ motoristas, veículos e dispositivos — ver
 
 ## Estrutura
 
-| Coluna            | Conteúdo                                                        |
-| ------------------ | ---------------------------------------------------------------- |
-| `actor_user_id`    | quem executou (`auth.uid()` no momento da ação)                  |
-| `actor_role`       | papel do ator naquele momento (`private.current_app_role()`)     |
-| `action`           | `archive` \| `restore` \| `deactivate` \| `reactivate` \| `unlink` \| `delete` |
-| `entity_type`      | `driver` \| `vehicle` \| `device`                                 |
-| `entity_id`        | id original do registro (continua existindo mesmo após exclusão) |
-| `entity_label`     | nome/código legível (nome do motorista, código do veículo/tablet)|
-| `reason`           | motivo informado (obrigatório só para exclusão permanente)       |
-| `before_snapshot`  | `to_jsonb` da linha inteira antes da ação                        |
-| `metadata`         | reservado para contexto adicional futuro                         |
-| `created_at`       | horário do servidor — nunca o relógio do cliente                 |
+| Coluna            | Conteúdo                                                                       |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `actor_user_id`   | quem executou (`auth.uid()` no momento da ação)                                |
+| `actor_role`      | papel do ator naquele momento (`private.current_app_role()`)                   |
+| `action`          | `archive` \| `restore` \| `deactivate` \| `reactivate` \| `unlink` \| `delete` |
+| `entity_type`     | `driver` \| `vehicle` \| `device`                                              |
+| `entity_id`       | id original do registro (continua existindo mesmo após exclusão)               |
+| `entity_label`    | nome/código legível (nome do motorista, código do veículo/tablet)              |
+| `reason`          | motivo informado (obrigatório só para exclusão permanente)                     |
+| `before_snapshot` | `to_jsonb` da linha inteira antes da ação                                      |
+| `metadata`        | reservado para contexto adicional futuro                                       |
+| `created_at`      | horário do servidor — nunca o relógio do cliente                               |
 
 ## O que nunca é gravado
 
 Senha, token, credencial de dispositivo, código de enrollment ou qualquer
-segredo de API. A auditoria registra *o quê* e *por quê*, nunca as
+segredo de API. A auditoria registra _o quê_ e _por quê_, nunca as
 credenciais usadas para autorizar a ação.
 
 ## Escrita

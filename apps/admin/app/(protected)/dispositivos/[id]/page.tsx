@@ -161,6 +161,43 @@ export default async function DeviceDetailPage({
         </dl>
       </SectionCard>
       <SectionCard
+        title="GPS / GEO"
+        subtitle="Estado do motor de geolocalização (MAX-008) no heartbeat mais recente."
+      >
+        <dl className="detail-grid">
+          <div>
+            <dt>Permissão de localização</dt>
+            <dd>
+              {device.location_permission_granted === null
+                ? 'Sem telemetria'
+                : device.location_permission_granted
+                  ? 'Concedida'
+                  : 'Negada'}
+            </dd>
+          </div>
+          <div>
+            <dt>Precisão</dt>
+            <dd>
+              {device.location_accuracy_meters === null
+                ? 'Não informada'
+                : `${Number(device.location_accuracy_meters).toFixed(0)} m`}
+            </dd>
+          </div>
+          <div>
+            <dt>Última entrada em geofence</dt>
+            <dd>{formatRelativeTime(device.last_geofence_entry_at)}</dd>
+          </div>
+          <div>
+            <dt>Última campanha GEO exibida</dt>
+            <dd>{device.lastGeoCampaignName ?? 'Nenhuma'}</dd>
+          </div>
+          <div>
+            <dt>Último erro de localização</dt>
+            <dd>{device.last_location_error ?? 'Nenhum'}</dd>
+          </div>
+        </dl>
+      </SectionCard>
+      <SectionCard
         title="Player"
         subtitle="Estado reportado no heartbeat mais recente que incluiu telemetria de player."
       >

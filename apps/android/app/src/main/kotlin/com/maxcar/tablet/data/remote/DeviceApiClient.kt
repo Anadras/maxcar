@@ -82,6 +82,30 @@ class DeviceApiClient(
         return execute(httpRequest) { json.decodeFromString(PlaybackEventsResponse.serializer(), it) }
     }
 
+    /** GEO geofence rules for the Location Engine (MAX-008); same shape and
+     * download pipeline as [getManifest], just for GEO campaigns. */
+    fun getGeoRules(token: String): GeoRulesResponse {
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-geo-rules")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return execute(httpRequest) { json.decodeFromString(GeoRulesResponse.serializer(), it) }
+    }
+
+    fun sendGeofenceEvents(
+        token: String,
+        events: List<GeofenceEventRequest>,
+    ): GeofenceEventsResponse {
+        val body = json.encodeToString(GeofenceEventsRequest(events)).toRequestBody(JSON_MEDIA_TYPE)
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-geofence-events")
+            .header("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        return execute(httpRequest) { json.decodeFromString(GeofenceEventsResponse.serializer(), it) }
+    }
+
     /** Streams a signed URL straight to disk without ever holding the full
      * file in memory — a video can be tens of megabytes, and this call
      * always runs off the main thread via [com.maxcar.tablet.data.repository.MediaDownloadManager]. */

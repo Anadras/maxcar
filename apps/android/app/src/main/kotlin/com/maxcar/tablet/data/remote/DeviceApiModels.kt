@@ -37,6 +37,17 @@ data class HeartbeatRequest(
     val currentCampaignId: String? = null,
     val currentCreativeId: String? = null,
     val lastError: String? = null,
+    // GPS/GEO status (MAX-008), optional and additive for the same reason
+    // as the player-state fields above: an older build's heartbeat call
+    // still works unchanged.
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val gpsAvailable: Boolean = false,
+    val locationAccuracyMeters: Double? = null,
+    val locationPermissionGranted: Boolean? = null,
+    val lastLocationError: String? = null,
+    val lastGeofenceEntryAt: String? = null,
+    val lastGeoCampaignId: String? = null,
 )
 
 @Serializable
@@ -114,3 +125,59 @@ data class ApiErrorBody(
     val error: String,
     val message: String? = null,
 )
+
+// --- MAX-008: GEO rules and geofence transition events ---
+
+@Serializable
+data class GeoRuleItem(
+    val geofenceId: String,
+    val campaignId: String,
+    val creativeId: String,
+    val establishmentId: String,
+    val latitude: Double,
+    val longitude: Double,
+    val radiusMeters: Int,
+    val priority: Int,
+    val cooldownSeconds: Int,
+    val type: String,
+    val mimeType: String,
+    val durationSeconds: Double,
+    val fileSizeBytes: Long? = null,
+    val sha256: String? = null,
+    val downloadUrl: String? = null,
+    val startsAt: String? = null,
+    val endsAt: String? = null,
+)
+
+@Serializable
+data class GeoRulesResponse(
+    val rulesVersion: String,
+    val generatedAt: String,
+    val deviceId: String,
+    val rules: List<GeoRuleItem> = emptyList(),
+)
+
+@Serializable
+data class GeofenceEventRequest(
+    val clientEventId: String,
+    val geofenceId: String,
+    val eventType: String,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float? = null,
+    val distanceMeters: Double? = null,
+    val occurredAt: String,
+)
+
+@Serializable
+data class GeofenceEventsRequest(val events: List<GeofenceEventRequest>)
+
+@Serializable
+data class GeofenceEventResult(
+    val clientEventId: String,
+    val ok: Boolean,
+    val recorded: Boolean = false,
+)
+
+@Serializable
+data class GeofenceEventsResponse(val results: List<GeofenceEventResult> = emptyList())

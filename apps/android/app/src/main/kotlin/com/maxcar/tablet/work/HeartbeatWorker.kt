@@ -26,8 +26,10 @@ class HeartbeatWorker(
 
         repository.flushPendingEvents()
         repository.flushPlaybackEvents()
+        container.geoRepository.flushGeofenceEvents()
 
         val playerStatus = container.appPreferences.playerStatusSnapshot()
+        val geoStatus = container.geoEngine.status.value
         val result = repository.sendHeartbeat(
             batteryLevel = telemetry.batteryLevel,
             networkType = telemetry.networkType,
@@ -38,6 +40,15 @@ class HeartbeatWorker(
             currentCampaignId = playerStatus.campaignId,
             currentCreativeId = playerStatus.creativeId,
             lastError = playerStatus.lastError,
+            latitude = geoStatus.lastLatitude,
+            longitude = geoStatus.lastLongitude,
+            gpsAvailable = geoStatus.active,
+            locationAccuracyMeters = geoStatus.lastAccuracyMeters?.toDouble(),
+            locationPermissionGranted = geoStatus.permissionGranted,
+            lastLocationError = geoStatus.lastError,
+            lastGeofenceEntryAt = geoStatus.lastGeofenceEntryAtMillis
+                ?.let { java.time.Instant.ofEpochMilli(it).toString() },
+            lastGeoCampaignId = geoStatus.lastGeoCampaignId,
         )
 
         return result.fold(

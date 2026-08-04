@@ -134,6 +134,11 @@ dependencies {
 
     implementation("androidx.startup:startup-runtime:1.2.0")
 
+    // Fused Location Provider for the GEO engine (MAX-008). No other Play
+    // Services module is used — the app has no other reason to depend on
+    // Google Play Services beyond precise, battery-reasonable location.
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("app.cash.turbine:turbine:1.2.1")

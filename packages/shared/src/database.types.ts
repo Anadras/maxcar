@@ -471,7 +471,12 @@ export type Database = {
           gps_available: boolean
           id: string
           last_error: string | null
+          last_geo_campaign_id: string | null
+          last_geofence_entry_at: string | null
+          last_location_error: string | null
           location: unknown
+          location_accuracy_meters: number | null
+          location_permission_granted: boolean | null
           manifest_version: string | null
           media_ready_count: number | null
           network_connected: boolean
@@ -490,7 +495,12 @@ export type Database = {
           gps_available: boolean
           id?: string
           last_error?: string | null
+          last_geo_campaign_id?: string | null
+          last_geofence_entry_at?: string | null
+          last_location_error?: string | null
           location?: unknown
+          location_accuracy_meters?: number | null
+          location_permission_granted?: boolean | null
           manifest_version?: string | null
           media_ready_count?: number | null
           network_connected: boolean
@@ -509,7 +519,12 @@ export type Database = {
           gps_available?: boolean
           id?: string
           last_error?: string | null
+          last_geo_campaign_id?: string | null
+          last_geofence_entry_at?: string | null
+          last_location_error?: string | null
           location?: unknown
+          location_accuracy_meters?: number | null
+          location_permission_granted?: boolean | null
           manifest_version?: string | null
           media_ready_count?: number | null
           network_connected?: boolean
@@ -566,6 +581,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vehicle_admin_view"
             referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -831,7 +860,9 @@ export type Database = {
       }
       geofence_events: {
         Row: {
+          accuracy_meters: number | null
           campaign_geofence_id: string
+          client_event_id: string | null
           created_at: string
           device_id: string
           distance_meters: number | null
@@ -841,7 +872,9 @@ export type Database = {
           occurred_at: string
         }
         Insert: {
+          accuracy_meters?: number | null
           campaign_geofence_id: string
+          client_event_id?: string | null
           created_at?: string
           device_id: string
           distance_meters?: number | null
@@ -851,7 +884,9 @@ export type Database = {
           occurred_at: string
         }
         Update: {
+          accuracy_meters?: number | null
           campaign_geofence_id?: string
+          client_event_id?: string | null
           created_at?: string
           device_id?: string
           distance_meters?: number | null
@@ -1398,6 +1433,95 @@ export type Database = {
         }
         Relationships: []
       }
+      device_latest_heartbeat_view: {
+        Row: {
+          app_version: string | null
+          battery_level: number | null
+          current_campaign_id: string | null
+          current_creative_id: string | null
+          device_id: string | null
+          gps_available: boolean | null
+          last_error: string | null
+          last_geo_campaign_id: string | null
+          last_geofence_entry_at: string | null
+          last_latitude: number | null
+          last_location_error: string | null
+          last_longitude: number | null
+          location_accuracy_meters: number | null
+          location_permission_granted: boolean | null
+          manifest_version: string | null
+          media_ready_count: number | null
+          network_connected: boolean | null
+          player_state: string | null
+          recorded_at: string | null
+          storage_free_bytes: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_creative_id_fkey"
+            columns: ["current_creative_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_creatives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_monitoring_view: {
         Row: {
           app_version: string | null
@@ -1595,10 +1719,27 @@ export type Database = {
           vehicle_id: string
         }[]
       }
+      get_device_geo_rules: { Args: { p_token: string }; Returns: Json }
       get_device_manifest: { Args: { p_token: string }; Returns: Json }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
+      }
+      record_device_geofence_event: {
+        Args: {
+          p_accuracy_meters?: number
+          p_campaign_geofence_id: string
+          p_client_event_id?: string
+          p_distance_meters?: number
+          p_event_type: Database["public"]["Enums"]["geofence_event_type"]
+          p_latitude: number
+          p_longitude: number
+          p_occurred_at?: string
+          p_token: string
+        }
+        Returns: {
+          recorded: boolean
+        }[]
       }
       record_device_heartbeat: {
         Args: {
@@ -1608,7 +1749,15 @@ export type Database = {
           p_current_campaign_id?: string
           p_current_creative_id?: string
           p_device_time?: string
+          p_gps_available?: boolean
           p_last_error?: string
+          p_last_geo_campaign_id?: string
+          p_last_geofence_entry_at?: string
+          p_last_location_error?: string
+          p_latitude?: number
+          p_location_accuracy_meters?: number
+          p_location_permission_granted?: boolean
+          p_longitude?: number
           p_manifest_version?: string
           p_media_ready_count?: number
           p_network_type?: string

@@ -64,8 +64,25 @@ player, o card mostra "Sem telemetria" em vez de um valor fabricado. Ver
 não ativado ou sem hardware físico à mão; não há endpoint público ou uso de
 `service_role`.
 
+## GPS / GEO (MAX-008)
+
+O card "GPS / GEO" no detalhe do dispositivo mostra o que o heartbeat mais
+recente reportou do motor GEO Android — ver
+[ANDROID_LOCATION.md](ANDROID_LOCATION.md) e
+[ANDROID_GEO_ENGINE.md](ANDROID_GEO_ENGINE.md): permissão de localização
+concedida/negada, precisão da última fixação, quando foi a última entrada
+em geofence e qual foi a última campanha GEO exibida (nome, nunca UUID), e
+o último erro de localização, se houver. Como o restante do card "Player",
+nenhum campo é inventado — "Sem telemetria" em vez de um valor fabricado
+quando o dispositivo ainda não reportou. Latitude/longitude detalhada
+segue a mesma regra de visibilidade por papel do resto da localização do
+dispositivo (`super_admin`/`admin`/`operations`, nunca `advertiser`).
+
 ## Fora deste marco
 
-Mapa em tempo real, histórico geográfico e alertas automatizados por
-ausência de heartbeat ficam para um marco futuro. Localização (GPS) no
-heartbeat depende do Location Engine, planejado para MAX-008.
+Mapa em tempo real e alertas automatizados por ausência de heartbeat ficam
+para um marco futuro. Histórico geográfico de rota é uma não-decisão
+deliberada, não uma lacuna: o motor GEO mantém retenção mínima de
+localização por desenho (ver
+[ANDROID_GEO_ENGINE.md](ANDROID_GEO_ENGINE.md#minimização-de-dados-lgpd)),
+então não existe uma trilha para mostrar mesmo que a UI fosse construída.

@@ -9,9 +9,10 @@ reprodução, veja [ANDROID_PLAYBACK_EVENTS.md](ANDROID_PLAYBACK_EVENTS.md).
 
 ## Fora deste marco
 
-GPS, GEO, mapas, streaming direto de URL, atualização remota do APK e MDM
+Mapas, streaming direto de URL, atualização remota do APK e MDM
 corporativo completo — ver `AGENTS.md`. O player só toca o que já está
-validado em disco; nunca reproduz direto de uma URL assinada.
+validado em disco; nunca reproduz direto de uma URL assinada. GPS/GEO
+entraram no MAX-008 — ver a seção [GEO](#geo) abaixo.
 
 ## Arquitetura
 
@@ -103,6 +104,34 @@ a tela de diagnóstico (`DeviceHomeScreen`, já existente do MAX-006, agora
 com contagem de mídias prontas e o botão "Sincronizar agora"). Nenhum botão
 visível — o passageiro não tem como sair dos anúncios por acidente. Um
 botão "Voltar ao player" no diagnóstico devolve o controle.
+
+## GEO
+
+`PlayerViewModel` também é o único ponto que decide _quando_ é seguro
+inserir uma campanha GEO — `GeoEngine` só oferece o candidato, nunca força
+a reprodução (ver
+[ANDROID_GEO_ENGINE.md](ANDROID_GEO_ENGINE.md#uma-única-classe-coordenadora)).
+
+- O candidato só é consultado (`GeoEngine.consumeCandidate()`) depois que
+  um item REGULAR **termina normalmente** (`completed = true`) — nunca no
+  meio de uma reprodução, nunca depois de uma falha (que já tem seu próprio
+  backoff).
+- Quando há candidato, ele entra como o **próximo** item
+  (`PlayerViewModel.playGeoCandidate`) — a fila REGULAR não é alterada,
+  `index` não avança; o item que tocaria a seguir continua exatamente onde
+  estava.
+- Reutiliza a mesma máquina de estados/`PlaylistItemEntity` que um item
+  REGULAR (`GeoRuleEntity.toPlaylistItem()`), então ExoPlayer/Compose não
+  precisam saber a diferença.
+- Ao terminar a campanha GEO, `GeoEngine.onGeoPlayed` grava o cooldown e o
+  player retoma a grade REGULAR (`advance()`) — nunca oferece um segundo
+  candidato GEO em seguida: essa checagem só acontece depois de um item
+  REGULAR terminar, então "no máximo 1 GEO consecutiva" é uma consequência
+  estrutural do fluxo, não uma flag separada para manter sincronizada.
+- Um evento de reprodução GEO usa o mesmo `DeviceRepository.recordPlaybackEvent`
+  de um item REGULAR — o servidor deriva `source = 'geo'` do próprio tipo
+  da campanha (`record_device_playback_event`, migration MAX-008), nunca de
+  um campo que o cliente poderia informar errado.
 
 ## Auto-start após reboot
 

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.maxcar.tablet.BuildConfig
+import java.time.Instant
 
 @Composable
 fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit = {}) {
@@ -51,6 +52,59 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit 
             InfoRow("Versão da configuração", config.configVersion.toString())
         }
         InfoRow("Mídias prontas", state.readyMediaCount.toString())
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+        Text("GPS / GEO", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+        val geo = state.geoStatus
+        InfoRow(
+            "GPS",
+            when {
+                geo.permissionGranted == false -> "Sem permissão"
+                geo.active -> "Ativo"
+                else -> "Inativo"
+            },
+        )
+        InfoRow(
+            "Última localização",
+            if (geo.lastLatitude != null && geo.lastLongitude != null) {
+                "%.5f, %.5f%s".format(
+                    geo.lastLatitude,
+                    geo.lastLongitude,
+                    if (geo.simulated) " (SIMULADO)" else "",
+                )
+            } else {
+                "Nenhuma ainda"
+            },
+        )
+        InfoRow(
+            "Precisão",
+            geo.lastAccuracyMeters?.let { "${it.toInt()} m" } ?: "—",
+        )
+        InfoRow(
+            "Última entrada em geofence",
+            geo.lastGeofenceEntryAtMillis?.let { Instant.ofEpochMilli(it).toString() } ?: "Nenhuma",
+        )
+        InfoRow(
+            "Última campanha GEO exibida",
+            geo.lastGeoCampaignId ?: "Nenhuma",
+        )
+        InfoRow("Último erro de localização", geo.lastError ?: "Nenhum")
+
+        if (BuildConfig.DEBUG) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            Text(
+                "Simulação de GEO (apenas debug)",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Button(
+                onClick = { viewModel.simulateGeoLocation(-20.4489, -54.6167) },
+                modifier = Modifier.padding(top = 8.dp),
+            ) {
+                Text("Simular entrada em geofence de teste")
+            }
+        }
 
         state.connectionCheckMessage?.let { message ->
             Text(

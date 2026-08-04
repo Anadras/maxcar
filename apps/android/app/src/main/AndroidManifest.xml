@@ -4,9 +4,19 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- No location, camera or storage permissions: MAX-007 downloads media
-         into app-private storage (no WRITE_EXTERNAL_STORAGE needed); GPS
-         stays out of scope until MAX-008. -->
+    <!-- No camera or storage permissions: MAX-007 downloads media into
+         app-private storage (no WRITE_EXTERNAL_STORAGE needed). -->
+
+    <!-- MAX-008: only what the pilot's GEO engine needs — precise,
+         foreground-only location. No ACCESS_BACKGROUND_LOCATION: the player
+         is a continuous foreground experience (item 4 of the MAX-008
+         brief), so a Foreground Service covers "the app is running", not a
+         background-location grant with its own Play Console review and
+         steeper user-trust bar. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <application
         android:name=".MaxcarApplication"
@@ -38,6 +48,15 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- MAX-008: keeps the Location Engine (and, by staying alive, the
+             player itself) running while the tablet is in operational mode.
+             Started only while the player is the active screen — see
+             MainActivity.applyKioskMode — never at boot on its own. -->
+        <service
+            android:name=".geo.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
     </application>
 

@@ -9,7 +9,14 @@ import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.local.SecureTokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.repository.DeviceRepository
+import com.maxcar.tablet.data.repository.GeoRepository
+import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
+import com.maxcar.tablet.geo.GeoEngine
+import com.maxcar.tablet.geo.LocationEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 private val Context.dataStore by preferencesDataStore(name = "maxcar_prefs")
 
@@ -44,5 +51,32 @@ class AppContainer(context: Context) {
         tokenStore = secureTokenStore,
         playlistItemDao = database.playlistItemDao(),
         appPreferences = appPreferences,
+    )
+
+    // Outlives any single Activity/ViewModel: location updates and the
+    // geofence state machine must keep running across screen changes while
+    // the app process is alive, the same lifetime as the foreground
+    // service that hosts them (see LocationForegroundService).
+    private val geoScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    val geoRulesSyncManager = GeoRulesSyncManager(
+        context = appContext,
+        apiClient = apiClient,
+        tokenStore = secureTokenStore,
+        geoRuleDao = database.geoRuleDao(),
+    )
+
+    val geoRepository = GeoRepository(
+        apiClient = apiClient,
+        tokenStore = secureTokenStore,
+        geofenceEventDao = database.geofenceEventDao(),
+    )
+
+    val geoEngine = GeoEngine(
+        locationEngine = LocationEngine(appContext),
+        geoRulesSyncManager = geoRulesSyncManager,
+        geoRuleDao = database.geoRuleDao(),
+        geofenceEventDao = database.geofenceEventDao(),
+        scope = geoScope,
     )
 }

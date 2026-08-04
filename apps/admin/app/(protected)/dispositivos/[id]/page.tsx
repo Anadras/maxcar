@@ -25,7 +25,7 @@ import { getAuthContext } from '@/lib/auth/context';
 import {
   getDevice,
   getDeviceEnrollment,
-  listDeviceCommands,
+  listDeviceCommandsSummary,
 } from '@/lib/data/devices';
 import {
   CONNECTION_LABEL,
@@ -133,7 +133,9 @@ export default async function DeviceDetailPage({
   if (!device) notFound();
   const canManage = !!auth && canManageFleet(auth.profile.role);
   const enrollment = canManage ? await getDeviceEnrollment(id) : null;
-  const commands = canManage ? await listDeviceCommands(id) : [];
+  const commands = canManage
+    ? await listDeviceCommandsSummary(id)
+    : { current: [], recent: [] };
   const canSimulate =
     process.env.NODE_ENV !== 'production' &&
     auth?.profile.role === 'super_admin';
@@ -379,9 +381,42 @@ export default async function DeviceDetailPage({
             <div>
               <dt>Fila de eventos pendentes</dt>
               <dd>
-                {device.pending_event_count === null
-                  ? 'Não informado'
-                  : device.pending_event_count}
+                {device.pending_event_count === null ? (
+                  'Não informado'
+                ) : (
+                  <>
+                    {device.pending_event_count}
+                    {device.pending_event_count > 0 && (
+                      <>
+                        {' '}
+                        <span className="section-hint">
+                          Eventos de geofence registrados no tablet e ainda
+                          não confirmados pelo servidor. Um número que só
+                          cresce indica que o tablet não está conseguindo
+                          sincronizar — envie uma sincronização abaixo.
+                        </span>
+                        {canManage && (
+                          <form
+                            action={issueDeviceCommand.bind(null, id)}
+                            className="inline-form"
+                          >
+                            <input
+                              type="hidden"
+                              name="commandType"
+                              value="sync_now"
+                            />
+                            <button
+                              className="button button-secondary button-small"
+                              type="submit"
+                            >
+                              Reprocessar pendências
+                            </button>
+                          </form>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
               </dd>
             </div>
             <div>
@@ -425,41 +460,31 @@ export default async function DeviceDetailPage({
                 ),
               )}
             </div>
-            {commands.length === 0 ? (
+            {commands.current.length === 0 &&
+            commands.recent.length === 0 ? (
               <p className="section-empty">Nenhum comando enviado ainda.</p>
             ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Comando</th>
-                      <th>Status</th>
-                      <th>Enviado em</th>
-                      <th>Entregue em</th>
-                      <th>Concluído em</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {commands.map((command) => (
-                      <tr key={command.id}>
-                        <td>{COMMAND_LABEL[command.command_type]}</td>
-                        <td>
-                          <StatusBadge
-                            value={
-                              COMMAND_STATUS_LABEL[command.status] ??
-                              command.status
-                            }
-                          />
-                        </td>
-                        <td>{formatDateTime(command.created_at)}</td>
-                        <td>{formatDateTime(command.delivered_at)}</td>
-                        <td>{formatDateTime(command.completed_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {commands.current.length > 0 && (
+                  <>
+                    <h3 className="section-subheading">Em andamento</h3>
+                    <CommandTable commands={commands.current} />
+                  </>
+                )}
+                {commands.recent.length > 0 && (
+                  <>
+                    <h3 className="section-subheading">Últimos concluídos</h3>
+                    <CommandTable commands={commands.recent} />
+                  </>
+                )}
+              </>
             )}
+            <Link
+              href={`/dispositivos/${id}/comandos`}
+              className="section-link"
+            >
+              Ver histórico completo →
+            </Link>
           </SectionCard>
         )}
         <SectionCard
@@ -666,6 +691,51 @@ export default async function DeviceDetailPage({
           />
         </SectionCard>
       )}
+    </div>
+  );
+}
+
+type DeviceCommandRow = {
+  id: string;
+  command_type: DeviceCommandType;
+  status: string;
+  created_at: string;
+  delivered_at: string | null;
+  completed_at: string | null;
+  result: unknown;
+};
+
+function CommandTable({ commands }: { commands: DeviceCommandRow[] }) {
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Comando</th>
+            <th>Status</th>
+            <th>Enviado em</th>
+            <th>Entregue em</th>
+            <th>Concluído em</th>
+          </tr>
+        </thead>
+        <tbody>
+          {commands.map((command) => (
+            <tr key={command.id}>
+              <td>{COMMAND_LABEL[command.command_type]}</td>
+              <td>
+                <StatusBadge
+                  value={
+                    COMMAND_STATUS_LABEL[command.status] ?? command.status
+                  }
+                />
+              </td>
+              <td>{formatDateTime(command.created_at)}</td>
+              <td>{formatDateTime(command.delivered_at)}</td>
+              <td>{formatDateTime(command.completed_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

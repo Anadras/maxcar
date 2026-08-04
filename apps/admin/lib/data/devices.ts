@@ -195,13 +195,41 @@ export async function getDeviceEnrollment(deviceId: string) {
   return data;
 }
 
-export async function listDeviceCommands(deviceId: string, limit = 15) {
+const COMMAND_SELECT =
+  'id, command_type, status, created_at, delivered_at, completed_at, result';
+
+/** Bloco 8: the panel never dumps the raw table — an operator only ever
+ * needs to know "is something in flight right now" and "what happened
+ * recently"; anything older belongs on the dedicated history page
+ * (listDeviceCommandHistory), not cluttering the device screen. */
+export async function listDeviceCommandsSummary(deviceId: string) {
+  const supabase = await createClient();
+  const [{ data: current, error: currentError }, { data: recent, error: recentError }] =
+    await Promise.all([
+      supabase
+        .from('device_commands')
+        .select(COMMAND_SELECT)
+        .eq('device_id', deviceId)
+        .in('status', ['pending', 'delivered'])
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('device_commands')
+        .select(COMMAND_SELECT)
+        .eq('device_id', deviceId)
+        .in('status', ['completed', 'failed', 'expired'])
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .limit(5),
+    ]);
+  if (currentError) throw currentError;
+  if (recentError) throw recentError;
+  return { current: current ?? [], recent: recent ?? [] };
+}
+
+export async function listDeviceCommandHistory(deviceId: string, limit = 100) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('device_commands')
-    .select(
-      'id, command_type, status, created_at, delivered_at, completed_at, result',
-    )
+    .select(COMMAND_SELECT)
     .eq('device_id', deviceId)
     .order('created_at', { ascending: false })
     .limit(limit);

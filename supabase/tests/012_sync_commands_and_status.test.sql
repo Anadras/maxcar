@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(23);
 
 grant usage on schema extensions to authenticated;
 grant execute on all functions in schema extensions to authenticated;
@@ -171,6 +171,42 @@ select throws_ok(
   null,
   null,
   'authenticated cannot insert device_commands directly; only the RPCs can'
+);
+reset role;
+
+-- MAX-011 Bloco 8: queuing the same not-yet-finished command again must
+-- never duplicate the row — this is exactly what publishCampaignAndSync
+-- does every time a campaign is (re)published, fanned out to every device.
+-- A dedicated device fixture keeps this from disturbing the row-count
+-- assumptions the earlier assertions in this file already rely on.
+insert into public.devices (id, device_code, status) values
+  ('c1000000-0000-4000-8000-000000000020', 'TB-M09-02', 'provisioning');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', 'c1000000-0000-4000-8000-000000000001', true);
+
+select public.create_device_command('c1000000-0000-4000-8000-000000000020', 'sync_now') as cmd_id_first \gset
+
+select is(
+  (select public.create_device_command('c1000000-0000-4000-8000-000000000020', 'sync_now')),
+  :'cmd_id_first',
+  'requeuing the same pending command_type returns the existing id, not a new one'
+);
+select is(
+  (select count(*)::integer from public.device_commands
+   where device_id = 'c1000000-0000-4000-8000-000000000020' and command_type = 'sync_now'),
+  1,
+  'no duplicate row was created for the same device+command_type'
+);
+select lives_ok(
+  $$select public.create_device_command('c1000000-0000-4000-8000-000000000020', 'restart_player')$$,
+  'a different command_type for the same device is not deduplicated against it'
+);
+select is(
+  (select count(*)::integer from public.device_commands
+   where device_id = 'c1000000-0000-4000-8000-000000000020'),
+  2,
+  'the device now has exactly one sync_now and one restart_player command'
 );
 reset role;
 

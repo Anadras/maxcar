@@ -120,27 +120,6 @@ export type Database = {
         }
         Relationships: []
       }
-      system_settings: {
-        Row: {
-          pilot_mode: boolean
-          singleton: boolean
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          pilot_mode?: boolean
-          singleton?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          pilot_mode?: boolean
-          singleton?: boolean
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       campaign_creatives: {
         Row: {
           active: boolean
@@ -193,8 +172,96 @@ export type Database = {
             foreignKeyName: "campaign_creatives_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_creatives_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_devices: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          campaign_id: string
+          device_id: string
+          id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          campaign_id: string
+          device_id: string
+          id?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          campaign_id?: string
+          device_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_devices_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
           },
         ]
       }
@@ -239,6 +306,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_admin_view"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_geofences_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
           },
           {
             foreignKeyName: "campaign_geofences_campaign_id_fkey"
@@ -367,6 +441,13 @@ export type Database = {
             foreignKeyName: "device_commands_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
             referencedColumns: ["device_id"]
           },
@@ -422,6 +503,13 @@ export type Database = {
           token_hash?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
           {
             foreignKeyName: "device_credentials_device_id_fkey"
             columns: ["device_id"]
@@ -517,6 +605,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
           },
           {
             foreignKeyName: "device_enrollment_codes_device_id_fkey"
@@ -645,6 +740,13 @@ export type Database = {
             foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
             columns: ["current_campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -654,6 +756,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_creatives"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
           },
           {
             foreignKeyName: "device_heartbeats_device_id_fkey"
@@ -689,6 +798,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_admin_view"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
           },
           {
             foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
@@ -743,6 +859,13 @@ export type Database = {
           vehicle_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
           {
             foreignKeyName: "devices_vehicle_id_fkey"
             columns: ["vehicle_id"]
@@ -802,6 +925,13 @@ export type Database = {
             foreignKeyName: "driver_sessions_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
             referencedColumns: ["device_id"]
           },
@@ -846,6 +976,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "drivers"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["vehicle_id"]
           },
           {
             foreignKeyName: "driver_sessions_vehicle_id_fkey"
@@ -1021,6 +1158,13 @@ export type Database = {
             foreignKeyName: "geofence_events_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "geofence_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
             referencedColumns: ["device_id"]
           },
@@ -1117,6 +1261,13 @@ export type Database = {
             foreignKeyName: "impressions_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "impressions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -1126,6 +1277,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_creatives"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impressions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
           },
           {
             foreignKeyName: "impressions_device_id_fkey"
@@ -1154,6 +1312,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vehicle_admin_view"
             referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "impressions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["vehicle_id"]
           },
           {
             foreignKeyName: "impressions_vehicle_id_fkey"
@@ -1218,6 +1383,13 @@ export type Database = {
             foreignKeyName: "playlist_items_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "playlist_items_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -1262,6 +1434,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
           {
             foreignKeyName: "playlists_device_id_fkey"
             columns: ["device_id"]
@@ -1353,6 +1532,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      system_settings: {
+        Row: {
+          pilot_mode: boolean
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          pilot_mode?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          pilot_mode?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       vehicles: {
         Row: {
@@ -1452,6 +1652,21 @@ export type Database = {
           },
         ]
       }
+      campaign_device_admin_view: {
+        Row: {
+          assigned_at: string | null
+          campaign_id: string | null
+          device_archived_at: string | null
+          device_code: string | null
+          device_id: string | null
+          device_status: Database["public"]["Enums"]["device_status"] | null
+          driver_name: string | null
+          explicitly_assigned: boolean | null
+          vehicle_code: string | null
+          vehicle_id: string | null
+        }
+        Relationships: []
+      }
       campaign_geofence_admin_view: {
         Row: {
           active: boolean | null
@@ -1479,6 +1694,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_admin_view"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_geofences_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
           },
           {
             foreignKeyName: "campaign_geofences_campaign_id_fkey"
@@ -1575,6 +1797,13 @@ export type Database = {
             foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
             columns: ["current_campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -1584,6 +1813,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "campaign_creatives"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
           },
           {
             foreignKeyName: "device_heartbeats_device_id_fkey"
@@ -1624,6 +1860,13 @@ export type Database = {
             foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
             columns: ["last_geo_campaign_id"]
             isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_last_geo_campaign_id_fkey"
+            columns: ["last_geo_campaign_id"]
+            isOneToOne: false
             referencedRelation: "campaigns"
             referencedColumns: ["id"]
           },
@@ -1654,6 +1897,13 @@ export type Database = {
           vehicle_id: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "devices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["vehicle_id"]
+          },
           {
             foreignKeyName: "devices_vehicle_id_fkey"
             columns: ["vehicle_id"]
@@ -1792,10 +2042,6 @@ export type Database = {
         }
         Returns: string
       }
-      delete_device_permanently: {
-        Args: { p_id: string; p_reason: string }
-        Returns: undefined
-      }
       delete_advertiser_permanently: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
@@ -1804,11 +2050,15 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
-      delete_establishment_permanently: {
+      delete_device_permanently: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
       delete_driver_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      delete_establishment_permanently: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
@@ -1988,6 +2238,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_campaign_devices: {
+        Args: { p_campaign_id: string; p_device_ids: string[] }
+        Returns: undefined
+      }
       set_device_active: {
         Args: { p_active: boolean; p_id: string }
         Returns: undefined
@@ -2035,6 +2289,10 @@ export type Database = {
           radius_meters: number
           within_radius: boolean
         }[]
+      }
+      test_geo_campaign_delivery: {
+        Args: { p_campaign_id: string; p_device_id: string }
+        Returns: Json
       }
       unlink_device_vehicle: { Args: { p_id: string }; Returns: undefined }
       unlink_vehicle_driver: { Args: { p_id: string }; Returns: undefined }
@@ -2276,3 +2534,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -106,6 +106,33 @@ class DeviceApiClient(
         return execute(httpRequest) { json.decodeFromString(GeofenceEventsResponse.serializer(), it) }
     }
 
+    /** MAX-009 remote commands: fetches whatever is pending for this
+     * device (marks them delivered server-side). */
+    fun getPendingCommands(token: String): DeviceCommandsResponse {
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-commands")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return execute(httpRequest) { json.decodeFromString(DeviceCommandsResponse.serializer(), it) }
+    }
+
+    fun acknowledgeCommand(
+        token: String,
+        commandId: String,
+        status: String,
+        result: String?,
+    ): AcknowledgeCommandResponse {
+        val body = json.encodeToString(AcknowledgeCommandRequest(commandId, status, result))
+            .toRequestBody(JSON_MEDIA_TYPE)
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-commands")
+            .header("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        return execute(httpRequest) { json.decodeFromString(AcknowledgeCommandResponse.serializer(), it) }
+    }
+
     /** Streams a signed URL straight to disk without ever holding the full
      * file in memory — a video can be tens of megabytes, and this call
      * always runs off the main thread via [com.maxcar.tablet.data.repository.MediaDownloadManager]. */

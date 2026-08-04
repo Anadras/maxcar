@@ -20,6 +20,7 @@ import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -39,6 +40,7 @@ class PlayerViewModel(
     private val appPreferences: AppPreferences,
     private val appContext: Context,
     private val geoEngine: GeoEngine,
+    private val restartSignal: SharedFlow<Unit>,
 ) : ViewModel() {
 
     // Muted by default (item 48): advertising inside a private vehicle
@@ -84,6 +86,26 @@ class PlayerViewModel(
                 }
             },
         )
+        // MAX-009's restart_player remote command (item 51): the only
+        // signal that ever reaches the player from outside itself, since
+        // DeviceCommandExecutor runs in a background worker with no
+        // Activity/ViewModel reference of its own.
+        viewModelScope.launch {
+            restartSignal.collect { restart() }
+        }
+    }
+
+    /** Resets to the start of the current grade — recoverable, not a crash
+     * workaround: used both for the remote restart_player command and as
+     * the general "start clean" primitive a future maintenance-mode exit
+     * (MAX-010) can reuse. */
+    private fun restart() {
+        playingGeoItem = null
+        imageJob?.cancel()
+        exoPlayer.stop()
+        index = 0
+        consecutiveFailures = 0
+        if (queue.isNotEmpty()) playCurrent() else _uiState.value = PlayerUiState.Empty
     }
 
     /** The hidden way into the diagnostic screen from the player (item 26):
@@ -256,10 +278,13 @@ class PlayerViewModel(
         private val appPreferences: AppPreferences,
         private val appContext: Context,
         private val geoEngine: GeoEngine,
+        private val restartSignal: SharedFlow<Unit>,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlayerViewModel(deviceRepository, mediaDownloadManager, appPreferences, appContext, geoEngine) as T
+            PlayerViewModel(
+                deviceRepository, mediaDownloadManager, appPreferences, appContext, geoEngine, restartSignal,
+            ) as T
     }
 
     private companion object {

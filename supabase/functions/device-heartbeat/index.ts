@@ -29,6 +29,19 @@ interface HeartbeatBody {
   currentCampaignId?: string;
   currentCreativeId?: string;
   lastError?: string;
+  // GPS/GEO status, optional and additive (MAX-008).
+  latitude?: number;
+  longitude?: number;
+  gpsAvailable?: boolean;
+  locationAccuracyMeters?: number;
+  locationPermissionGranted?: boolean;
+  lastLocationError?: string;
+  lastGeofenceEntryAt?: string;
+  lastGeoCampaignId?: string;
+  // Sync/operational status, optional and additive (MAX-009).
+  operationalStatus?: string;
+  pendingEventCount?: number;
+  clockSkewSeconds?: number;
 }
 
 Deno.serve(async (req) => {
@@ -74,6 +87,17 @@ Deno.serve(async (req) => {
       p_current_campaign_id: body.currentCampaignId ?? null,
       p_current_creative_id: body.currentCreativeId ?? null,
       p_last_error: body.lastError ?? null,
+      p_latitude: body.latitude ?? null,
+      p_longitude: body.longitude ?? null,
+      p_gps_available: body.gpsAvailable ?? false,
+      p_location_accuracy_meters: body.locationAccuracyMeters ?? null,
+      p_location_permission_granted: body.locationPermissionGranted ?? null,
+      p_last_location_error: body.lastLocationError ?? null,
+      p_last_geofence_entry_at: body.lastGeofenceEntryAt ?? null,
+      p_last_geo_campaign_id: body.lastGeoCampaignId ?? null,
+      p_operational_status: body.operationalStatus ?? null,
+      p_pending_event_count: body.pendingEventCount ?? null,
+      p_clock_skew_seconds: body.clockSkewSeconds ?? null,
     })
     .single();
 

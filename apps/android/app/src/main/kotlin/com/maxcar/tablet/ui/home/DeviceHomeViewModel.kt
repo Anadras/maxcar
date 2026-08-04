@@ -77,7 +77,7 @@ class DeviceHomeViewModel(
     /** "Sincronizar agora" (item 42): triggers an immediate grade sync
      * without waiting for the periodic schedule. */
     fun syncMediaNow() {
-        DeviceWorkScheduler.syncMediaNow(appContext)
+        DeviceWorkScheduler.syncNow(appContext)
     }
 
     /** "Testar conexão agora": an on-demand heartbeat, useful while an

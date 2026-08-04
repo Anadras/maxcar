@@ -48,6 +48,10 @@ data class HeartbeatRequest(
     val lastLocationError: String? = null,
     val lastGeofenceEntryAt: String? = null,
     val lastGeoCampaignId: String? = null,
+    // Sync/operational status (MAX-009), same additive rule.
+    val operationalStatus: String? = null,
+    val pendingEventCount: Int? = null,
+    val clockSkewSeconds: Int? = null,
 )
 
 @Serializable
@@ -181,3 +185,25 @@ data class GeofenceEventResult(
 
 @Serializable
 data class GeofenceEventsResponse(val results: List<GeofenceEventResult> = emptyList())
+
+// --- MAX-009: remote commands ---
+
+@Serializable
+data class DeviceCommandItem(
+    val commandId: String,
+    val commandType: String,
+    val createdAt: String,
+)
+
+@Serializable
+data class DeviceCommandsResponse(val commands: List<DeviceCommandItem> = emptyList())
+
+@Serializable
+data class AcknowledgeCommandRequest(
+    val commandId: String,
+    val status: String,
+    val result: String? = null,
+)
+
+@Serializable
+data class AcknowledgeCommandResponse(val acknowledged: Boolean = false)

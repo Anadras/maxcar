@@ -78,6 +78,21 @@ quando o dispositivo ainda não reportou. Latitude/longitude detalhada
 segue a mesma regra de visibilidade por papel do resto da localização do
 dispositivo (`super_admin`/`admin`/`operations`, nunca `advertiser`).
 
+## Sincronização e comandos remotos (MAX-009)
+
+Card "Sincronização" no detalhe do dispositivo: status operacional
+declarado pelo tablet (`ready`/`playing`/`offline_playing`/`syncing`/
+`downloading`/`no_content`/`error`/`maintenance`), tamanho da fila local de
+eventos ainda não sincronizados, e a divergência entre o relógio do tablet
+e o do servidor — acima de 1 hora, o painel mostra um alerta em vez de só
+o número. Ver [ANDROID_SYNC.md](ANDROID_SYNC.md).
+
+Card "Comandos remotos": um botão por comando (sincronizar agora, reiniciar
+player, limpar mídia obsoleta, entrar/sair de manutenção, atualizar
+configuração) e o histórico dos últimos 15 comandos enviados a este
+dispositivo, com status. Ver
+[DEVICE_COMMANDS.md](../admin/DEVICE_COMMANDS.md).
+
 ## Fora deste marco
 
 Mapa em tempo real e alertas automatizados por ausência de heartbeat ficam

@@ -109,7 +109,11 @@ class DeviceRepository(
         lastLocationError: String? = null,
         lastGeofenceEntryAt: String? = null,
         lastGeoCampaignId: String? = null,
+        operationalStatus: String? = null,
+        pendingEventCount: Int? = null,
     ): Result<Unit> {
+        val sentAtMillis = System.currentTimeMillis()
+        val clockSkewSeconds = appPreferences.clockSkewSnapshot()
         val token = secureTokenStore.readToken()
         if (token == null) {
             appPreferences.setEnrolled(false)
@@ -140,6 +144,9 @@ class DeviceRepository(
                         lastLocationError = lastLocationError,
                         lastGeofenceEntryAt = lastGeofenceEntryAt,
                         lastGeoCampaignId = lastGeoCampaignId,
+                        operationalStatus = operationalStatus,
+                        pendingEventCount = pendingEventCount,
+                        clockSkewSeconds = clockSkewSeconds,
                     ),
                 )
             }
@@ -147,6 +154,20 @@ class DeviceRepository(
                 deviceStateDao.upsert(
                     it.copy(lastHeartbeatAt = response.recordedAt, updatedAt = System.currentTimeMillis()),
                 )
+            }
+            // Clock skew (MAX-009): the server's recordedAt is always its
+            // own clock (never the tablet's, per record_device_heartbeat's
+            // own contract) — comparing it to the tablet's clock right
+            // before/after the round trip gives a usable, if approximate,
+            // divergence estimate. Persisted for the *next* cycle's
+            // heartbeat and for local-expiry decisions
+            // (MediaDownloadManager.readyPlaylist) — never recomputed
+            // mid-flight, since a single heartbeat can't measure its own
+            // skew before it's answered.
+            runCatching {
+                val serverMillis = java.time.Instant.parse(response.recordedAt).toEpochMilli()
+                val skewSeconds = ((sentAtMillis - serverMillis) / 1000).toInt()
+                appPreferences.setClockSkewSeconds(skewSeconds)
             }
             Unit
         }
@@ -299,6 +320,11 @@ class DeviceRepository(
             if (error is DeviceApiError.Unauthorized) handleRevocation()
         }
     }
+
+    /** Local queue depth across both event kinds — reported on the
+     * heartbeat (MAX-009's `pending_event_count`) so the panel can see a
+     * backlog forming before it becomes an outage. */
+    suspend fun pendingEventCount(): Int = pendingEventDao.count() + playbackEventDao.count()
 
     suspend fun currentHeartbeatIntervalSeconds(): Long =
         (remoteConfigDao.get() ?: RemoteConfigEntity.defaults())

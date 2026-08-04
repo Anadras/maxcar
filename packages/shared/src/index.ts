@@ -14,6 +14,10 @@ export type DriverStatus = Database['public']['Enums']['driver_status'];
 export type CreativeType = Database['public']['Enums']['creative_type'];
 export type ImpressionSource = Database['public']['Enums']['impression_source'];
 export type ImpressionStatus = Database['public']['Enums']['impression_status'];
+export type DeviceCommandType =
+  Database['public']['Enums']['device_command_type'];
+export type DeviceCommandStatus =
+  Database['public']['Enums']['device_command_status'];
 
 export interface ProfileRecord {
   id: UUID;

@@ -304,6 +304,74 @@ export type Database = {
           },
         ]
       }
+      device_commands: {
+        Row: {
+          command_type: Database["public"]["Enums"]["device_command_type"]
+          completed_at: string | null
+          created_at: string
+          delivered_at: string | null
+          device_id: string
+          expires_at: string
+          id: string
+          issued_by: string | null
+          result: string | null
+          status: Database["public"]["Enums"]["device_command_status"]
+        }
+        Insert: {
+          command_type: Database["public"]["Enums"]["device_command_type"]
+          completed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          device_id: string
+          expires_at?: string
+          id?: string
+          issued_by?: string | null
+          result?: string | null
+          status?: Database["public"]["Enums"]["device_command_status"]
+        }
+        Update: {
+          command_type?: Database["public"]["Enums"]["device_command_type"]
+          completed_at?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          device_id?: string
+          expires_at?: string
+          id?: string
+          issued_by?: string | null
+          result?: string | null
+          status?: Database["public"]["Enums"]["device_command_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
       device_credentials: {
         Row: {
           created_at: string
@@ -464,6 +532,7 @@ export type Database = {
           app_version: string | null
           battery_level: number | null
           client_event_id: string | null
+          clock_skew_seconds: number | null
           created_at: string
           current_campaign_id: string | null
           current_creative_id: string | null
@@ -480,6 +549,8 @@ export type Database = {
           manifest_version: string | null
           media_ready_count: number | null
           network_connected: boolean
+          operational_status: string | null
+          pending_event_count: number | null
           player_state: string | null
           recorded_at: string
           storage_free_bytes: number | null
@@ -488,6 +559,7 @@ export type Database = {
           app_version?: string | null
           battery_level?: number | null
           client_event_id?: string | null
+          clock_skew_seconds?: number | null
           created_at?: string
           current_campaign_id?: string | null
           current_creative_id?: string | null
@@ -504,6 +576,8 @@ export type Database = {
           manifest_version?: string | null
           media_ready_count?: number | null
           network_connected: boolean
+          operational_status?: string | null
+          pending_event_count?: number | null
           player_state?: string | null
           recorded_at: string
           storage_free_bytes?: number | null
@@ -512,6 +586,7 @@ export type Database = {
           app_version?: string | null
           battery_level?: number | null
           client_event_id?: string | null
+          clock_skew_seconds?: number | null
           created_at?: string
           current_campaign_id?: string | null
           current_creative_id?: string | null
@@ -528,6 +603,8 @@ export type Database = {
           manifest_version?: string | null
           media_ready_count?: number | null
           network_connected?: boolean
+          operational_status?: string | null
+          pending_event_count?: number | null
           player_state?: string | null
           recorded_at?: string
           storage_free_bytes?: number | null
@@ -1657,6 +1734,15 @@ export type Database = {
       }
     }
     Functions: {
+      acknowledge_device_command: {
+        Args: {
+          p_command_id: string
+          p_result?: string
+          p_status: Database["public"]["Enums"]["device_command_status"]
+          p_token: string
+        }
+        Returns: undefined
+      }
       archive_device: {
         Args: { p_id: string; p_reason?: string }
         Returns: undefined
@@ -1668,6 +1754,13 @@ export type Database = {
       archive_vehicle: {
         Args: { p_id: string; p_reason?: string }
         Returns: undefined
+      }
+      create_device_command: {
+        Args: {
+          p_command_type: Database["public"]["Enums"]["device_command_type"]
+          p_device_id: string
+        }
+        Returns: string
       }
       delete_device_permanently: {
         Args: { p_id: string; p_reason: string }
@@ -1721,6 +1814,14 @@ export type Database = {
       }
       get_device_geo_rules: { Args: { p_token: string }; Returns: Json }
       get_device_manifest: { Args: { p_token: string }; Returns: Json }
+      get_device_pending_commands: {
+        Args: { p_token: string }
+        Returns: {
+          command_id: string
+          command_type: Database["public"]["Enums"]["device_command_type"]
+          created_at: string
+        }[]
+      }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -1746,6 +1847,7 @@ export type Database = {
           p_app_version?: string
           p_battery_level?: number
           p_client_event_id?: string
+          p_clock_skew_seconds?: number
           p_current_campaign_id?: string
           p_current_creative_id?: string
           p_device_time?: string
@@ -1761,6 +1863,8 @@ export type Database = {
           p_manifest_version?: string
           p_media_ready_count?: number
           p_network_type?: string
+          p_operational_status?: string
+          p_pending_event_count?: number
           p_player_state?: string
           p_storage_free_bytes?: number
           p_token: string
@@ -1909,6 +2013,19 @@ export type Database = {
         | "cancelled"
       campaign_type: "regular" | "geo"
       creative_type: "image" | "video"
+      device_command_status:
+        | "pending"
+        | "delivered"
+        | "completed"
+        | "failed"
+        | "expired"
+      device_command_type:
+        | "sync_now"
+        | "restart_player"
+        | "clear_obsolete_media"
+        | "enter_maintenance"
+        | "exit_maintenance"
+        | "update_config"
       device_status:
         | "provisioning"
         | "online"
@@ -2073,6 +2190,21 @@ export const Constants = {
       ],
       campaign_type: ["regular", "geo"],
       creative_type: ["image", "video"],
+      device_command_status: [
+        "pending",
+        "delivered",
+        "completed",
+        "failed",
+        "expired",
+      ],
+      device_command_type: [
+        "sync_now",
+        "restart_player",
+        "clear_obsolete_media",
+        "enter_maintenance",
+        "exit_maintenance",
+        "update_config",
+      ],
       device_status: [
         "provisioning",
         "online",

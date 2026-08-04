@@ -20,15 +20,11 @@ class InitialSyncWorker(
         val result = container.deviceRepository.refreshConfig()
         return result.fold(
             onSuccess = {
-                DeviceWorkScheduler.scheduleHeartbeat(
+                DeviceWorkScheduler.scheduleSync(
                     applicationContext,
                     it.heartbeatIntervalSeconds,
                 )
-                DeviceWorkScheduler.scheduleMediaSync(
-                    applicationContext,
-                    it.syncIntervalSeconds,
-                )
-                DeviceWorkScheduler.syncMediaNow(applicationContext)
+                DeviceWorkScheduler.syncNow(applicationContext)
                 Result.success()
             },
             onFailure = { Result.retry() },

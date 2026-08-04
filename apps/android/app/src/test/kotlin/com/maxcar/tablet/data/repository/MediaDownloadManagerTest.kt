@@ -10,6 +10,7 @@ import com.maxcar.tablet.data.local.FakeTokenStore
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -197,6 +198,58 @@ class MediaDownloadManagerTest {
         val row = db.playlistItemDao().get("cr1")
         assertEquals(PlaylistItemEntity.STATUS_FAILED, row?.downloadStatus)
         assertEquals("insufficient_storage", row?.lastError)
+    }
+
+    @Test
+    fun `readyPlaylist excludes an item whose endsAt the local clock has already passed`() = runTest {
+        val bytes = "expired-item".toByteArray()
+        val hash = sha256(bytes)
+        val expiredBody = """
+            {"manifestVersion":"v1","generatedAt":"2026-01-01T00:00:00Z","deviceId":"d1",
+             "playlist":[{"campaignId":"c1","creativeId":"cr1","type":"image","mimeType":"image/jpeg",
+             "durationSeconds":10.0,"fileSizeBytes":${bytes.size},"sha256":"$hash",
+             "downloadUrl":"${server.url("/media/cr1.jpg")}",
+             "startsAt":"2020-01-01T00:00:00Z","endsAt":"2020-01-02T00:00:00Z","position":1}]}
+        """.trimIndent()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when {
+                request.path == "/device-manifest" -> MockResponse().setBody(expiredBody)
+                request.path == "/media/cr1.jpg" -> MockResponse().setBody(String(bytes))
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+
+        manager.sync()
+
+        // Downloaded and validated (READY), but never surfaced to the
+        // player: the local clock says its own endsAt is long past.
+        assertEquals(PlaylistItemEntity.STATUS_READY, db.playlistItemDao().get("cr1")?.downloadStatus)
+        assertTrue(manager.readyPlaylist.first().isEmpty())
+    }
+
+    @Test
+    fun `readyPlaylist stops trusting local expiry once the clock skew is severe`() = runTest {
+        val bytes = "expired-but-skewed".toByteArray()
+        val hash = sha256(bytes)
+        val expiredBody = """
+            {"manifestVersion":"v1","generatedAt":"2026-01-01T00:00:00Z","deviceId":"d1",
+             "playlist":[{"campaignId":"c1","creativeId":"cr1","type":"image","mimeType":"image/jpeg",
+             "durationSeconds":10.0,"fileSizeBytes":${bytes.size},"sha256":"$hash",
+             "downloadUrl":"${server.url("/media/cr1.jpg")}",
+             "startsAt":"2020-01-01T00:00:00Z","endsAt":"2020-01-02T00:00:00Z","position":1}]}
+        """.trimIndent()
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when {
+                request.path == "/device-manifest" -> MockResponse().setBody(expiredBody)
+                request.path == "/media/cr1.jpg" -> MockResponse().setBody(String(bytes))
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+        appPreferences.setClockSkewSeconds(MediaDownloadManager.SEVERE_CLOCK_SKEW_SECONDS + 1)
+
+        manager.sync()
+
+        assertEquals(1, manager.readyPlaylist.first().size)
     }
 
     @Test

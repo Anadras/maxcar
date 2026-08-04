@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { simulateHeartbeat } from '../actions';
+import { issueDeviceCommand } from '../command-actions';
 import {
   generateEnrollmentCode,
   revokeDeviceCredential,
@@ -20,12 +21,50 @@ import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import { getDevice, getDeviceEnrollment } from '@/lib/data/devices';
+import {
+  getDevice,
+  getDeviceEnrollment,
+  listDeviceCommands,
+} from '@/lib/data/devices';
 import {
   CONNECTION_LABEL,
   formatDateTime,
   formatRelativeTime,
 } from '@/lib/fleet';
+import type { DeviceCommandType } from '@maxcar/shared';
+
+const OPERATIONAL_STATUS_LABEL: Record<string, string> = {
+  ready: 'Pronto',
+  playing: 'Reproduzindo',
+  offline_playing: 'Reproduzindo offline',
+  syncing: 'Sincronizando',
+  downloading: 'Baixando mídia',
+  no_content: 'Sem conteúdo',
+  error: 'Erro',
+  maintenance: 'Manutenção',
+};
+
+const COMMAND_LABEL: Record<DeviceCommandType, string> = {
+  sync_now: 'Sincronizar agora',
+  restart_player: 'Reiniciar player',
+  clear_obsolete_media: 'Limpar mídia obsoleta',
+  enter_maintenance: 'Entrar em manutenção',
+  exit_maintenance: 'Sair da manutenção',
+  update_config: 'Atualizar configuração',
+};
+
+const COMMAND_STATUS_LABEL: Record<string, string> = {
+  pending: 'Pendente',
+  delivered: 'Entregue',
+  completed: 'Concluído',
+  failed: 'Falhou',
+  expired: 'Expirado',
+};
+
+// Same threshold as MediaDownloadManager.SEVERE_CLOCK_SKEW_SECONDS on
+// Android: below this the tablet's own clock is trusted for local expiry
+// enforcement; at or above it, only ever an alert here, never silent.
+const SEVERE_CLOCK_SKEW_SECONDS = 3600;
 
 export default async function DeviceDetailPage({
   params,
@@ -40,6 +79,7 @@ export default async function DeviceDetailPage({
   if (!device) notFound();
   const canManage = !!auth && canManageFleet(auth.profile.role);
   const enrollment = canManage ? await getDeviceEnrollment(id) : null;
+  const commands = canManage ? await listDeviceCommands(id) : [];
   const canSimulate =
     process.env.NODE_ENV !== 'production' &&
     auth?.profile.role === 'super_admin';
@@ -242,6 +282,108 @@ export default async function DeviceDetailPage({
           </div>
         </dl>
       </SectionCard>
+      <SectionCard
+        title="Sincronização"
+        subtitle="Estado do Motor de Sincronização (MAX-009) no heartbeat mais recente."
+      >
+        <dl className="detail-grid">
+          <div>
+            <dt>Status operacional</dt>
+            <dd>
+              {device.operational_status ? (
+                <StatusBadge
+                  value={
+                    OPERATIONAL_STATUS_LABEL[device.operational_status] ??
+                    device.operational_status
+                  }
+                />
+              ) : (
+                'Sem telemetria'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Fila de eventos pendentes</dt>
+            <dd>
+              {device.pending_event_count === null
+                ? 'Não informado'
+                : device.pending_event_count}
+            </dd>
+          </div>
+          <div>
+            <dt>Divergência de relógio</dt>
+            <dd>
+              {device.clock_skew_seconds === null ? (
+                'Não informada'
+              ) : Math.abs(device.clock_skew_seconds) >=
+                SEVERE_CLOCK_SKEW_SECONDS ? (
+                <StatusBadge
+                  value={`Atenção: ${device.clock_skew_seconds}s de diferença`}
+                />
+              ) : (
+                `${device.clock_skew_seconds}s`
+              )}
+            </dd>
+          </div>
+        </dl>
+      </SectionCard>
+      {canManage && (
+        <SectionCard
+          title="Comandos remotos"
+          subtitle="Conjunto fechado de operações seguras — nunca shell arbitrário. Entregue no próximo ciclo de sincronização do tablet."
+        >
+          <div className="lifecycle-actions-row">
+            {(Object.keys(COMMAND_LABEL) as DeviceCommandType[]).map(
+              (commandType) => (
+                <form
+                  key={commandType}
+                  action={issueDeviceCommand.bind(null, id)}
+                >
+                  <input type="hidden" name="commandType" value={commandType} />
+                  <button className="button button-secondary" type="submit">
+                    {COMMAND_LABEL[commandType]}
+                  </button>
+                </form>
+              ),
+            )}
+          </div>
+          {commands.length === 0 ? (
+            <p className="section-empty">Nenhum comando enviado ainda.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Comando</th>
+                    <th>Status</th>
+                    <th>Enviado em</th>
+                    <th>Entregue em</th>
+                    <th>Concluído em</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commands.map((command) => (
+                    <tr key={command.id}>
+                      <td>{COMMAND_LABEL[command.command_type]}</td>
+                      <td>
+                        <StatusBadge
+                          value={
+                            COMMAND_STATUS_LABEL[command.status] ??
+                            command.status
+                          }
+                        />
+                      </td>
+                      <td>{formatDateTime(command.created_at)}</td>
+                      <td>{formatDateTime(command.delivered_at)}</td>
+                      <td>{formatDateTime(command.completed_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      )}
       {canManage && enrollment && (
         <SectionCard
           title="Ativação do tablet"

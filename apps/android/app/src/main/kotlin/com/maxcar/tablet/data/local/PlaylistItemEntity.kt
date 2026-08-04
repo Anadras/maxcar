@@ -2,6 +2,7 @@ package com.maxcar.tablet.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import java.time.Instant
 
 /**
  * One row per manifest playlist entry, doubling as its own download/cache
@@ -32,7 +33,24 @@ data class PlaylistItemEntity(
     val localPath: String?,
     val lastError: String?,
     val updatedAt: Long,
+    // Persisted so the player can stop showing an expired campaign purely
+    // from the local clock, even fully offline (MAX-009 item 46) — the
+    // server already filters these at manifest-generation time, but a
+    // tablet that's been offline since before an item expired would
+    // otherwise keep looping it forever.
+    val startsAt: String? = null,
+    val endsAt: String? = null,
 ) {
+    /** True when [nowMillis] falls inside [startsAt, endsAt] (either bound
+     * missing means unbounded on that side) — mirrors the server-side
+     * `c.starts_at <= now() and c.ends_at >= now()` filter in
+     * `get_device_manifest`, evaluated locally instead. */
+    fun isCurrentlyValid(nowMillis: Long): Boolean {
+        val startOk = startsAt?.let { runCatching { Instant.parse(it).toEpochMilli() <= nowMillis }.getOrDefault(true) } ?: true
+        val endOk = endsAt?.let { runCatching { Instant.parse(it).toEpochMilli() >= nowMillis }.getOrDefault(true) } ?: true
+        return startOk && endOk
+    }
+
     companion object {
         const val STATUS_PENDING = "PENDING"
         const val STATUS_DOWNLOADING = "DOWNLOADING"

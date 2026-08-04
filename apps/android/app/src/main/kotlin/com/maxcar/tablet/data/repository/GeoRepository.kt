@@ -22,6 +22,8 @@ class GeoRepository(
     private val tokenStore: TokenStore,
     private val geofenceEventDao: GeofenceEventDao,
 ) {
+    suspend fun pendingEventCount(): Int = geofenceEventDao.count()
+
     suspend fun flushGeofenceEvents(limit: Int = 20) {
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         geofenceEventDao.pruneOlderThan(retentionCutoff)

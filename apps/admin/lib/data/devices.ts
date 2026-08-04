@@ -34,7 +34,7 @@ async function getDevicesWithLatestHeartbeats() {
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -74,6 +74,9 @@ async function getDevicesWithLatestHeartbeats() {
       last_location_error: heartbeat?.last_location_error ?? null,
       last_geofence_entry_at: heartbeat?.last_geofence_entry_at ?? null,
       last_geo_campaign_id: heartbeat?.last_geo_campaign_id ?? null,
+      operational_status: heartbeat?.operational_status ?? null,
+      pending_event_count: heartbeat?.pending_event_count ?? null,
+      clock_skew_seconds: heartbeat?.clock_skew_seconds ?? null,
       manifest_synced_at: heartbeat?.manifest_version
         ? (heartbeat?.recorded_at ?? null)
         : null,
@@ -173,6 +176,20 @@ export async function getDeviceEnrollment(deviceId: string) {
     .select('*')
     .eq('device_id', deviceId)
     .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function listDeviceCommands(deviceId: string, limit = 15) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('device_commands')
+    .select(
+      'id, command_type, status, created_at, delivered_at, completed_at, result',
+    )
+    .eq('device_id', deviceId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
   if (error) throw error;
   return data;
 }

@@ -11,9 +11,11 @@ import com.maxcar.tablet.data.remote.ManifestPlaylistItem
 import com.maxcar.tablet.domain.DeviceApiError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import kotlin.math.abs
 
 /**
  * Turns a fetched manifest into a validated, fully local media grade. The
@@ -38,8 +40,24 @@ class MediaDownloadManager(
     }
 
     /** The only thing the player reads: locally validated items, in grade
-     * order. Never PENDING/DOWNLOADING/FAILED/OBSOLETE rows. */
-    val readyPlaylist: Flow<List<PlaylistItemEntity>> = playlistItemDao.observeReady()
+     * order, further filtered to what the local clock says is currently
+     * valid (MAX-009 item 46) — never PENDING/DOWNLOADING/FAILED/OBSOLETE
+     * rows, and never an item whose starts_at/ends_at the tablet's own
+     * clock has moved past.
+     *
+     * That local-clock filter is skipped entirely when the last known
+     * clock skew is severe (`SEVERE_CLOCK_SKEW_SECONDS`): a tablet whose
+     * clock is badly wrong shouldn't cut content it can't actually judge
+     * the validity of — better to keep playing than to wrongly go dark
+     * because of a bad clock. A small/unknown skew is trusted; see
+     * [AppPreferences.clockSkewSeconds] for how it's measured. */
+    val readyPlaylist: Flow<List<PlaylistItemEntity>> =
+        combine(playlistItemDao.observeReady(), appPreferences.clockSkewSeconds) { items, skewSeconds ->
+            val clockIsTrustworthy = skewSeconds == null || abs(skewSeconds) < SEVERE_CLOCK_SKEW_SECONDS
+            if (!clockIsTrustworthy) return@combine items
+            val now = System.currentTimeMillis()
+            items.filter { it.isCurrentlyValid(now) }
+        }
 
     suspend fun readyCount(): Int = playlistItemDao.countReady()
 
@@ -67,8 +85,15 @@ class MediaDownloadManager(
                         it.localPath?.let { path -> File(path).exists() } == true
                 }
                 // Unchanged and already on disk: keep the file, just
-                // refresh position/metadata in case the grade reordered.
-                ?.copy(position = item.position, manifestVersion = manifest.manifestVersion, updatedAt = now)
+                // refresh position/metadata in case the grade reordered or
+                // the campaign's own validity window changed.
+                ?.copy(
+                    position = item.position,
+                    manifestVersion = manifest.manifestVersion,
+                    startsAt = item.startsAt,
+                    endsAt = item.endsAt,
+                    updatedAt = now,
+                )
                 ?: item.toPendingEntity(manifest.manifestVersion, now)
         }
         playlistItemDao.upsertAll(toUpsert)
@@ -179,6 +204,11 @@ class MediaDownloadManager(
         // fills the tablet completely.
         const val MIN_FREE_BYTES = 1_000_000_000L
         private const val DIGEST_BUFFER_SIZE = 8192
+        // Below this, the local-expiry filter trusts the tablet's clock.
+        // At or above it, something is badly wrong (dead RTC battery, no
+        // NTP sync in months) and local expiry is suspended entirely
+        // rather than risk wrongly blanking the screen.
+        const val SEVERE_CLOCK_SKEW_SECONDS = 3600
     }
 }
 
@@ -197,4 +227,6 @@ private fun ManifestPlaylistItem.toPendingEntity(manifestVersion: String, now: L
         localPath = null,
         lastError = null,
         updatedAt = now,
+        startsAt = startsAt,
+        endsAt = endsAt,
     )

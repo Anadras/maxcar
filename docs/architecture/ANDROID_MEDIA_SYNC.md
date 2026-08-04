@@ -109,25 +109,17 @@ sincronização sempre traz uma nova URL.
 
 ## Quando o Android sincroniza
 
-`work/MediaSyncWorker.kt` chama `MediaDownloadManager.sync()`. Agendado por
-`DeviceWorkScheduler`:
+Desde o MAX-009, `MediaDownloadManager.sync()` roda como uma etapa dentro
+de `SyncCoordinator.runCycle()`, não mais num worker próprio — ver
+[ANDROID_SYNC.md](ANDROID_SYNC.md) para a ordem completa do ciclo
+(heartbeat, eventos pendentes, config, REGULAR, GEO, comandos) e por que o
+antigo par `HeartbeatWorker`/`MediaSyncWorker` foi consolidado num único
+`SyncWorker`. Os gatilhos continuam os mesmos:
 
-- **Periódico**: `scheduleMediaSync(context, sync_interval_seconds)` — o
-  intervalo vem do `RemoteConfig` já existente do MAX-006, nunca decidido
-  pelo tablet; respeita o mínimo de 15 minutos do `PeriodicWork` do
-  WorkManager.
-- **Ao ativar e a cada abertura do app**: `scheduleInitialSync` busca a
-  config remota e reagenda heartbeat e media sync com o intervalo atual,
-  além de disparar `syncMediaNow()` uma vez. Chamado logo após uma
-  ativação bem-sucedida e também a cada vez que `MainActivity` observa
-  `isEnrolled = true` — reagendar é idempotente
-  (`ExistingWorkPolicy.REPLACE` / `ExistingPeriodicWorkPolicy.UPDATE`), e é
-  esse segundo gatilho que garante que um tablet atualizado de uma versão
-  mais antiga do app (sem o worker de mídia agendado) volte a sincronizar
-  sem precisar de uma nova ativação.
+- **Periódico**: `DeviceWorkScheduler.scheduleSync(context, heartbeat_interval_seconds)`.
+- **Ao ativar e a cada abertura do app**: `scheduleInitialSync`.
 - **Manual**: botão "Sincronizar agora" no diagnóstico
-  (`DeviceHomeViewModel.syncMediaNow`) — mesmo caminho do `syncMediaNow`,
-  como trabalho único imediato, sem substituir o agendamento periódico.
+  (`DeviceHomeViewModel.syncMediaNow` → `DeviceWorkScheduler.syncNow`).
 
 Sem polling agressivo: o único gatilho "ao reconectar" é a própria
 constraint `NetworkType.CONNECTED` do WorkManager, que libera o trabalho

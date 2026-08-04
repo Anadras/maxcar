@@ -71,6 +71,7 @@ class MainActivity : ComponentActivity() {
             (application as MaxcarApplication).container.appPreferences,
             applicationContext,
             (application as MaxcarApplication).container.geoEngine,
+            (application as MaxcarApplication).container.commandExecutor.restartPlayerSignal,
         )
     }
 

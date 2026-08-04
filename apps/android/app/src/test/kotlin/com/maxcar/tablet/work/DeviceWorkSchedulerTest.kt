@@ -32,22 +32,22 @@ class DeviceWorkSchedulerTest {
     }
 
     @Test
-    fun `scheduleHeartbeat enqueues a periodic worker under the maxcar-heartbeat name`() {
-        DeviceWorkScheduler.scheduleHeartbeat(context, intervalSeconds = 900)
+    fun `scheduleSync enqueues a single periodic worker under the maxcar-sync name`() {
+        DeviceWorkScheduler.scheduleSync(context, intervalSeconds = 900)
 
-        val infos = workManager.getWorkInfosForUniqueWork("maxcar-heartbeat").get()
+        val infos = workManager.getWorkInfosForUniqueWork("maxcar-sync").get()
 
         assertEquals(1, infos.size)
         assertEquals(WorkInfo.State.ENQUEUED, infos.first().state)
     }
 
     @Test
-    fun `scheduleHeartbeat clamps intervals below WorkManager's 15-minute minimum`() {
+    fun `scheduleSync clamps intervals below WorkManager's 15-minute minimum`() {
         // WorkManager itself would throw for an interval this short; the
         // scheduler must clamp it before the request is even built.
-        DeviceWorkScheduler.scheduleHeartbeat(context, intervalSeconds = 60)
+        DeviceWorkScheduler.scheduleSync(context, intervalSeconds = 60)
 
-        val infos = workManager.getWorkInfosForUniqueWork("maxcar-heartbeat").get()
+        val infos = workManager.getWorkInfosForUniqueWork("maxcar-sync").get()
 
         assertEquals(1, infos.size)
         assertTrue(infos.first().periodicityInfo!!.repeatIntervalMillis >= TimeUnit.MINUTES.toMillis(15))
@@ -63,15 +63,27 @@ class DeviceWorkSchedulerTest {
     }
 
     @Test
-    fun `cancelAll removes both the heartbeat and initial-sync work`() {
+    fun `syncNow enqueues a one-time worker without disturbing the periodic schedule`() {
+        DeviceWorkScheduler.scheduleSync(context, intervalSeconds = 900)
+
+        DeviceWorkScheduler.syncNow(context)
+
+        val periodicInfos = workManager.getWorkInfosForUniqueWork("maxcar-sync").get()
+        val nowInfos = workManager.getWorkInfosForUniqueWork("maxcar-sync-now").get()
+        assertEquals(1, periodicInfos.size)
+        assertEquals(1, nowInfos.size)
+    }
+
+    @Test
+    fun `cancelAll removes the sync and initial-sync work`() {
         DeviceWorkScheduler.scheduleInitialSync(context)
-        DeviceWorkScheduler.scheduleHeartbeat(context, intervalSeconds = 900)
+        DeviceWorkScheduler.scheduleSync(context, intervalSeconds = 900)
 
         DeviceWorkScheduler.cancelAll(context)
 
-        val heartbeatInfos = workManager.getWorkInfosForUniqueWork("maxcar-heartbeat").get()
-        val syncInfos = workManager.getWorkInfosForUniqueWork("maxcar-initial-sync").get()
-        assertTrue(heartbeatInfos.all { it.state == WorkInfo.State.CANCELLED })
+        val syncInfos = workManager.getWorkInfosForUniqueWork("maxcar-sync").get()
+        val initialInfos = workManager.getWorkInfosForUniqueWork("maxcar-initial-sync").get()
         assertTrue(syncInfos.all { it.state == WorkInfo.State.CANCELLED })
+        assertTrue(initialInfos.all { it.state == WorkInfo.State.CANCELLED })
     }
 }

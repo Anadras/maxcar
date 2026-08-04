@@ -14,6 +14,9 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.geo.LocationEngine
+import com.maxcar.tablet.sync.DeviceCommandExecutor
+import com.maxcar.tablet.sync.SyncCoordinator
+import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,5 +81,24 @@ class AppContainer(context: Context) {
         geoRuleDao = database.geoRuleDao(),
         geofenceEventDao = database.geofenceEventDao(),
         scope = geoScope,
+    )
+
+    val commandExecutor = DeviceCommandExecutor(
+        apiClient = apiClient,
+        tokenStore = secureTokenStore,
+        mediaDownloadManager = mediaDownloadManager,
+        geoRulesSyncManager = geoRulesSyncManager,
+        appPreferences = appPreferences,
+    )
+
+    val syncCoordinator = SyncCoordinator(
+        deviceRepository = deviceRepository,
+        mediaDownloadManager = mediaDownloadManager,
+        geoRulesSyncManager = geoRulesSyncManager,
+        geoRepository = geoRepository,
+        geoEngine = geoEngine,
+        commandExecutor = commandExecutor,
+        appPreferences = appPreferences,
+        telemetryProvider = { DeviceTelemetry.collect(appContext) },
     )
 }

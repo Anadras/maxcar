@@ -166,11 +166,24 @@ de 6+ minutos sem nenhuma interação com o aparelho:
 3. Desativar `com.mediatek.duraspeed` (o matador de processos em segundo
    plano da MediaTek, uma causa real e documentada dessa classe de sintoma
    em outros aparelhos) — mesmo padrão de falha.
+4. Corrigir um bug real encontrado depois: `readToken()` tentava migrar o
+   token do antigo `EncryptedSharedPreferences` toda vez que a linha do
+   Room vinha vazia — sem nenhuma proteção contra repetição — o que
+   significava reabrir e reinicializar o keyset Tink completo contra o
+   Keystore a cada ciclo de 30s, para sempre, uma vez que a linha
+   sumisse pela primeira vez. Corrigido com uma flag `@Volatile` que
+   limita a tentativa de migração a uma única vez por processo. Testado
+   com uma janela limpa de 15 minutos — mesmo padrão de falha.
 
-Nenhuma das três resolveu o problema nesse aparelho específico. As três
-mudanças de código (1 e 2) permanecem no projeto por serem, de qualquer
-forma, mais robustas que o que havia antes, mas **não devem ser tratadas
-como a correção deste bug** — apenas como melhorias de robustez gerais.
+Nenhuma das quatro resolveu o problema nesse aparelho específico. As
+mudanças de código (1, 2 e 4) permanecem no projeto por serem, de
+qualquer forma, mais robustas que o que havia antes — em particular a
+correção 4 é uma proteção genuína contra desgaste desnecessário do
+Keystore, independente de ser ou não a causa raiz — mas **nenhuma deve
+ser tratada como a correção deste bug**. Uma verificação sistemática dos
+logs do sistema (não só do processo do app) no momento exato da falha não
+encontrou nenhum crash de keystore, vold, nem reinício de daemon — a
+falha é silenciosa em todos os níveis observáveis via ADB.
 
 O que está comprovado, de forma repetida e sob teste controlado: mesmo
 durante essa instabilidade, o tablet nunca perde a ativação nem pede um

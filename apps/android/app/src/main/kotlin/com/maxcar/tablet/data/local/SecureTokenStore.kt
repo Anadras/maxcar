@@ -63,8 +63,22 @@ class SecureTokenStore(
         KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
     }
 
+    // Without this, every failed read (i.e. every cycle, forever, once the
+    // row is ever missing) re-opened the legacy EncryptedSharedPreferences
+    // store from scratch — a full Tink keyset init against the Keystore —
+    // every 30 seconds indefinitely. Migration only ever needs to succeed
+    // once; re-attempting it on every single cycle turns a one-time
+    // fallback into continuous, unbounded Keystore churn instead.
+    @Volatile
+    private var legacyMigrationAttempted = false
+
     override suspend fun readToken(): String? = runCatching {
-        val row = dao.get() ?: return@runCatching migrateLegacyTokenIfPresent()
+        val row = dao.get()
+            ?: return@runCatching if (legacyMigrationAttempted) {
+                null
+            } else {
+                migrateLegacyTokenIfPresent()
+            }
         decrypt(row.encryptedToken)
     }.onFailure { android.util.Log.w(LOG_TAG, "readToken failed: ${it::class.simpleName}") }
         .getOrNull()
@@ -130,6 +144,7 @@ class SecureTokenStore(
      * device to fall back on the existing "reative este tablet" recovery
      * path rather than silently losing sync. */
     private suspend fun migrateLegacyTokenIfPresent(): String? {
+        legacyMigrationAttempted = true
         val legacyToken = runCatching { legacyPrefs()?.getString(LEGACY_KEY_TOKEN, null) }
             .getOrNull() ?: return null
         if (!saveToken(legacyToken)) return null

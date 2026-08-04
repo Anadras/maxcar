@@ -35,8 +35,8 @@ class AppContainer(context: Context) {
 
     val installationIdStore = InstallationIdStore(appContext.dataStore)
     val appPreferences = AppPreferences(appContext.dataStore)
-    val secureTokenStore = SecureTokenStore(appContext)
     val database: AppDatabase = AppDatabase.getInstance(appContext)
+    val secureTokenStore = SecureTokenStore(appContext, database.deviceCredentialDao())
     val apiClient = DeviceApiClient(baseUrl = BuildConfig.DEVICE_API_BASE_URL)
 
     val deviceRepository = DeviceRepository(

@@ -26,9 +26,9 @@ import org.robolectric.RobolectricTestRunner
  * [GeoRulesSyncManager.readyRules] (a pass-through over Room), it never
  * calls [GeoRulesSyncManager.sync] here. */
 private class UnusedTokenStore : TokenStore {
-    override fun readToken(): String? = null
-    override fun saveToken(token: String) = Unit
-    override fun clear() = Unit
+    override suspend fun readToken(): String? = null
+    override suspend fun saveToken(token: String) = true
+    override suspend fun clear() = Unit
 }
 
 /**

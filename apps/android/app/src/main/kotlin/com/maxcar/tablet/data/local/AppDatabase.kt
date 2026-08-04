@@ -14,13 +14,15 @@ import androidx.room.RoomDatabase
         PlaybackEventEntity::class,
         GeoRuleEntity::class,
         GeofenceEventEntity::class,
+        DeviceCredentialEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceStateDao(): DeviceStateDao
     abstract fun remoteConfigDao(): RemoteConfigDao
+    abstract fun deviceCredentialDao(): DeviceCredentialDao
     abstract fun pendingEventDao(): PendingEventDao
     abstract fun playlistItemDao(): PlaylistItemDao
     abstract fun playbackEventDao(): PlaybackEventDao
@@ -46,6 +48,22 @@ abstract class AppDatabase : RoomDatabase() {
                     // an acceptable, documented tradeoff for now — revisit
                     // once the schema stabilizes and real migrations matter.
                     .fallbackToDestructiveMigration(dropAllTables = true)
+                    // Room defaults to WAL: a write commits into a separate
+                    // -wal file first and is only merged into the main .db
+                    // file on a later checkpoint (by page-count threshold or
+                    // clean connection close) — normally safe across a
+                    // process death since the next connection replays the
+                    // WAL, but a real pilot device demonstrated data an app
+                    // process had just written and verified become
+                    // unreadable to a *later* process within minutes,
+                    // consistent with a WAL checkpoint never actually
+                    // happening on that device before something (kill,
+                    // storage cleanup) interfered with the -wal file.
+                    // TRUNCATE writes each transaction straight into the
+                    // main file, trading a little write throughput — not a
+                    // concern at this app's write volume — for not
+                    // depending on that checkpoint ever running.
+                    .setJournalMode(RoomDatabase.JournalMode.TRUNCATE)
                     .build().also { instance = it }
             }
     }

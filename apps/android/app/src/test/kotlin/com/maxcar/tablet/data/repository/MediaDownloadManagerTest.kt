@@ -11,6 +11,7 @@ import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -52,7 +53,7 @@ class MediaDownloadManagerTest {
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         appPreferences = AppPreferences(dataStore)
-        tokenStore = FakeTokenStore().apply { saveToken("tok-1") }
+        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
 
         manager = MediaDownloadManager(
             context = context,

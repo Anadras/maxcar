@@ -21,6 +21,7 @@ import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -75,7 +76,7 @@ class SyncCoordinatorTest {
             scope = CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         val appPreferences = AppPreferences(dataStore)
-        tokenStore = FakeTokenStore().apply { saveToken("tok-1") }
+        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
         val apiClient = DeviceApiClient(baseUrl = server.url("/").toString())
 
         val deviceRepository = DeviceRepository(

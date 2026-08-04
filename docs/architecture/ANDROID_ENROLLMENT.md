@@ -129,9 +129,62 @@ fica `true` e o diagnóstico mostra um aviso com um botão explícito
 "Reativar este tablet" (`DeviceRepository.reenrollAfterCredentialLoss`) —
 uma recuperação decidida pelo operador, nunca automática.
 
-`SecureTokenStore.saveToken`/`clear` também passaram a usar
-`commit()` (síncrono) em vez de `apply()` (assíncrono): salvar o token e
-marcar `isEnrolled = true` precisam ser efetivamente duráveis antes que
-qualquer ciclo de sync seguinte possa rodar, ou uma queda do processo bem
-no meio da ativação deixaria exatamente esse mesmo estado inconsistente
-(marcado como ativado, sem token gravado em disco).
+`DeviceRepository.enroll()` também passou a verificar o retorno de
+`SecureTokenStore.saveToken()` — que agora devolve `Boolean`, não `Unit` —
+antes de marcar `isEnrolled = true`. Um piloto em campo demonstrou
+exatamente essa falha: `saveToken()` não lançava exceção nenhuma, mas a
+escrita nunca chegava a persistir de fato; o app seguia adiante e marcava a
+ativação como concluída mesmo assim. `enroll()` agora falha (nunca marca
+`isEnrolled`) sempre que `saveToken()` reportar que a escrita não foi
+durável.
+
+## MAX-011: instabilidade de armazenamento não resolvida num tablet físico
+
+Um tablet físico usado neste piloto (MediaTek, não é de fato um Black
+Shark/JoyUI genuíno — `pm list packages` não mostra nenhum pacote da Xiaomi
+Black Shark, apenas serviços MediaTek genéricos e um `com.weibu.factorytest`
+de fábrica) demonstrou uma falha de armazenamento séria e ainda não
+totalmente diagnosticada: minutos depois de `enroll()` gravar e confirmar o
+token com sucesso — inclusive completando um heartbeat real com ele — a
+linha correspondente desaparece tanto das consultas do próprio app quanto
+de uma leitura externa do arquivo do banco, **com o mesmo processo do app
+continuamente vivo o tempo todo** (confirmado via `dumpsys activity
+exit-info`, sem nenhum reinício de processo entre a escrita e o
+desaparecimento). Nenhum caminho de código do MAXCAR apaga isoladamente
+essa linha sem também apagar `isEnrolled` — e `isEnrolled` nunca muda — o
+que descarta qualquer explicação do lado do app.
+
+Três hipóteses foram testadas, cada uma com uma janela de observação limpa
+de 6+ minutos sem nenhuma interação com o aparelho:
+
+1. Trocar `EncryptedSharedPreferences` (Jetpack Security/Tink) por
+   `device_credential` no Room, criptografado com uma chave do Android
+   Keystore aplicada diretamente via `Cipher` — mesmo padrão de falha.
+2. Trocar o `journal_mode` do Room de WAL para TRUNCATE (elimina a
+   possibilidade de uma escrita ficar presa só no arquivo `-wal` sem nunca
+   ser mesclada ao arquivo principal) — mesmo padrão de falha.
+3. Desativar `com.mediatek.duraspeed` (o matador de processos em segundo
+   plano da MediaTek, uma causa real e documentada dessa classe de sintoma
+   em outros aparelhos) — mesmo padrão de falha.
+
+Nenhuma das três resolveu o problema nesse aparelho específico. As três
+mudanças de código (1 e 2) permanecem no projeto por serem, de qualquer
+forma, mais robustas que o que havia antes, mas **não devem ser tratadas
+como a correção deste bug** — apenas como melhorias de robustez gerais.
+
+O que está comprovado, de forma repetida e sob teste controlado: mesmo
+durante essa instabilidade, o tablet nunca perde a ativação nem pede um
+novo código — exatamente a garantia que a seção "Credencial local ilegível"
+acima descreve. O diagnóstico (`credentialMissingLocally`) e a recuperação
+manual (`reenrollAfterCredentialLoss`) funcionam corretamente o tempo todo;
+o que falha é a sincronização automática continuar depois da primeira
+tentativa bem-sucedida, não a integridade da ativação.
+
+Próximos passos recomendados, ainda não executados: testar o mesmo cenário
+num segundo aparelho físico (para confirmar se é uma falha desta unidade
+específica ou do modelo/firmware inteiro); investigar mais serviços
+MediaTek além do DuraSpeed (`com.mediatek.capctrl.service`,
+`com.mediatek.batterywarning`); considerar armazenar o token fora do
+sandbox privado do app (ex.: AccountManager) como última alternativa se o
+armazenamento privado deste hardware provar ser fundamentalmente pouco
+confiável.

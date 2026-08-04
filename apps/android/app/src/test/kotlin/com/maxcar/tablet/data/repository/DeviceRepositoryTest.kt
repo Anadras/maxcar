@@ -99,6 +99,41 @@ class DeviceRepositoryTest {
     }
 
     @Test
+    fun `enroll never marks the device enrolled if the token silently fails to persist`() = runTest {
+        // Reproduces a real pilot-device failure: saveToken() returned
+        // normally (no exception, no log) but the value never actually
+        // landed on disk, so every sync after "successful" enrollment saw
+        // CredentialUnavailable forever. enroll() must verify the token
+        // round-trips before ever committing isEnrolled = true.
+        val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
+        val dataStore = PreferenceDataStoreFactory.create(
+            scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
+        ) { prefsFile }
+        val brokenTokenStore = FakeTokenStore(simulateSilentSaveFailure = true)
+        val brokenRepository = DeviceRepository(
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString()),
+            installationIdStore = InstallationIdStore(dataStore),
+            secureTokenStore = brokenTokenStore,
+            appPreferences = AppPreferences(dataStore),
+            deviceStateDao = db.deviceStateDao(),
+            remoteConfigDao = db.remoteConfigDao(),
+            pendingEventDao = db.pendingEventDao(),
+            playbackEventDao = db.playbackEventDao(),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"deviceToken":"tok-1","deviceId":"d1","deviceCode":"TB-001","vehicleId":"v1","vehicleCode":"CAR-001"}""",
+            ),
+        )
+
+        val result = brokenRepository.enroll("GOODCODE")
+
+        assertTrue(result.isFailure)
+        assertNull(brokenTokenStore.readToken())
+        assertFalse(brokenRepository.isEnrolled.first())
+    }
+
+    @Test
     fun `a successful heartbeat updates lastHeartbeatAt`() = runTest {
         tokenStore.saveToken("tok-1")
         db.deviceStateDao().upsert(

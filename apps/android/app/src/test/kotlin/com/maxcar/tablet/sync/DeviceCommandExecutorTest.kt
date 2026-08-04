@@ -12,6 +12,7 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -51,7 +52,7 @@ class DeviceCommandExecutorTest {
             scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
         ) { prefsFile }
         appPreferences = AppPreferences(dataStore)
-        val tokenStore = FakeTokenStore().apply { saveToken("tok-1") }
+        val tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
         val apiClient = DeviceApiClient(baseUrl = server.url("/").toString())
 
         executor = DeviceCommandExecutor(

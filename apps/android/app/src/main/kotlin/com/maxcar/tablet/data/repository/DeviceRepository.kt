@@ -73,7 +73,18 @@ class DeviceRepository(
                 ),
             )
         }
-        secureTokenStore.saveToken(response.deviceToken)
+        // A read-back right after saveToken() cannot catch a real disk
+        // failure: Android's SharedPreferences always serves reads from its
+        // in-memory cache, which saveToken() already populated, regardless
+        // of whether the file write actually landed. This is the exact
+        // failure a live pilot device hit — enrollment looked successful
+        // all the way through the next heartbeat, yet the credential was
+        // never on disk, so every sync after that (once the process
+        // restarted and the cache was gone) saw CredentialUnavailable
+        // forever. Only saveToken()'s own success signal can catch it.
+        check(secureTokenStore.saveToken(response.deviceToken)) {
+            "Device token did not persist after saveToken()."
+        }
         val state = DeviceStateEntity(
             deviceId = response.deviceId,
             deviceCode = response.deviceCode,

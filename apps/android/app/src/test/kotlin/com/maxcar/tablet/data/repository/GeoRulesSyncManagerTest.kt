@@ -7,6 +7,7 @@ import com.maxcar.tablet.data.local.AppDatabase
 import com.maxcar.tablet.data.local.FakeTokenStore
 import com.maxcar.tablet.data.local.GeoRuleEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
@@ -41,7 +42,7 @@ class GeoRulesSyncManagerTest {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        tokenStore = FakeTokenStore().apply { saveToken("tok-1") }
+        tokenStore = FakeTokenStore().apply { runBlocking { saveToken("tok-1") } }
 
         manager = GeoRulesSyncManager(
             context = context,

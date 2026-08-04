@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
+import { authorizePilotDelete } from '@/lib/pilot-delete';
 import { friendlyDatabaseError, messageUrl, optionalText } from '@/lib/forms';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdvertiserForm } from '@/lib/validation/advertisers';
@@ -90,4 +91,60 @@ export async function updateAdvertiser(id: string, formData: FormData) {
   }
   revalidatePath('/clientes');
   redirect(messageUrl(`/clientes/${id}`, 'success', 'Cliente atualizado.'));
+}
+
+export async function deleteAdvertiserPermanently(
+  id: string,
+  formData: FormData,
+) {
+  const returnPath = `/clientes/${id}`;
+  const { reason } = await authorizePilotDelete(formData, returnPath);
+  const supabase = await createClient();
+  const { data: campaigns, error: campaignError } = await supabase
+    .from('campaigns')
+    .select('id')
+    .eq('advertiser_id', id);
+  if (campaignError) {
+    redirect(
+      messageUrl(returnPath, 'error', friendlyDatabaseError(campaignError)),
+    );
+  }
+  const campaignIds = campaigns.map((item) => item.id);
+  if (campaignIds.length > 0) {
+    const { data: creatives, error: creativeError } = await supabase
+      .from('campaign_creatives')
+      .select('storage_path')
+      .in('campaign_id', campaignIds);
+    if (creativeError) {
+      redirect(
+        messageUrl(returnPath, 'error', friendlyDatabaseError(creativeError)),
+      );
+    }
+    const paths = creatives.map((item) => item.storage_path);
+    if (paths.length > 0) {
+      const { error: storageError } = await supabase.storage
+        .from('campaign-media')
+        .remove(paths);
+      if (storageError) {
+        redirect(
+          messageUrl(
+            returnPath,
+            'error',
+            'Não foi possível remover os arquivos do cliente. Tente novamente.',
+          ),
+        );
+      }
+    }
+  }
+  const { error } = await supabase.rpc('delete_advertiser_permanently', {
+    p_id: id,
+    p_reason: reason,
+  });
+  if (error) {
+    redirect(messageUrl(returnPath, 'error', friendlyDatabaseError(error)));
+  }
+  revalidatePath('/clientes');
+  redirect(
+    messageUrl('/clientes', 'success', 'Cliente e dados de teste excluídos.'),
+  );
 }

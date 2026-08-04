@@ -120,6 +120,27 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          pilot_mode: boolean
+          singleton: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          pilot_mode?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          pilot_mode?: boolean
+          singleton?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       campaign_creatives: {
         Row: {
           active: boolean
@@ -1775,6 +1796,18 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      delete_advertiser_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      delete_campaign_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      delete_establishment_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       delete_driver_permanently: {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
@@ -2243,4 +2276,3 @@ export const Constants = {
     },
   },
 } as const
-

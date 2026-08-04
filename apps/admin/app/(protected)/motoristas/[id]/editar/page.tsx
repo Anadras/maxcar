@@ -24,7 +24,7 @@ export default async function EditDriverPage({
     <div className="page record-page">
       <FlashMessage error={query.error} />
       <PageHeader
-        eyebrow="MOTORISTA"
+        eyebrow="PILOTO"
         title={`Editar ${driver.full_name}`}
         description="Atualize os dados e o estado operacional."
       />

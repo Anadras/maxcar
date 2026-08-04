@@ -39,12 +39,12 @@ export default async function DriversPage({
       <FlashMessage success={params.success} error={params.error} />
       <PageHeader
         eyebrow="OPERAÇÃO DE FROTA"
-        title="Motoristas"
-        description="Pessoas, disponibilidade e vínculos operacionais reais."
+        title="Pilotos"
+        description="Abra um piloto para cuidar do motorista, veículo e tablet em um só lugar."
         action={
           canWrite ? (
             <Link className="button button-primary" href="/motoristas/novo">
-              ＋ Novo motorista
+              ＋ Novo piloto
             </Link>
           ) : undefined
         }
@@ -85,11 +85,11 @@ export default async function DriversPage({
         </form>
         {drivers.length === 0 ? (
           <EmptyState
-            title="Nenhum motorista encontrado"
-            description="Ajuste os filtros ou cadastre o primeiro motorista."
+            title="Nenhum piloto encontrado"
+            description="Ajuste os filtros ou cadastre o primeiro piloto."
             action={
               canWrite
-                ? { href: '/motoristas/novo', label: 'Criar motorista' }
+                ? { href: '/motoristas/novo', label: 'Criar piloto' }
                 : undefined
             }
           />
@@ -98,10 +98,9 @@ export default async function DriversPage({
             <table>
               <thead>
                 <tr>
-                  <th>Motorista</th>
-                  <th>Documento</th>
-                  <th>Contato</th>
+                  <th>Piloto</th>
                   <th>Veículo</th>
+                  <th>Tablet</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -112,9 +111,8 @@ export default async function DriversPage({
                     <td>
                       <strong>{driver.full_name}</strong>
                     </td>
-                    <td>{driver.document_number ?? '—'}</td>
-                    <td>{driver.email ?? driver.phone ?? '—'}</td>
-                    <td>{driver.vehicle_code ?? 'Sem vínculo'}</td>
+                    <td>{driver.vehicle_code ?? 'Sem veículo'}</td>
+                    <td>{driver.device_code ?? 'Sem tablet'}</td>
                     <td>
                       <StatusBadge value={LABEL[driver.status]} />
                       {driver.archived_at && <StatusBadge value="Arquivado" />}

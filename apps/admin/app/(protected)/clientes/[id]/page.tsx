@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { deleteAdvertiserPermanently } from '../actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { PilotDeleteAction } from '@/components/pilot-delete-action';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { CAMPAIGN_STATUS_LABELS, CAMPAIGN_TYPE_LABELS } from '@/lib/campaigns';
@@ -45,7 +47,7 @@ export default async function ClientDetailPage({
         ]}
       />
       <PageHeader
-        eyebrow="CLIENTE"
+        eyebrow="CENTRAL DO CLIENTE"
         title={client.trade_name}
         description={client.legal_name}
         action={
@@ -73,7 +75,7 @@ export default async function ClientDetailPage({
           ) : undefined
         }
       />
-      <SectionCard title="Dados do anunciante">
+      <SectionCard title="Dados do cliente">
         <dl className="detail-grid">
           <div>
             <dt>Status</dt>
@@ -109,7 +111,7 @@ export default async function ClientDetailPage({
       </SectionCard>
 
       <SectionCard
-        title="Estabelecimentos"
+        title="Unidades"
         subtitle={`${establishments.length} unidade(s) cadastrada(s)`}
         action={
           canWrite && establishments.length > 0 ? (
@@ -124,7 +126,7 @@ export default async function ClientDetailPage({
       >
         {establishments.length === 0 ? (
           <EmptyState
-            title="Nenhum estabelecimento ainda"
+            title="Nenhuma unidade ainda"
             description="Cadastre o primeiro ponto de ativação deste cliente para poder criar campanhas GEO."
             action={
               canWrite
@@ -203,6 +205,18 @@ export default async function ClientDetailPage({
           </ul>
         )}
       </SectionCard>
+      {auth?.profile.role === 'super_admin' && (
+        <SectionCard
+          title="Excluir cliente"
+          subtitle="Disponível enquanto o MAXCAR estiver em fase piloto."
+        >
+          <PilotDeleteAction
+            entityLabel="cliente"
+            entityName={client.trade_name}
+            deleteAction={deleteAdvertiserPermanently.bind(null, id)}
+          />
+        </SectionCard>
+      )}
     </div>
   );
 }

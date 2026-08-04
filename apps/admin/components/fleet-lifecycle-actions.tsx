@@ -91,9 +91,9 @@ export function FleetLifecycleActions({
       {isSuperAdmin && showDelete && (
         <form action={deleteAction} className="lifecycle-delete-form">
           <p className="lifecycle-delete-warning">
-            Esta ação é permanente e não pode ser desfeita. Só é possível quando
-            este {entityLabel} não tem histórico operacional — caso contrário,
-            arquive em vez de excluir.
+            O MAXCAR está em modo piloto. Esta ação apaga permanentemente este{' '}
+            {entityLabel} e os dados de teste relacionados, mas mantém um
+            registro da exclusão na auditoria. Não é possível desfazer.
           </p>
           <label>
             Sua senha atual

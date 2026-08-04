@@ -25,7 +25,7 @@ export async function archiveDriver(id: string) {
     redirect(messageUrl(detailPath, 'error', friendlyDatabaseError(error)));
   revalidatePath('/motoristas');
   revalidatePath(detailPath);
-  redirect(messageUrl(detailPath, 'success', 'Motorista arquivado.'));
+  redirect(messageUrl(detailPath, 'success', 'Piloto arquivado.'));
 }
 
 export async function restoreDriver(id: string) {
@@ -37,7 +37,7 @@ export async function restoreDriver(id: string) {
     redirect(messageUrl(detailPath, 'error', friendlyDatabaseError(error)));
   revalidatePath('/motoristas');
   revalidatePath(detailPath);
-  redirect(messageUrl(detailPath, 'success', 'Motorista restaurado.'));
+  redirect(messageUrl(detailPath, 'success', 'Piloto restaurado.'));
 }
 
 export async function setDriverActive(id: string, formData: FormData) {
@@ -57,7 +57,7 @@ export async function setDriverActive(id: string, formData: FormData) {
     messageUrl(
       detailPath,
       'success',
-      active ? 'Motorista reativado.' : 'Motorista desativado.',
+      active ? 'Piloto reativado.' : 'Piloto desativado.',
     ),
   );
 }
@@ -99,6 +99,6 @@ export async function deleteDriverPermanently(id: string, formData: FormData) {
     redirect(messageUrl(detailPath, 'error', friendlyDatabaseError(error)));
   revalidatePath('/motoristas');
   redirect(
-    messageUrl('/motoristas', 'success', 'Motorista excluído permanentemente.'),
+    messageUrl('/motoristas', 'success', 'Piloto excluído permanentemente.'),
   );
 }

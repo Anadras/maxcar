@@ -23,7 +23,7 @@ export default async function ClientsPage({
       <PageHeader
         eyebrow="RELACIONAMENTO COMERCIAL"
         title="Clientes"
-        description="Anunciantes e parceiros persistidos na rede MAXCAR."
+        description="Abra um cliente para cuidar de suas unidades, campanhas e mídias em um só lugar."
         action={
           <Link className="button button-primary" href="/clientes/novo">
             ＋ Novo cliente
@@ -65,9 +65,8 @@ export default async function ClientsPage({
               <thead>
                 <tr>
                   <th>Cliente</th>
-                  <th>Razão social</th>
-                  <th>Documento</th>
-                  <th>Contato</th>
+                  <th>Unidades</th>
+                  <th>Campanhas</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -78,11 +77,8 @@ export default async function ClientsPage({
                     <td>
                       <strong>{client.trade_name}</strong>
                     </td>
-                    <td>{client.legal_name}</td>
-                    <td>{client.document_number ?? '—'}</td>
-                    <td>
-                      {client.contact_email ?? client.contact_phone ?? '—'}
-                    </td>
+                    <td>{client.establishment_count}</td>
+                    <td>{client.campaign_count}</td>
                     <td>
                       <StatusBadge value={STATUS_LABEL[client.status]} />
                     </td>

@@ -51,7 +51,7 @@ export function DriverForm({
           Cancelar
         </Link>
         <button className="button button-primary" type="submit">
-          Salvar motorista
+          Salvar piloto
         </button>
       </div>
     </form>

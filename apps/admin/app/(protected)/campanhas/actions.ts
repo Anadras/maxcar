@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import { messageUrl } from '@/lib/forms';
+import { friendlyDatabaseError, messageUrl } from '@/lib/forms';
+import { authorizePilotDelete } from '@/lib/pilot-delete';
 import { createClient } from '@/lib/supabase/server';
 import {
   parseCampaignForm,
@@ -116,4 +117,49 @@ export async function updateCampaign(id: string, formData: FormData) {
   revalidatePath('/campanhas');
   revalidatePath(`/campanhas/${id}`);
   redirect(messageUrl(`/campanhas/${id}`, 'success', 'Campanha atualizada.'));
+}
+
+export async function deleteCampaignPermanently(
+  id: string,
+  formData: FormData,
+) {
+  const returnPath = `/campanhas/${id}`;
+  const { reason } = await authorizePilotDelete(formData, returnPath);
+  const supabase = await createClient();
+  const { data: creatives, error: creativeError } = await supabase
+    .from('campaign_creatives')
+    .select('storage_path')
+    .eq('campaign_id', id);
+  if (creativeError) {
+    redirect(
+      messageUrl(returnPath, 'error', friendlyDatabaseError(creativeError)),
+    );
+  }
+  const paths = creatives.map((item) => item.storage_path);
+  if (paths.length > 0) {
+    const { error: storageError } = await supabase.storage
+      .from('campaign-media')
+      .remove(paths);
+    if (storageError) {
+      redirect(
+        messageUrl(
+          returnPath,
+          'error',
+          'Não foi possível remover os arquivos da campanha. Tente novamente.',
+        ),
+      );
+    }
+  }
+  const { error } = await supabase.rpc('delete_campaign_permanently', {
+    p_id: id,
+    p_reason: reason,
+  });
+  if (error) {
+    redirect(messageUrl(returnPath, 'error', friendlyDatabaseError(error)));
+  }
+  revalidatePath('/campanhas');
+  revalidatePath('/clientes');
+  redirect(
+    messageUrl('/clientes', 'success', 'Campanha e dados de teste excluídos.'),
+  );
 }

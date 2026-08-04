@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { deleteEstablishmentPermanently } from '../actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
 import { LocationMap } from '@/components/location-map-loader';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { PilotDeleteAction } from '@/components/pilot-delete-action';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { getEstablishment } from '@/lib/data/establishments';
@@ -32,7 +34,14 @@ export default async function EstablishmentDetailPage({
       <FlashMessage success={query.success} error={query.error} />
       <Breadcrumbs
         items={[
-          { label: 'Estabelecimentos', href: '/estabelecimentos' },
+          ...(item.advertiser_id
+            ? [
+                {
+                  label: item.advertiser_name ?? 'Cliente',
+                  href: `/clientes/${item.advertiser_id}`,
+                },
+              ]
+            : [{ label: 'Clientes', href: '/clientes' }]),
           { label: item.name ?? 'Estabelecimento' },
         ]}
       />
@@ -156,6 +165,22 @@ export default async function EstablishmentDetailPage({
           </ul>
         )}
       </SectionCard>
+      {auth?.profile.role === 'super_admin' && item.advertiser_id && (
+        <SectionCard
+          title="Excluir unidade"
+          subtitle="Disponível enquanto o MAXCAR estiver em fase piloto."
+        >
+          <PilotDeleteAction
+            entityLabel="estabelecimento"
+            entityName={item.name ?? 'Estabelecimento'}
+            deleteAction={deleteEstablishmentPermanently.bind(
+              null,
+              id,
+              item.advertiser_id,
+            )}
+          />
+        </SectionCard>
+      )}
     </div>
   );
 }

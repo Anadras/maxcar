@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 
 export default function SettingsPage() {
@@ -28,8 +29,8 @@ export default function SettingsPage() {
               <strong>America/Campo_Grande</strong>
             </div>
             <div>
-              <span>Marco atual</span>
-              <strong>MAX-005.5</strong>
+              <span>Fase atual</span>
+              <StatusBadge value="Piloto" />
             </div>
           </div>
         </SectionCard>
@@ -57,17 +58,20 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
         <SectionCard
-          title="Ainda por vir"
-          subtitle="Planejado para os próximos marcos (MAX-006 em diante)"
+          title="Controle e transparência"
+          subtitle="Ações sensíveis e registros administrativos"
         >
-          <div className="future-tags">
-            <span>Aplicativo Android</span>
-            <span>Identidade do dispositivo</span>
-            <span>Sincronização offline real</span>
-            <span>GPS embarcado</span>
-            <span>Kiosk mode</span>
-            <span>Analytics de reprodução real</span>
-          </div>
+          <p>
+            Enquanto o modo piloto estiver ativo, o superadministrador pode
+            excluir cadastros e dados de teste. Toda exclusão exige senha,
+            motivo e fica registrada.
+          </p>
+          <Link
+            className="button button-secondary"
+            href="/configuracoes/auditoria"
+          >
+            Ver histórico de exclusões
+          </Link>
         </SectionCard>
       </div>
     </div>

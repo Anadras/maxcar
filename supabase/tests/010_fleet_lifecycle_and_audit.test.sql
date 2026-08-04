@@ -36,9 +36,7 @@ insert into public.devices (id, vehicle_id, device_code, status) values
   ('a4000000-0000-4000-8000-000000000002', null, 'TB-902', 'provisioning'),
   ('a4000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000003', 'TB-903', 'online');
 
--- A driver_sessions row is what actually blocks a hard delete (ON DELETE
--- RESTRICT) — the function relies on this constraint rather than
--- duplicating the check.
+-- Pilot mode deliberately permits test history to be removed with the record.
 insert into public.driver_sessions (driver_id, vehicle_id, started_at, status) values
   ('a2000000-0000-4000-8000-000000000003', 'a3000000-0000-4000-8000-000000000003', now() - interval '2 hours', 'completed');
 
@@ -106,11 +104,9 @@ select throws_ok(
   'a blank reason is rejected for permanent delete, even for super_admin'
 );
 
-select throws_ok(
+select lives_ok(
   $$select public.delete_driver_permanently('a2000000-0000-4000-8000-000000000003', 'teste')$$,
-  '23514',
-  'This record has operational history and cannot be deleted. Archive it instead.',
-  'a driver with session history cannot be hard-deleted, even by super_admin'
+  'pilot mode lets super_admin delete a driver and its test sessions'
 );
 select lives_ok(
   $$select public.delete_driver_permanently('a2000000-0000-4000-8000-000000000001', 'Cadastro duplicado por engano')$$,
@@ -128,11 +124,9 @@ select is(
   'the deletion is recorded in the audit trail'
 );
 
-select throws_ok(
+select lives_ok(
   $$select public.delete_vehicle_permanently('a3000000-0000-4000-8000-000000000001', 'teste')$$,
-  '23514',
-  'This vehicle still has a linked device. Unlink it first.',
-  'a vehicle with a linked device cannot be permanently deleted'
+  'pilot mode lets super_admin delete a vehicle and unlink its tablet'
 );
 select lives_ok(
   $$select public.unlink_device_vehicle('a4000000-0000-4000-8000-000000000001')$$,
@@ -144,11 +138,9 @@ select is(
   'the device no longer references the vehicle'
 );
 
-select throws_ok(
+select lives_ok(
   $$select public.delete_device_permanently('a4000000-0000-4000-8000-000000000003', 'teste')$$,
-  '23514',
-  'This record has operational history and cannot be deleted. Archive it instead.',
-  'a device with heartbeat history cannot be hard-deleted'
+  'pilot mode lets super_admin delete a tablet and its test telemetry'
 );
 select lives_ok(
   $$select public.delete_device_permanently('a4000000-0000-4000-8000-000000000002', 'Dispositivo de teste nunca usado')$$,

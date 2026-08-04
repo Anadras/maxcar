@@ -9,7 +9,9 @@ export async function listDrivers(
   const supabase = await createClient();
   let query = supabase
     .from('drivers')
-    .select('*, vehicles(id, internal_code, license_plate)')
+    .select(
+      '*, vehicles(id, internal_code, license_plate, status, devices(id, device_code, status))',
+    )
     .order('full_name');
   const term = search.trim().replaceAll(/[,%()]/g, ' ');
   if (term) {
@@ -33,6 +35,10 @@ export async function listDrivers(
       vehicle_id: driver.vehicles[0]?.id ?? null,
       vehicle_code: driver.vehicles[0]?.internal_code ?? null,
       license_plate: driver.vehicles[0]?.license_plate ?? null,
+      vehicle_status: driver.vehicles[0]?.status ?? null,
+      device_id: driver.vehicles[0]?.devices[0]?.id ?? null,
+      device_code: driver.vehicles[0]?.devices[0]?.device_code ?? null,
+      device_status: driver.vehicles[0]?.devices[0]?.status ?? null,
     }))
     .filter(
       (driver) =>

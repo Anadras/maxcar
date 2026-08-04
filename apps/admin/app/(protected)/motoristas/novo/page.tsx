@@ -19,8 +19,8 @@ export default async function NewDriverPage({
       <FlashMessage error={params.error} />
       <PageHeader
         eyebrow="OPERAÇÃO DE FROTA"
-        title="Novo motorista"
-        description="Cadastre a pessoa antes de vinculá-la a um veículo."
+        title="Novo piloto"
+        description="Cadastre a pessoa; depois você poderá adicionar veículo e tablet na mesma central."
       />
       <SectionCard>
         <DriverForm action={createDriver} />

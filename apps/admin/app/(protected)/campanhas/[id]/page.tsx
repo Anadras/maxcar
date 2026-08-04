@@ -15,11 +15,13 @@ import {
   publishCampaignAndSync,
   removeCampaignFromDefaultPlaylist,
 } from './playlist-actions';
+import { deleteCampaignPermanently } from '../actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { CreativeGallery } from '@/components/creative-gallery';
 import { CreativeUploadForm } from '@/components/creative-upload-form';
 import { FlashMessage } from '@/components/flash-message';
+import { PilotDeleteAction } from '@/components/pilot-delete-action';
 import { ReadinessBanner } from '@/components/readiness-banner';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet, canWriteCommercialData } from '@/lib/auth/access';
@@ -373,6 +375,18 @@ export default async function CampaignDetailPage({
               ))}
             </div>
           )}
+        </SectionCard>
+      )}
+      {auth?.profile.role === 'super_admin' && (
+        <SectionCard
+          title="Excluir campanha"
+          subtitle="Disponível enquanto o MAXCAR estiver em fase piloto."
+        >
+          <PilotDeleteAction
+            entityLabel="campanha"
+            entityName={campaign.name ?? 'Campanha'}
+            deleteAction={deleteCampaignPermanently.bind(null, id)}
+          />
         </SectionCard>
       )}
     </div>

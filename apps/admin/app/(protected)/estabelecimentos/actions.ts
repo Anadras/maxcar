@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
+import { authorizePilotDelete } from '@/lib/pilot-delete';
 import { friendlyDatabaseError, messageUrl } from '@/lib/forms';
 import { createClient } from '@/lib/supabase/server';
 import { parseEstablishmentForm } from '@/lib/validation/establishments';
@@ -63,4 +64,30 @@ export async function createEstablishment(formData: FormData) {
 
 export async function updateEstablishment(id: string, formData: FormData) {
   return save(id, formData);
+}
+
+export async function deleteEstablishmentPermanently(
+  id: string,
+  advertiserId: string,
+  formData: FormData,
+) {
+  const returnPath = `/estabelecimentos/${id}`;
+  const { reason } = await authorizePilotDelete(formData, returnPath);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('delete_establishment_permanently', {
+    p_id: id,
+    p_reason: reason,
+  });
+  if (error) {
+    redirect(messageUrl(returnPath, 'error', friendlyDatabaseError(error)));
+  }
+  revalidatePath('/clientes');
+  revalidatePath(`/clientes/${advertiserId}`);
+  redirect(
+    messageUrl(
+      `/clientes/${advertiserId}`,
+      'success',
+      'Estabelecimento excluído.',
+    ),
+  );
 }

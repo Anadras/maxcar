@@ -7,6 +7,9 @@
 - GEO campaigns never abruptly interrupt currently playing media.
 - GEO campaigns enter a priority queue and are played only after the current media ends.
 - After GEO playback the player returns to the regular schedule.
+- The pilot admin experience has two domain hubs: Clients (units, campaigns,
+  media) and Pilots (driver, vehicle, tablet). Do not restore database-table
+  navigation as the primary information architecture.
 
 ## Architecture
 
@@ -29,6 +32,9 @@
 - Historical events must not be removed through accidental cascades.
 - Offline events require stable client identifiers and idempotent ingestion.
 - Active campaigns must retain their required creative and GEO structure.
+- Permanent deletion of operational descendants is allowed only while the
+  explicit `system_settings.pilot_mode` switch is enabled, only for
+  `super_admin`, and only through audited SECURITY DEFINER functions.
 
 ## UX
 

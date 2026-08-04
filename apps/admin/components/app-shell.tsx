@@ -16,7 +16,6 @@ interface NavItem {
 
 const primaryNav: NavItem[] = [
   { label: 'Início', href: '/', icon: '▦' },
-  { label: 'Campanhas', href: '/campanhas', icon: '◉' },
   {
     label: 'Clientes',
     href: '/clientes',
@@ -24,29 +23,12 @@ const primaryNav: NavItem[] = [
     roles: ['super_admin', 'admin', 'commercial'],
   },
   {
-    label: 'Tablets',
-    href: '/dispositivos',
-    icon: '▣',
-    roles: ['super_admin', 'admin', 'operations'],
-  },
-  { label: 'Relatórios', href: '/relatorios', icon: '▥' },
-];
-
-const recordsNav: NavItem[] = [
-  { label: 'Estabelecimentos', href: '/estabelecimentos', icon: '⌂' },
-  {
-    label: 'Motoristas',
+    label: 'Pilotos',
     href: '/motoristas',
     icon: '♙',
     roles: ['super_admin', 'admin', 'operations'],
   },
-  {
-    label: 'Veículos',
-    href: '/veiculos',
-    icon: '◆',
-    roles: ['super_admin', 'admin', 'operations'],
-  },
-  { label: 'Áreas de proximidade', href: '/geofences', icon: '◎' },
+  { label: 'Relatórios', href: '/relatorios', icon: '▥' },
 ];
 
 const adminNav: NavItem[] = [
@@ -62,7 +44,6 @@ const adminNav: NavItem[] = [
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
   { label: 'PRINCIPAL', items: primaryNav },
-  { label: 'CADASTROS', items: recordsNav },
   { label: 'MAIS OPÇÕES', items: adminNav },
 ];
 

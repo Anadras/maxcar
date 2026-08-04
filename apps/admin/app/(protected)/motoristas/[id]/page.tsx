@@ -39,13 +39,12 @@ export default async function DriverDetailPage({
       <FlashMessage success={query.success} error={query.error} />
       <Breadcrumbs
         items={[
-          { label: 'Frota' },
-          { label: 'Motoristas', href: '/motoristas' },
+          { label: 'Pilotos', href: '/motoristas' },
           { label: driver.full_name },
         ]}
       />
       <PageHeader
-        eyebrow="MOTORISTA"
+        eyebrow="PILOTO"
         title={driver.full_name}
         description={
           driver.vehicle_code
@@ -73,7 +72,7 @@ export default async function DriverDetailPage({
           </div>
         }
       />
-      <SectionCard title="Dados do motorista">
+      <SectionCard title="Piloto, veículo e tablet">
         <dl className="detail-grid">
           <div>
             <dt>Status</dt>

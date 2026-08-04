@@ -197,6 +197,22 @@ class SyncCoordinatorTest {
     }
 
     @Test
+    fun `a GEO rules server failure makes the cycle retry even when REGULAR succeeds`() = runTest {
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-heartbeat" -> MockResponse().setBody(heartbeatOk)
+                "/device-manifest" -> MockResponse().setBody(emptyManifest)
+                "/device-geo-rules" -> MockResponse().setResponseCode(500).setBody("server error")
+                "/device-config" -> MockResponse().setBody(emptyConfig)
+                "/device-commands" -> MockResponse().setBody("""{"commands":[]}""")
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+
+        assertEquals(SyncOutcome.RETRY, coordinator.runCycle())
+    }
+
+    @Test
     fun `a pending restart_player command is executed and emits the restart signal`() = runTest {
         server.dispatcher = okDispatcher(
             commandsBody = """{"commands":[{"commandId":"cmd-1","commandType":"restart_player","createdAt":"2026-01-01T00:00:00Z"}]}""",

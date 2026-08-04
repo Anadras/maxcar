@@ -10,6 +10,12 @@ import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.kiosk.KioskLevelDetector
 import com.maxcar.tablet.kiosk.toWireValue
 import com.maxcar.tablet.work.DeviceTelemetry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 /** What a sync cycle decided, so the caller (a WorkManager worker) can map
  * it to the right `Result` without re-deriving the same error-type logic
@@ -47,7 +53,56 @@ class SyncCoordinator(
     private val kioskLevelDetector: KioskLevelDetector,
     private val telemetryProvider: () -> DeviceTelemetry,
 ) {
-    suspend fun runCycle(): SyncOutcome {
+    // MAX-011 Bloco B added a second, short-interval trigger
+    // (ForegroundSyncLoop's 30s ticker + its ConnectivityManager callback)
+    // alongside the existing WorkManager-scheduled SyncWorker/
+    // InitialSyncWorker — both can legitimately fire around the same
+    // moment (e.g. right after enrollment, or when connectivity flips).
+    // Without this lock they'd run concurrently: two overlapping cycles
+    // hitting the same Room tables and the same device token at once,
+    // each with its own sequence of network calls whose combined worst-
+    // case latency can stall the *next* tick well past its interval. A
+    // mutex keeps the "one Sync Coordinator" guarantee real even when
+    // multiple triggers fire close together — a caller that finds a cycle
+    // already running just waits for it instead of starting a second one.
+    private val cycleMutex = Mutex()
+
+    /**
+     * A hard ceiling on one cycle's total wall time, on top of every
+     * individual HTTP call's own OkHttp timeout — belt and suspenders.
+     * Individual timeouts bound *one* call; they don't bound a whole cycle
+     * that makes 6-8 sequential calls, and they can't catch a genuinely
+     * stuck suspend point that isn't a network call at all (e.g. Room
+     * contention from two cycles that started before [cycleMutex] existed
+     * and are both still mid-flight). Without this, a single wedged cycle
+     * would hold [cycleMutex] forever and silently stop every future sync
+     * — exactly the "heartbeats just stop for good" failure this guards
+     * against.
+     */
+    suspend fun runCycle(): SyncOutcome = cycleMutex.withLock {
+        try {
+            // The withTimeout deadline is scheduled against whatever
+            // dispatcher is current when it's set up. Every network call
+            // inside runCycleLocked already escapes to Dispatchers.IO on
+            // its own, but runCycleLocked's *own* suspension points
+            // between those calls would otherwise leave the timeout
+            // scheduled on the caller's dispatcher — under
+            // kotlinx-coroutines-test's runTest, that's the virtual-time
+            // TestDispatcher, whose idle auto-advance can fast-forward
+            // straight past the deadline the instant real IO work (which
+            // it can't see) starts, firing the timeout instantly instead
+            // of after CYCLE_TIMEOUT_MS. Switching to Dispatchers.IO
+            // first keeps the deadline on a real clock in both
+            // production and tests.
+            withContext(Dispatchers.IO) {
+                withTimeout(CYCLE_TIMEOUT_MS) { runCycleLocked() }
+            }
+        } catch (e: TimeoutCancellationException) {
+            SyncOutcome.RETRY
+        }
+    }
+
+    private suspend fun runCycleLocked(): SyncOutcome {
         val telemetry = telemetryProvider()
         val playerStatus = appPreferences.playerStatusSnapshot()
         val geoStatus = geoEngine.status.value
@@ -81,6 +136,12 @@ class SyncCoordinator(
             ).toWireValue(),
         )
         heartbeatResult.onFailure { error ->
+            // Only a server-confirmed 401 means UNAUTHORIZED. A merely
+            // unreadable local credential (CredentialUnavailable) is
+            // retried instead — it was never actually rejected by the
+            // server, so treating it the same way would wrongly desync
+            // the tablet's enrollment state (see
+            // DeviceRepository.markCredentialMissingIfEnrolled).
             if (error is DeviceApiError.Unauthorized) return SyncOutcome.UNAUTHORIZED
             // Any other heartbeat failure (offline, timeout, server error)
             // means the rest of this cycle's network calls would fail the
@@ -98,21 +159,21 @@ class SyncCoordinator(
         // own atomic cache cleanup; see MediaDownloadManager/GeoRulesSyncManager.
         deviceRepository.refreshConfig()
         val regularResult = mediaDownloadManager.sync()
-        geoRulesSyncManager.sync()
+        val geoResult = geoRulesSyncManager.sync()
 
         // Priority 7: remote commands.
         commandExecutor.pollAndExecute()
 
-        return regularResult.fold(
-            onSuccess = { SyncOutcome.SUCCESS },
-            onFailure = { error ->
-                when (error) {
-                    is DeviceApiError.Unauthorized -> SyncOutcome.UNAUTHORIZED
-                    is DeviceApiError.NetworkUnavailable -> SyncOutcome.SUCCESS
-                    else -> SyncOutcome.RETRY
-                }
-            },
+        val syncErrors = listOfNotNull(
+            regularResult.exceptionOrNull(),
+            geoResult.exceptionOrNull(),
         )
+        return when {
+            syncErrors.any { it is DeviceApiError.Unauthorized } -> SyncOutcome.UNAUTHORIZED
+            syncErrors.isEmpty() -> SyncOutcome.SUCCESS
+            syncErrors.all { it is DeviceApiError.NetworkUnavailable } -> SyncOutcome.SUCCESS
+            else -> SyncOutcome.RETRY
+        }
     }
 
     private fun operationalStatusFor(
@@ -129,5 +190,11 @@ class SyncCoordinator(
 
     private companion object {
         val IMMERSIVE_PLAYER_STATES = setOf("playing")
+        // Generous relative to OkHttp's own per-call timeouts (10s connect
+        // + 20s read + 15s write, and a cycle makes several such calls
+        // sequentially) but still far below the 30s foreground tick
+        // interval's next-cycle expectation, and nowhere near WorkManager's
+        // own execution limits.
+        const val CYCLE_TIMEOUT_MS = 90_000L
     }
 }

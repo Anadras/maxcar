@@ -9,27 +9,49 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.maxcar.tablet.MaxcarApplication
 import com.maxcar.tablet.R
+import com.maxcar.tablet.sync.ForegroundSyncLoop
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 
 /**
- * Keeps the GEO Location Engine running while the tablet is in operational
- * (kiosk) mode. Android's background execution and location limits mean
- * continuous location updates need a foreground service of their own —
- * this one exists purely to hold that guarantee; all the actual location
- * and geofence logic lives in [GeoEngine]. Started and stopped by
- * MainActivity alongside kiosk mode itself (MAX-008 item 12: prefer a
- * foreground service over relying on passive/background geofencing), never
- * launched on its own, e.g. at boot.
+ * Keeps both the GEO Location Engine and the short foreground sync cadence
+ * running while the tablet is in operational (kiosk) mode. Android's
+ * background execution and location limits mean continuous location
+ * updates need a foreground service of their own — this one exists to hold
+ * that guarantee, and doubles as the host for
+ * [ForegroundSyncLoop] (MAX-011 item 6) since the two share the exact same
+ * lifetime: both should only run while the tablet is actually operating,
+ * never behind the diagnostics screen or before the player has anything
+ * to show. All the actual location/geofence logic lives in [GeoEngine];
+ * all the actual sync logic lives in
+ * [com.maxcar.tablet.sync.SyncCoordinator] — this class only owns their
+ * start/stop timing. Started and stopped by MainActivity alongside kiosk
+ * mode itself (MAX-008 item 12: prefer a foreground service over relying
+ * on passive/background geofencing), never launched on its own, e.g. at
+ * boot.
  */
 class LocationForegroundService : Service() {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var foregroundSyncLoop: ForegroundSyncLoop? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, buildNotification())
-        (application as MaxcarApplication).container.geoEngine.start()
+        val container = (application as MaxcarApplication).container
+        container.geoEngine.start()
+        if (foregroundSyncLoop == null) {
+            foregroundSyncLoop = ForegroundSyncLoop(applicationContext, container.syncCoordinator, serviceScope)
+        }
+        foregroundSyncLoop?.start()
         return START_STICKY
     }
 
     override fun onDestroy() {
+        foregroundSyncLoop?.stop()
+        serviceScope.cancel()
         (application as MaxcarApplication).container.geoEngine.stop()
         super.onDestroy()
     }

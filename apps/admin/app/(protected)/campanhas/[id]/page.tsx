@@ -5,13 +5,18 @@ import {
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { setCreativeActive, uploadCreative } from './creative-actions';
+import {
+  addCampaignToDefaultPlaylist,
+  removeCampaignFromDefaultPlaylist,
+} from './playlist-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { CreativeGallery } from '@/components/creative-gallery';
 import { CreativeUploadForm } from '@/components/creative-upload-form';
 import { FlashMessage } from '@/components/flash-message';
 import { ReadinessBanner } from '@/components/readiness-banner';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
-import { canWriteCommercialData } from '@/lib/auth/access';
+import { canManageFleet, canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import {
   ACTIVE_DAY_LABELS,
@@ -23,6 +28,7 @@ import {
 import { getCampaign } from '@/lib/data/campaigns';
 import { listCampaignCreatives } from '@/lib/data/creatives';
 import { listCampaignGeofences } from '@/lib/data/geofences';
+import { isCampaignInDefaultPlaylist } from '@/lib/data/playlists';
 
 export default async function CampaignDetailPage({
   params,
@@ -41,6 +47,11 @@ export default async function CampaignDetailPage({
   ]);
   if (!campaign || !campaign.campaign_type || !campaign.status) notFound();
   const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
+  const canManageGrid = Boolean(auth && canManageFleet(auth.profile.role));
+  const inDefaultPlaylist =
+    campaign.campaign_type === 'regular' && canManageGrid
+      ? await isCampaignInDefaultPlaylist(id)
+      : false;
   const readinessInput = {
     campaignType: campaign.campaign_type,
     startsAt: campaign.starts_at,
@@ -151,6 +162,40 @@ export default async function CampaignDetailPage({
           <CreativeUploadForm action={uploadCreative.bind(null, id)} />
         )}
       </SectionCard>
+      {campaign.campaign_type === 'regular' && canManageGrid && (
+        <SectionCard
+          title="Grade regular do piloto"
+          subtitle="Tablets sem grade própria reproduzem a grade padrão do piloto."
+        >
+          <p>
+            Status atual:{' '}
+            <StatusBadge
+              value={inDefaultPlaylist ? 'Na grade do piloto' : 'Fora da grade'}
+            />
+          </p>
+          <form
+            action={
+              inDefaultPlaylist
+                ? removeCampaignFromDefaultPlaylist.bind(null, id)
+                : addCampaignToDefaultPlaylist.bind(null, id)
+            }
+          >
+            {inDefaultPlaylist ? (
+              <ConfirmSubmitButton
+                className="button button-secondary"
+                confirmMessage={`Remover "${campaign.name}" da grade padrão do piloto? Tablets que dependem dela deixarão de reproduzi-la no próximo sync.`}
+                pendingLabel="Removendo…"
+              >
+                Remover da grade do piloto
+              </ConfirmSubmitButton>
+            ) : (
+              <button className="button button-primary" type="submit">
+                Incluir na grade do piloto
+              </button>
+            )}
+          </form>
+        </SectionCard>
+      )}
       {campaign.campaign_type === 'geo' && (
         <SectionCard
           title="Geofences"

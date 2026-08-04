@@ -44,6 +44,18 @@ ativação e revoga credenciais emitidas — veja
 conexão exibida vem de heartbeats reais enviados pelo Android
 (`device-heartbeat`), não mais só do simulador.
 
+## Player (MAX-007)
+
+O card "Player" no detalhe do dispositivo mostra o que o heartbeat mais
+recente reportou sobre o player em execução: estado (`playing`/`empty`),
+quantidade de mídias prontas, versão do manifesto atual, quando a grade
+sincronizou pela última vez, o criativo e a campanha em reprodução (nomes,
+nunca UUID), e o último erro do player, quando houver. Nenhum desses
+campos é inventado — quando o dispositivo nunca reportou telemetria de
+player, o card mostra "Sem telemetria" em vez de um valor fabricado. Ver
+[ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md) e
+[ANDROID_PLAYER.md](ANDROID_PLAYER.md).
+
 ## Simulação de heartbeat
 
 `simulateHeartbeat` (`app/(protected)/dispositivos/actions.ts`) chama a RPC
@@ -56,4 +68,4 @@ não ativado ou sem hardware físico à mão; não há endpoint público ou uso 
 
 Mapa em tempo real, histórico geográfico e alertas automatizados por
 ausência de heartbeat ficam para um marco futuro. Localização (GPS) no
-heartbeat depende do Location Engine, planejado para MAX-007/008.
+heartbeat depende do Location Engine, planejado para MAX-008.

@@ -146,4 +146,83 @@ class DeviceApiClientTest {
             // a raw kotlinx.serialization.SerializationException.
         }
     }
+
+    @Test
+    fun `getManifest parses the playlist and never logs the bearer token`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"manifestVersion":"v1","generatedAt":"2026-01-01T00:00:00Z","deviceId":"d1",
+                   |"playlist":[{"campaignId":"c1","creativeId":"cr1","type":"video","mimeType":"video/mp4",
+                   |"durationSeconds":15.0,"fileSizeBytes":2000,"sha256":"abc","downloadUrl":"https://x/signed",
+                   |"startsAt":null,"endsAt":null,"position":1}]}
+                """.trimMargin(),
+            ).setResponseCode(200),
+        )
+
+        val manifest = client.getManifest(token = "secret-token")
+
+        assertEquals("v1", manifest.manifestVersion)
+        assertEquals(1, manifest.playlist.size)
+        assertEquals("cr1", manifest.playlist.first().creativeId)
+
+        val recorded = server.takeRequest()
+        assertEquals("Bearer secret-token", recorded.getHeader("Authorization"))
+        assertEquals("/device-manifest", recorded.path)
+    }
+
+    @Test
+    fun `getManifest with no playlist parses an empty list, not a crash`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"manifestVersion":"0","generatedAt":"2026-01-01T00:00:00Z","deviceId":"d1","playlist":[]}""",
+            ).setResponseCode(200),
+        )
+
+        val manifest = client.getManifest(token = "secret-token")
+
+        assertTrue(manifest.playlist.isEmpty())
+    }
+
+    @Test
+    fun `sendPlaybackEvents posts the batch and parses per-event results`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[{"clientEventId":"e1","ok":true,"recorded":true},
+                   |{"clientEventId":"e2","ok":false,"recorded":false}]}
+                """.trimMargin(),
+            ).setResponseCode(200),
+        )
+
+        val response = client.sendPlaybackEvents(
+            token = "secret-token",
+            events = listOf(
+                PlaybackEventRequest(
+                    clientEventId = "e1",
+                    campaignId = "c1",
+                    creativeId = "cr1",
+                    status = "completed",
+                    startedAt = "2026-01-01T00:00:00Z",
+                ),
+            ),
+        )
+
+        assertEquals(2, response.results.size)
+        assertTrue(response.results.first { it.clientEventId == "e1" }.ok)
+        assertFalse(response.results.first { it.clientEventId == "e2" }.ok)
+
+        val recorded = server.takeRequest()
+        assertEquals("/device-playback-events", recorded.path)
+        assertTrue(recorded.body.readUtf8().contains("\"clientEventId\":\"e1\""))
+    }
+
+    @Test
+    fun `downloadTo streams the response body to the destination file`() = runTest {
+        server.enqueue(MockResponse().setBody("fake-media-bytes"))
+        val destination = kotlin.io.path.createTempFile().toFile()
+
+        client.downloadTo(server.url("/media/file.mp4").toString(), destination)
+
+        assertEquals("fake-media-bytes", destination.readText())
+        destination.delete()
+    }
 }

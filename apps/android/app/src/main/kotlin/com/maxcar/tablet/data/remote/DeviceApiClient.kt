@@ -60,6 +60,49 @@ class DeviceApiClient(
         return execute(httpRequest) { json.decodeFromString(ConfigResponse.serializer(), it) }
     }
 
+    fun getManifest(token: String): ManifestResponse {
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-manifest")
+            .header("Authorization", "Bearer $token")
+            .get()
+            .build()
+        return execute(httpRequest) { json.decodeFromString(ManifestResponse.serializer(), it) }
+    }
+
+    fun sendPlaybackEvents(
+        token: String,
+        events: List<PlaybackEventRequest>,
+    ): PlaybackEventsResponse {
+        val body = json.encodeToString(PlaybackEventsRequest(events)).toRequestBody(JSON_MEDIA_TYPE)
+        val httpRequest = Request.Builder()
+            .url(baseUrl + "device-playback-events")
+            .header("Authorization", "Bearer $token")
+            .post(body)
+            .build()
+        return execute(httpRequest) { json.decodeFromString(PlaybackEventsResponse.serializer(), it) }
+    }
+
+    /** Streams a signed URL straight to disk without ever holding the full
+     * file in memory — a video can be tens of megabytes, and this call
+     * always runs off the main thread via [com.maxcar.tablet.data.repository.MediaDownloadManager]. */
+    fun downloadTo(url: String, destination: java.io.File) {
+        val httpRequest = Request.Builder().url(url).get().build()
+        val response = try {
+            client.newCall(httpRequest).execute()
+        } catch (e: IOException) {
+            throw DeviceApiError.NetworkUnavailable(e)
+        }
+        response.use {
+            if (!it.isSuccessful) {
+                throw DeviceApiError.ServerError("Download failed (HTTP ${it.code}).")
+            }
+            val body = it.body
+            destination.outputStream().use { output ->
+                body.byteStream().copyTo(output)
+            }
+        }
+    }
+
     private fun <T> execute(request: Request, decode: (String) -> T): T {
         val response: Response
         try {

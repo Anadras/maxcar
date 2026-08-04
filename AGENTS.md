@@ -69,8 +69,15 @@
   line — only to Keystore-backed encrypted storage on the device.
 - A network failure must never be treated as a device credential revocation;
   only an explicit auth rejection (401) from the server may clear it.
-- Campaign media stays private; previews use short-lived signed URLs.
+- Campaign media stays private; previews and device downloads use
+  short-lived signed URLs, never a public URL. A signed URL is never
+  persisted anywhere — not in Postgres, not in Room — only used once, in
+  the sync cycle that fetched it.
 - Storage object paths derive from persisted ownership and UUIDs, never user filenames.
+- A device manifest returns only content that device is actually
+  authorized to receive — an active, structurally-ready REGULAR campaign
+  reachable by that device's own playlist or the pilot's global default.
+  GEO campaigns never enter a playlist.
 
 ## TypeScript
 
@@ -87,13 +94,22 @@
 - Kotlin native, offline-first.
 - Use Room, Media3, WorkManager, Coroutines and Location Services.
 - Synchronization must be resilient.
-- Kiosk mode will eventually be required.
-- No location, camera, or storage permission until the milestone that
-  actually needs it (Location Engine, player). Don't request permissions
-  ahead of the feature that uses them.
-- Player, media download, and the GEO/Location Engine are separate
-  milestones from device identity/enrollment/heartbeat — don't blend their
-  scope into unrelated work.
+- Kiosk mode will eventually be required; Device Owner/Lock Task
+  provisioning requires a factory reset and must never be run without
+  explicit authorization — see
+  `docs/architecture/ANDROID_PILOT_TABLET_SETUP.md`.
+- No location or camera permission until the milestone that actually needs
+  it (Location Engine). Don't request permissions ahead of the feature
+  that uses them. Media downloads into app-private storage
+  (`context.filesDir`), which needs no storage permission.
+- The GEO/Location Engine is a separate milestone from the regular
+  player/media pipeline — don't blend its scope into unrelated work.
+- A downloaded media file is never played until its size and SHA-256 match
+  the manifest exactly. A partially downloaded or hash-mismatched file is
+  never renamed into the path the player reads from.
+- The current media grade is never deleted before its replacement has
+  fully downloaded and validated — see
+  `docs/architecture/ANDROID_MEDIA_CACHE.md`.
 
 ## Testing
 

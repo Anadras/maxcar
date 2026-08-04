@@ -40,10 +40,18 @@ erDiagram
 - `campaigns`: período, janela diária, prioridade, cooldown e dias ativos.
 - `campaign_creatives`: metadados, caminho privado, duração e checksum.
 - `campaign_geofences`: raio e overrides ligados ao estabelecimento.
-- `playlists`, `playlist_items`: grade regular ordenada.
+- `playlists`, `playlist_items`: grade regular ordenada. `playlists.device_id`
+  (MAX-007, nullable) vincula uma grade a um dispositivo específico; nula é
+  a grade padrão global do piloto — ver
+  [ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md).
 - `geofence_events`: entradas, saídas e permanências detectadas pelo tablet.
 - `impressions`: prova de reprodução e sincronização idempotente.
-- `device_heartbeats`: telemetria operacional inicial.
+  `failure_reason` (MAX-007) guarda uma razão curta e segura quando
+  `status = 'failed'`.
+- `device_heartbeats`: telemetria operacional. Desde o MAX-007 também
+  carrega um resumo opcional do player (`player_state`,
+  `media_ready_count`, `manifest_version`, `current_campaign_id`,
+  `current_creative_id`, `last_error`).
 - `driver_sessions`: sessões para horas e disponibilidade futuras.
 
 Uma tabela genérica `device_telemetry` não foi criada: heartbeat cobre o piloto sem duplicar conceitos.

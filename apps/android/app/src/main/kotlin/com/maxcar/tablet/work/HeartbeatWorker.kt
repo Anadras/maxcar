@@ -20,15 +20,24 @@ class HeartbeatWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val repository = (applicationContext as MaxcarApplication).container.deviceRepository
+        val container = (applicationContext as MaxcarApplication).container
+        val repository = container.deviceRepository
         val telemetry = DeviceTelemetry.collect(applicationContext)
 
         repository.flushPendingEvents()
+        repository.flushPlaybackEvents()
 
+        val playerStatus = container.appPreferences.playerStatusSnapshot()
         val result = repository.sendHeartbeat(
             batteryLevel = telemetry.batteryLevel,
             networkType = telemetry.networkType,
             storageFreeBytes = telemetry.storageFreeBytes,
+            mediaReadyCount = container.mediaDownloadManager.readyCount(),
+            manifestVersion = container.appPreferences.manifestVersionSnapshot(),
+            playerState = playerStatus.state,
+            currentCampaignId = playerStatus.campaignId,
+            currentCreativeId = playerStatus.creativeId,
+            lastError = playerStatus.lastError,
         )
 
         return result.fold(

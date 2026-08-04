@@ -423,11 +423,17 @@ export type Database = {
           battery_level: number | null
           client_event_id: string | null
           created_at: string
+          current_campaign_id: string | null
+          current_creative_id: string | null
           device_id: string
           gps_available: boolean
           id: string
+          last_error: string | null
           location: unknown
+          manifest_version: string | null
+          media_ready_count: number | null
           network_connected: boolean
+          player_state: string | null
           recorded_at: string
           storage_free_bytes: number | null
         }
@@ -436,11 +442,17 @@ export type Database = {
           battery_level?: number | null
           client_event_id?: string | null
           created_at?: string
+          current_campaign_id?: string | null
+          current_creative_id?: string | null
           device_id: string
           gps_available: boolean
           id?: string
+          last_error?: string | null
           location?: unknown
+          manifest_version?: string | null
+          media_ready_count?: number | null
           network_connected: boolean
+          player_state?: string | null
           recorded_at: string
           storage_free_bytes?: number | null
         }
@@ -449,15 +461,42 @@ export type Database = {
           battery_level?: number | null
           client_event_id?: string | null
           created_at?: string
+          current_campaign_id?: string | null
+          current_creative_id?: string | null
           device_id?: string
           gps_available?: boolean
           id?: string
+          last_error?: string | null
           location?: unknown
+          manifest_version?: string | null
+          media_ready_count?: number | null
           network_connected?: boolean
+          player_state?: string | null
           recorded_at?: string
           storage_free_bytes?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_campaign_id_fkey"
+            columns: ["current_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_current_creative_id_fkey"
+            columns: ["current_creative_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_creatives"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "device_heartbeats_device_id_fkey"
             columns: ["device_id"]
@@ -829,6 +868,7 @@ export type Database = {
           device_id: string
           distance_from_establishment_meters: number | null
           duration_ms: number | null
+          failure_reason: string | null
           id: string
           location: unknown
           offline_generated: boolean
@@ -847,6 +887,7 @@ export type Database = {
           device_id: string
           distance_from_establishment_meters?: number | null
           duration_ms?: number | null
+          failure_reason?: string | null
           id?: string
           location?: unknown
           offline_generated?: boolean
@@ -865,6 +906,7 @@ export type Database = {
           device_id?: string
           distance_from_establishment_meters?: number | null
           duration_ms?: number | null
+          failure_reason?: string | null
           id?: string
           location?: unknown
           offline_generated?: boolean
@@ -1002,6 +1044,7 @@ export type Database = {
         Row: {
           active: boolean
           created_at: string
+          device_id: string | null
           ends_at: string | null
           id: string
           name: string
@@ -1011,6 +1054,7 @@ export type Database = {
         Insert: {
           active?: boolean
           created_at?: string
+          device_id?: string | null
           ends_at?: string | null
           id?: string
           name: string
@@ -1020,13 +1064,43 @@ export type Database = {
         Update: {
           active?: boolean
           created_at?: string
+          device_id?: string | null
           ends_at?: string | null
           id?: string
           name?: string
           starts_at?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1446,6 +1520,7 @@ export type Database = {
           vehicle_id: string
         }[]
       }
+      get_device_manifest: { Args: { p_token: string }; Returns: Json }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -1455,8 +1530,14 @@ export type Database = {
           p_app_version?: string
           p_battery_level?: number
           p_client_event_id?: string
+          p_current_campaign_id?: string
+          p_current_creative_id?: string
           p_device_time?: string
+          p_last_error?: string
+          p_manifest_version?: string
+          p_media_ready_count?: number
           p_network_type?: string
+          p_player_state?: string
           p_storage_free_bytes?: number
           p_token: string
         }
@@ -1464,6 +1545,24 @@ export type Database = {
           device_code: string
           out_device_id: string
           recorded_at: string
+        }[]
+      }
+      record_device_playback_event: {
+        Args: {
+          p_campaign_id: string
+          p_client_event_id?: string
+          p_completed_at?: string
+          p_completion_percentage?: number
+          p_creative_id: string
+          p_duration_ms?: number
+          p_failure_reason?: string
+          p_offline?: boolean
+          p_started_at: string
+          p_status: Database["public"]["Enums"]["impression_status"]
+          p_token: string
+        }
+        Returns: {
+          recorded: boolean
         }[]
       }
       revoke_device_credential: {

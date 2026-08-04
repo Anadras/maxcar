@@ -22,6 +22,13 @@ interface HeartbeatBody {
   appVersion?: string;
   deviceTime?: string;
   clientEventId?: string;
+  // Player-state summary, optional and additive (MAX-007).
+  playerState?: string;
+  mediaReadyCount?: number;
+  manifestVersion?: string;
+  currentCampaignId?: string;
+  currentCreativeId?: string;
+  lastError?: string;
 }
 
 Deno.serve(async (req) => {
@@ -61,6 +68,12 @@ Deno.serve(async (req) => {
       p_app_version: body.appVersion ?? null,
       p_device_time: body.deviceTime ?? null,
       p_client_event_id: body.clientEventId ?? null,
+      p_player_state: body.playerState ?? null,
+      p_media_ready_count: body.mediaReadyCount ?? null,
+      p_manifest_version: body.manifestVersion ?? null,
+      p_current_campaign_id: body.currentCampaignId ?? null,
+      p_current_creative_id: body.currentCreativeId ?? null,
+      p_last_error: body.lastError ?? null,
     })
     .single();
 

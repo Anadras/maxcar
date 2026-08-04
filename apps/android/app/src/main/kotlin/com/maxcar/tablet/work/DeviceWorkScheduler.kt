@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit
 object DeviceWorkScheduler {
     private const val HEARTBEAT_WORK_NAME = "maxcar-heartbeat"
     private const val INITIAL_SYNC_WORK_NAME = "maxcar-initial-sync"
+    private const val MEDIA_SYNC_WORK_NAME = "maxcar-media-sync"
+    private const val MEDIA_SYNC_NOW_WORK_NAME = "maxcar-media-sync-now"
     private val MIN_INTERVAL_SECONDS = TimeUnit.MINUTES.toSeconds(15)
 
     fun scheduleInitialSync(context: Context) {
@@ -47,10 +49,42 @@ object DeviceWorkScheduler {
         )
     }
 
+    /** Periodic grade sync, paced by the server's own `sync_interval_seconds`
+     * (item 43) rather than a value the tablet decides for itself. */
+    fun scheduleMediaSync(context: Context, intervalSeconds: Int) {
+        val effectiveSeconds = maxOf(intervalSeconds.toLong(), MIN_INTERVAL_SECONDS)
+        val request = PeriodicWorkRequestBuilder<MediaSyncWorker>(
+            effectiveSeconds,
+            TimeUnit.SECONDS,
+        )
+            .setConstraints(networkConstraints())
+            .build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            MEDIA_SYNC_WORK_NAME,
+            ExistingPeriodicWorkPolicy.UPDATE,
+            request,
+        )
+    }
+
+    /** "Sincronizar agora" (item 42): an immediate, one-time run alongside
+     * the periodic schedule, never replacing it. */
+    fun syncMediaNow(context: Context) {
+        val request = OneTimeWorkRequestBuilder<MediaSyncWorker>()
+            .setConstraints(networkConstraints())
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            MEDIA_SYNC_NOW_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            request,
+        )
+    }
+
     fun cancelAll(context: Context) {
         WorkManager.getInstance(context).apply {
             cancelUniqueWork(HEARTBEAT_WORK_NAME)
             cancelUniqueWork(INITIAL_SYNC_WORK_NAME)
+            cancelUniqueWork(MEDIA_SYNC_WORK_NAME)
+            cancelUniqueWork(MEDIA_SYNC_NOW_WORK_NAME)
         }
     }
 

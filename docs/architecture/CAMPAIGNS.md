@@ -53,3 +53,13 @@ continua definindo quais geofences o usuário pode consultar.
 
 Cooldown por dispositivo, deduplicação, frequência e decisão offline pertencem
 ao futuro motor do tablet. A simulação administrativa não antecipa esse motor.
+
+## Grade regular (MAX-007)
+
+Uma campanha `REGULAR` ativa só chega ao tablet se também estiver numa
+`playlist` — o card "Grade regular do piloto" no detalhe da campanha
+inclui/remove sem SQL. `playlists.device_id` diferencia uma grade
+específica de um dispositivo da grade padrão global do piloto
+(`device_id is null`); um trigger impede que uma campanha `GEO` seja
+adicionada a qualquer playlist. Ver
+[ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md#vínculo-entre-playlist-e-dispositivo).

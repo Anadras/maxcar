@@ -115,6 +115,13 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
 
+    // Video playback only; images are decoded and shown directly in
+    // Compose (see ui/player) rather than through Media3's own image
+    // timeline support, which keeps the player's two content types on one
+    // predictable, testable state machine instead of two playback engines.
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-ui:1.10.1")
+
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("androidx.room:room-ktx:2.8.4")
     kapt("androidx.room:room-compiler:2.8.4")

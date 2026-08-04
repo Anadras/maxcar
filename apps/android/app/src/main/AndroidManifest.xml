@@ -3,8 +3,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- No location, camera or storage permissions yet: MAX-006 does not
-         request GPS (MAX-008) or download media (MAX-007). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- No location, camera or storage permissions: MAX-007 downloads media
+         into app-private storage (no WRITE_EXTERNAL_STORAGE needed); GPS
+         stays out of scope until MAX-008. -->
 
     <application
         android:name=".MaxcarApplication"
@@ -27,6 +29,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".work.BootCompletedReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 

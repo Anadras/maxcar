@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.maxcar.tablet.BuildConfig
 
 @Composable
-fun DeviceHomeScreen(viewModel: DeviceHomeViewModel) {
+fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit = {}) {
     val state by viewModel.uiState.collectAsState()
     val deviceState = state.deviceState
 
@@ -50,6 +50,7 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel) {
         state.remoteConfig?.let { config ->
             InfoRow("Versão da configuração", config.configVersion.toString())
         }
+        InfoRow("Mídias prontas", state.readyMediaCount.toString())
 
         state.connectionCheckMessage?.let { message ->
             Text(
@@ -65,6 +66,12 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel) {
             modifier = Modifier.padding(top = 24.dp),
         ) {
             Text("Testar conexão agora")
+        }
+        Button(onClick = viewModel::syncMediaNow) {
+            Text("Sincronizar agora")
+        }
+        Button(onClick = onBackToPlayer) {
+            Text("Voltar ao player")
         }
     }
 }

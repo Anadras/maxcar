@@ -9,6 +9,7 @@ import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.local.SecureTokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.repository.DeviceRepository
+import com.maxcar.tablet.data.repository.MediaDownloadManager
 
 private val Context.dataStore by preferencesDataStore(name = "maxcar_prefs")
 
@@ -34,5 +35,14 @@ class AppContainer(context: Context) {
         deviceStateDao = database.deviceStateDao(),
         remoteConfigDao = database.remoteConfigDao(),
         pendingEventDao = database.pendingEventDao(),
+        playbackEventDao = database.playbackEventDao(),
+    )
+
+    val mediaDownloadManager = MediaDownloadManager(
+        context = appContext,
+        apiClient = apiClient,
+        tokenStore = secureTokenStore,
+        playlistItemDao = database.playlistItemDao(),
+        appPreferences = appPreferences,
     )
 }

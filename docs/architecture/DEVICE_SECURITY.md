@@ -10,8 +10,9 @@ dispositivo.
 `SUPABASE_SERVICE_ROLE_KEY` (`sb_secret_...`) não pode existir em nenhuma
 forma dentro do APK — nem em `BuildConfig`, nem em recurso, nem em asset,
 nem em código-fonte, nem em log. O Android nunca fala diretamente com o
-Postgres nem com a service role; ele fala com três Edge Functions
-(`supabase/functions/device-enroll`, `device-heartbeat`, `device-config`),
+Postgres nem com a service role; ele fala com cinco Edge Functions
+(`supabase/functions/device-enroll`, `device-heartbeat`, `device-config`,
+`device-manifest`, `device-playback-events`, as duas últimas do MAX-007),
 que são as únicas com permissão de usar a service role, do lado do servidor.
 `data/remote/DeviceApiClient.kt` só conhece `BuildConfig.DEVICE_API_BASE_URL`
 (a URL pública das functions) e o token opaco do próprio dispositivo.

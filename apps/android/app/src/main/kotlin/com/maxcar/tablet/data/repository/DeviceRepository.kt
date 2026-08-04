@@ -8,12 +8,15 @@ import com.maxcar.tablet.data.local.DeviceStateEntity
 import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.local.PendingEventDao
 import com.maxcar.tablet.data.local.PendingEventEntity
+import com.maxcar.tablet.data.local.PlaybackEventDao
+import com.maxcar.tablet.data.local.PlaybackEventEntity
 import com.maxcar.tablet.data.local.RemoteConfigDao
 import com.maxcar.tablet.data.local.RemoteConfigEntity
 import com.maxcar.tablet.data.local.TokenStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
 import com.maxcar.tablet.data.remote.EnrollRequest
 import com.maxcar.tablet.data.remote.HeartbeatRequest
+import com.maxcar.tablet.data.remote.PlaybackEventRequest
 import com.maxcar.tablet.domain.DeviceApiError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -36,6 +39,7 @@ class DeviceRepository(
     private val deviceStateDao: DeviceStateDao,
     private val remoteConfigDao: RemoteConfigDao,
     private val pendingEventDao: PendingEventDao,
+    private val playbackEventDao: PlaybackEventDao,
 ) {
     val isEnrolled: Flow<Boolean> = appPreferences.isEnrolled
     val deviceState: Flow<DeviceStateEntity?> = deviceStateDao.observe()
@@ -91,6 +95,12 @@ class DeviceRepository(
         networkType: String,
         storageFreeBytes: Long?,
         clientEventId: UUID = UUID.randomUUID(),
+        playerState: String? = null,
+        mediaReadyCount: Int? = null,
+        manifestVersion: String? = null,
+        currentCampaignId: String? = null,
+        currentCreativeId: String? = null,
+        lastError: String? = null,
     ): Result<Unit> {
         val token = secureTokenStore.readToken()
         if (token == null) {
@@ -108,6 +118,12 @@ class DeviceRepository(
                         appVersion = BuildConfig.VERSION_NAME,
                         deviceTime = Instant.now().toString(),
                         clientEventId = clientEventId.toString(),
+                        playerState = playerState,
+                        mediaReadyCount = mediaReadyCount,
+                        manifestVersion = manifestVersion,
+                        currentCampaignId = currentCampaignId,
+                        currentCreativeId = currentCreativeId,
+                        lastError = lastError,
                     ),
                 )
             }
@@ -160,6 +176,86 @@ class DeviceRepository(
                 pendingEventDao.recordAttempt(event.id, System.currentTimeMillis())
                 if (error is DeviceApiError.Unauthorized) handleRevocation()
                 return
+            }
+        }
+    }
+
+    /**
+     * Queues one finalized playback attempt locally. Never talks to the
+     * network directly — the player calls this the moment a video ends,
+     * an image's duration elapses, or playback fails, and
+     * [flushPlaybackEvents] uploads whatever's queued later. Returns the
+     * event's own id so a caller (tests, diagnostics) can look it up.
+     */
+    suspend fun recordPlaybackEvent(
+        campaignId: String,
+        creativeId: String?,
+        status: String,
+        startedAt: String,
+        completedAt: String?,
+        durationMs: Long?,
+        completionPercentage: Int?,
+        failureReason: String?,
+        offline: Boolean,
+        clientEventId: UUID = UUID.randomUUID(),
+    ): UUID {
+        playbackEventDao.insert(
+            PlaybackEventEntity(
+                clientEventId = clientEventId.toString(),
+                campaignId = campaignId,
+                creativeId = creativeId,
+                status = status,
+                startedAt = startedAt,
+                completedAt = completedAt,
+                durationMs = durationMs,
+                completionPercentage = completionPercentage,
+                failureReason = failureReason,
+                offline = offline,
+                createdAt = System.currentTimeMillis(),
+            ),
+        )
+        return clientEventId
+    }
+
+    /** Uploads queued playback events in one batch call, oldest first.
+     * Successful (or already-recorded, from a retried upload) events are
+     * removed locally; the rest stay queued for the next call. */
+    suspend fun flushPlaybackEvents(limit: Int = 20) {
+        val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
+        playbackEventDao.pruneOlderThan(retentionCutoff)
+
+        val token = secureTokenStore.readToken() ?: return
+        val pending = playbackEventDao.oldest(limit)
+        if (pending.isEmpty()) return
+
+        val requests = pending.map { event ->
+            PlaybackEventRequest(
+                clientEventId = event.clientEventId,
+                campaignId = event.campaignId,
+                creativeId = event.creativeId,
+                status = event.status,
+                startedAt = event.startedAt,
+                completedAt = event.completedAt,
+                durationMs = event.durationMs,
+                completionPercentage = event.completionPercentage,
+                failureReason = event.failureReason,
+                offline = event.offline,
+            )
+        }
+
+        val result = runCatching {
+            withContext(Dispatchers.IO) { apiClient.sendPlaybackEvents(token, requests) }
+        }
+        result.onSuccess { response ->
+            response.results.filter { it.ok }.forEach {
+                playbackEventDao.delete(it.clientEventId)
+            }
+        }.onFailure { error ->
+            logFailure("flushPlaybackEvents", error)
+            if (error is DeviceApiError.Unauthorized) {
+                handleRevocation()
+            } else {
+                pending.forEach { playbackEventDao.recordAttempt(it.clientEventId) }
             }
         }
     }

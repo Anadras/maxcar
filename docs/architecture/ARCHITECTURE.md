@@ -119,6 +119,32 @@ Veja [ANDROID_ARCHITECTURE.md](ANDROID_ARCHITECTURE.md),
 [ANDROID_OFFLINE_FIRST.md](ANDROID_OFFLINE_FIRST.md) e
 [DEVICE_SECURITY.md](DEVICE_SECURITY.md).
 
+## Implementado — MAX-007
+
+- Manifesto autenticado (`device-manifest`) retorna a grade REGULAR
+  elegível de um dispositivo — específica ou a grade padrão do piloto —
+  com URL de download assinada (30 min) por item.
+- Download de mídia no Android: streaming fora da main thread, troca
+  `.tmp` → validação de tamanho/SHA-256 → renomeação atômica, nunca
+  reproduz arquivo parcial. Item com hash inválido nunca fica `READY`.
+- Cache local com troca de grade segura: itens obsoletos só são removidos
+  depois que a nova grade termina de baixar e validar.
+- Player regular (Media3 ExoPlayer para vídeo, Compose para imagem) em
+  tela cheia, imersivo, contínuo, sobrevive a ficar sem internet e a
+  reiniciar o app/tablet usando só a grade já local.
+- Eventos de reprodução (proof-of-play) registrados localmente e
+  sincronizados depois, idempotentes por `client_event_id`, reaproveitando
+  `impressions` (MAX-002).
+- Painel: card "Grade regular do piloto" na campanha (inclui/remove da
+  grade padrão, sem SQL) e card "Player" no dispositivo (estado, mídias
+  prontas, versão do manifesto, último criativo, último erro).
+- GPS, GEO no Android e Device Owner/kiosk real continuam fora do escopo.
+
+Veja [ANDROID_PLAYER.md](ANDROID_PLAYER.md),
+[ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md),
+[ANDROID_MEDIA_CACHE.md](ANDROID_MEDIA_CACHE.md) e
+[ANDROID_PLAYBACK_EVENTS.md](ANDROID_PLAYBACK_EVENTS.md).
+
 ## Planejado — web
 
 Os módulos seguintes trocarão gradualmente `lib/mock-data.ts` por acesso
@@ -138,31 +164,51 @@ O modelo e as políticas estão detalhados em [DATABASE.md](DATABASE.md).
 
 ## Planejado — Android offline-first
 
-O MAX-006 já entrega a fundação offline-first (identidade, credencial, Room,
-DataStore, WorkManager — veja [ANDROID_OFFLINE_FIRST.md](ANDROID_OFFLINE_FIRST.md)).
-O que falta: o tablet sincronizará manifestos e arquivos de campanha para
-armazenamento local antes de reproduzir. Room passará a manter também
-campanhas, playlist, geofences, regras, configurações e reproduções. Media3
-tocará somente arquivos locais de campanha. Coroutines organizarão
-concorrência e Location Services fornecerá posição para o Location Engine.
+O MAX-006 entregou a fundação offline-first (identidade, credencial, Room,
+DataStore, WorkManager) e o MAX-007 entregou o player REGULAR completo
+sobre ela: o tablet sincroniza o manifesto, baixa e valida os arquivos de
+campanha para armazenamento local antes de reproduzir, e Room mantém a
+grade (`PlaylistItemEntity`) e a fila de eventos de reprodução
+(`PlaybackEventEntity`) — veja
+[ANDROID_OFFLINE_FIRST.md](ANDROID_OFFLINE_FIRST.md) e
+[ANDROID_MEDIA_CACHE.md](ANDROID_MEDIA_CACHE.md). O que falta: geofences e
+Location Services chegam com o Location Engine em MAX-008, sobre a mesma
+base já validada.
 
-Sem internet, o player, GPS e geofences continuam operando. Reproduções e eventos ficam pendentes. Quando a conexão retorna, o dispositivo envia eventos, heartbeat e telemetria, verifica novas campanhas e baixa arquivos faltantes de forma idempotente.
+Sem internet, o player continua operando com a grade já local. Reproduções
+e eventos ficam pendentes. Quando a conexão retorna, o dispositivo envia
+eventos, heartbeat e telemetria, verifica novas campanhas e baixa arquivos
+faltantes de forma idempotente. GPS e geofences entram nesse mesmo ciclo a
+partir do MAX-008.
 
 ## Player e geofencing
 
-O Location Engine avalia elegibilidade localmente. Uma entrada válida não altera o item que já está tocando; ela produz um candidato para a fila prioritária. O Player Engine insere esse candidato depois do item atual, aplica cooldown e deduplicação e, depois da reprodução GEO, retoma a grade regular.
+Implementado (MAX-007): reprodução contínua da grade REGULAR, offline-first,
+com troca segura de conteúdo — ver [ANDROID_PLAYER.md](ANDROID_PLAYER.md).
+
+Planejado (MAX-008): o Location Engine avaliará elegibilidade GEO
+localmente. Uma entrada válida não altera o item que já está tocando; ela
+produz um candidato para a fila prioritária. O Player Engine insere esse
+candidato depois do item atual, aplica cooldown e deduplicação e, depois da
+reprodução GEO, retoma a grade regular.
 
 ## Sincronização e integridade
 
-Manifestos deverão usar versão e checksum. Uma campanha só fica disponível depois que todos os arquivos obrigatórios forem validados. Downloads incompletos não substituem a versão ativa. Eventos recebem identificadores idempotentes para evitar duplicidade no reenvio.
+Implementado (MAX-007): o manifesto usa versão (hash de conteúdo) e
+checksum SHA-256 por criativo; um download só vira a versão ativa depois
+que tamanho e hash conferem, nunca antes — ver
+[ANDROID_MEDIA_CACHE.md](ANDROID_MEDIA_CACHE.md). Eventos de reprodução
+recebem `client_event_id` idempotente, mesmo padrão já usado por heartbeats
+(MAX-006) e impressões (MAX-002).
 
 ## Telemetria e observabilidade
 
-Heartbeats incluem versão do app, bateria, rede, armazenamento e (a partir do
-Location Engine, ainda planejado) localização. O MAX-006 autenticou o
-dispositivo e passou a enviar esses sinais a partir do Android real, com
-idempotência por `client_event_id`. Logs locais persistentes, manifesto e
-alertas automatizados por ausência de heartbeat continuam planejados.
+Heartbeats incluem versão do app, bateria, rede, armazenamento e, a partir
+do MAX-007, um resumo do estado do player (mídias prontas, versão do
+manifesto, criativo atual, último erro) — ver
+[ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md#quando-o-android-sincroniza).
+Localização chega com o Location Engine (MAX-008). Logs locais persistentes
+e alertas automatizados por ausência de heartbeat continuam planejados.
 
 ## Segurança
 
@@ -175,7 +221,9 @@ alertas automatizados por ausência de heartbeat continuam planejados.
 - Credenciais de dispositivo são específicas, hash-only no banco,
   Keystore-backed no Android e revogáveis pelo painel a qualquer momento —
   veja [DEVICE_SECURITY.md](DEVICE_SECURITY.md).
-- URLs de mídia serão controladas e manifests validados.
+- URLs de mídia são assinadas, curtas (30 min) e nunca persistidas; o
+  manifesto só entrega campanhas REGULAR ativas e elegíveis àquele
+  dispositivo — ver [ANDROID_MEDIA_SYNC.md](ANDROID_MEDIA_SYNC.md).
 - Segredos ficam fora do Git e apenas nos ambientes apropriados.
 
 ## Escalabilidade

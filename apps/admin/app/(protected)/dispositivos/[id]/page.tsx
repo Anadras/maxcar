@@ -152,6 +152,51 @@ export default async function DeviceDetailPage({
           </div>
         </dl>
       </SectionCard>
+      <SectionCard
+        title="Player"
+        subtitle="Estado reportado no heartbeat mais recente que incluiu telemetria de player."
+      >
+        <dl className="detail-grid">
+          <div>
+            <dt>Estado</dt>
+            <dd>
+              {device.player_state ? (
+                <StatusBadge value={device.player_state} />
+              ) : (
+                'Sem telemetria de player ainda'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>Mídias prontas</dt>
+            <dd>
+              {device.media_ready_count === null
+                ? 'Não informado'
+                : device.media_ready_count}
+            </dd>
+          </div>
+          <div>
+            <dt>Versão do manifesto</dt>
+            <dd>{device.manifest_version ?? 'Não sincronizado'}</dd>
+          </div>
+          <div>
+            <dt>Última sincronização da grade</dt>
+            <dd>{formatRelativeTime(device.manifest_synced_at)}</dd>
+          </div>
+          <div>
+            <dt>Último criativo reproduzido</dt>
+            <dd>{device.currentCreativeName ?? 'Não informado'}</dd>
+          </div>
+          <div>
+            <dt>Campanha atual</dt>
+            <dd>{device.currentCampaignName ?? 'Não informado'}</dd>
+          </div>
+          <div>
+            <dt>Último erro do player</dt>
+            <dd>{device.last_error ?? 'Nenhum'}</dd>
+          </div>
+        </dl>
+      </SectionCard>
       {canManage && enrollment && (
         <SectionCard
           title="Ativação do tablet"

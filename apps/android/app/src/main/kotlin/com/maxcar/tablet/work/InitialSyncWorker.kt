@@ -24,6 +24,11 @@ class InitialSyncWorker(
                     applicationContext,
                     it.heartbeatIntervalSeconds,
                 )
+                DeviceWorkScheduler.scheduleMediaSync(
+                    applicationContext,
+                    it.syncIntervalSeconds,
+                )
+                DeviceWorkScheduler.syncMediaNow(applicationContext)
                 Result.success()
             },
             onFailure = { Result.retry() },

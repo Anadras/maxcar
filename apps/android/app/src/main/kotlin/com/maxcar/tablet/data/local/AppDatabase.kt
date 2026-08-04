@@ -10,14 +10,18 @@ import androidx.room.RoomDatabase
         DeviceStateEntity::class,
         RemoteConfigEntity::class,
         PendingEventEntity::class,
+        PlaylistItemEntity::class,
+        PlaybackEventEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceStateDao(): DeviceStateDao
     abstract fun remoteConfigDao(): RemoteConfigDao
     abstract fun pendingEventDao(): PendingEventDao
+    abstract fun playlistItemDao(): PlaylistItemDao
+    abstract fun playbackEventDao(): PlaybackEventDao
 
     companion object {
         @Volatile
@@ -29,7 +33,16 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "maxcar.db",
-                ).build().also { instance = it }
+                )
+                    // No migration path exists yet for this early-pilot
+                    // schema; a version bump without one would otherwise
+                    // crash on upgrade. Re-syncing the manifest after an
+                    // update is cheap (the device already does it on every
+                    // app open), so wiping local cache on schema change is
+                    // an acceptable, documented tradeoff for now — revisit
+                    // once the schema stabilizes and real migrations matter.
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build().also { instance = it }
             }
     }
 }

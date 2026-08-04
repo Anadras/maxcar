@@ -34,7 +34,7 @@ async function getDevicesWithLatestHeartbeats() {
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -62,6 +62,15 @@ async function getDevicesWithLatestHeartbeats() {
       gps_available: heartbeat?.gps_available ?? null,
       storage_free_bytes: heartbeat?.storage_free_bytes ?? null,
       heartbeat_app_version: heartbeat?.app_version ?? null,
+      player_state: heartbeat?.player_state ?? null,
+      media_ready_count: heartbeat?.media_ready_count ?? null,
+      manifest_version: heartbeat?.manifest_version ?? null,
+      current_campaign_id: heartbeat?.current_campaign_id ?? null,
+      current_creative_id: heartbeat?.current_creative_id ?? null,
+      last_error: heartbeat?.last_error ?? null,
+      manifest_synced_at: heartbeat?.manifest_version
+        ? (heartbeat?.recorded_at ?? null)
+        : null,
       ...coordinates,
       connection_status: getDeviceConnectionStatus(
         heartbeat?.recorded_at ?? null,
@@ -104,7 +113,28 @@ export async function getDevice(id: string) {
   ]);
   if (error) throw error;
   const device = devices.find((item) => item.id === id);
-  return device ? { ...device, heartbeats } : null;
+  if (!device) return null;
+
+  let currentCampaignName: string | null = null;
+  let currentCreativeName: string | null = null;
+  if (device.current_campaign_id) {
+    const { data: campaign } = await supabase
+      .from('campaigns')
+      .select('name')
+      .eq('id', device.current_campaign_id)
+      .maybeSingle();
+    currentCampaignName = campaign?.name ?? null;
+  }
+  if (device.current_creative_id) {
+    const { data: creative } = await supabase
+      .from('campaign_creatives')
+      .select('name')
+      .eq('id', device.current_creative_id)
+      .maybeSingle();
+    currentCreativeName = creative?.name ?? null;
+  }
+
+  return { ...device, heartbeats, currentCampaignName, currentCreativeName };
 }
 
 export async function getDeviceEnrollment(deviceId: string) {

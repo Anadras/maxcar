@@ -401,6 +401,12 @@ verify_jwt = false
 [functions.device-config]
 verify_jwt = false
 
+[functions.device-manifest]
+verify_jwt = false
+
+[functions.device-playback-events]
+verify_jwt = false
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

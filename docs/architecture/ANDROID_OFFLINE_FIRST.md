@@ -1,14 +1,25 @@
-# MAXCAR — Offline-first no Android (MAX-006)
+# MAXCAR — Offline-first no Android (MAX-006/MAX-007)
 
-Cobre a fundação offline introduzida neste marco: estado local, fila de
-eventos pendentes e sincronização em segundo plano. Não cobre player, mídia
-ou GEO — isso é offline-first também, mas chega em MAX-007/008 sobre esta
-mesma base.
+Cobre a fundação offline: estado local, filas de eventos pendentes e
+sincronização em segundo plano. O MAX-006 estabeleceu identidade,
+credencial e heartbeat; o MAX-007 estende a mesma base para a grade de
+mídia e os eventos de reprodução — ver
+[ANDROID_MEDIA_CACHE.md](ANDROID_MEDIA_CACHE.md) e
+[ANDROID_PLAYBACK_EVENTS.md](ANDROID_PLAYBACK_EVENTS.md) para o detalhe de
+cada uma.
 
 ## Room
 
-`data/local/AppDatabase.kt`, versão 1, `exportSchema = false` (deliberado:
-revisitar quando migrations de schema local importarem). Três tabelas:
+`data/local/AppDatabase.kt`, versão 2, `exportSchema = false` (deliberado:
+revisitar quando migrations de schema local importarem). Sem uma
+`Migration` entre v1 e v2 — `fallbackToDestructiveMigration(dropAllTables =
+true)` apaga e recria o banco local numa atualização de versão. Aceitável
+para um schema ainda em formação no piloto: o pior caso é o tablet
+ressincronizar a grade e reperder eventos locais não sincronizados, um
+custo pequeno frente à complexidade de migrations reais neste estágio;
+revisitar quando o schema estabilizar.
+
+Cinco tabelas:
 
 - `DeviceStateEntity` — o retrato mais recente de identidade e vínculo:
   `deviceId`, `deviceCode`, `vehicleId`/`vehicleCode`, `lastHeartbeatAt`,
@@ -21,17 +32,30 @@ revisitar quando migrations de schema local importarem). Três tabelas:
 - `PendingEventEntity` — heartbeats que falharam por rede e aguardam
   reenvio, com índice único em `clientEventId` (mesmo idempotency key aceito
   pelo backend).
+- `PlaylistItemEntity` (MAX-007) — a grade local, metadado e estado de
+  download fundidos numa linha por criativo. Ver
+  [ANDROID_MEDIA_CACHE.md](ANDROID_MEDIA_CACHE.md).
+- `PlaybackEventEntity` (MAX-007) — fila de eventos de reprodução
+  finalizados aguardando sincronização. Ver
+  [ANDROID_PLAYBACK_EVENTS.md](ANDROID_PLAYBACK_EVENTS.md).
 
 Nenhuma dessas tabelas guarda o token do dispositivo — isso vive só em
 `SecureTokenStore` (Keystore). Ver [DEVICE_SECURITY.md](DEVICE_SECURITY.md).
 
 ## DataStore
 
-`AppPreferences` (Preferences DataStore) guarda deliberadamente uma única
-coisa: a flag `isEnrolled`. Qualquer estado mais rico pertence ao Room. O
-`installation_id` tem seu próprio `InstallationIdStore`, sobre o mesmo
-DataStore compartilhado (`Context.dataStore`, `di/AppContainer.kt`) — gerado
-uma vez com `UUID.randomUUID()` e nunca reescrito.
+`AppPreferences` (Preferences DataStore) guarda flags simples: `isEnrolled`,
+`manifestVersion` (a última versão de manifesto processada, usada para
+relatar no heartbeat — não para decidir o que baixar, isso é por hash de
+item individual) e o status ao vivo do player
+(`playerState`/`currentCampaignId`/`currentCreativeId`/`lastError`,
+escritos por `PlayerViewModel` a cada transição de item e lidos pelo
+`HeartbeatWorker` em segundo plano — é assim que um worker sem acesso à UI
+sabe o que o player está fazendo agora). Qualquer estado mais rico
+continua no Room. O `installation_id` tem seu próprio `InstallationIdStore`,
+sobre o mesmo DataStore compartilhado (`Context.dataStore`,
+`di/AppContainer.kt`) — gerado uma vez com `UUID.randomUUID()` e nunca
+reescrito.
 
 ## Fila de heartbeats pendentes
 

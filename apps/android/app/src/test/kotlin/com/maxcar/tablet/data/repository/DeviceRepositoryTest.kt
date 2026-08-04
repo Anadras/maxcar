@@ -70,6 +70,7 @@ class DeviceRepositoryTest {
             deviceStateDao = db.deviceStateDao(),
             remoteConfigDao = db.remoteConfigDao(),
             pendingEventDao = db.pendingEventDao(),
+            playbackEventDao = db.playbackEventDao(),
         )
     }
 
@@ -206,6 +207,96 @@ class DeviceRepositoryTest {
         assertEquals(600, db.remoteConfigDao().get()?.heartbeatIntervalSeconds)
         assertEquals(2, db.remoteConfigDao().get()?.configVersion)
         assertNotNull(db.deviceStateDao().get()?.lastSyncAt)
+    }
+
+    @Test
+    fun `recordPlaybackEvent queues locally without touching the network`() = runTest {
+        val id = repository.recordPlaybackEvent(
+            campaignId = "c1",
+            creativeId = "cr1",
+            status = "completed",
+            startedAt = "2026-01-01T00:00:00Z",
+            completedAt = "2026-01-01T00:00:10Z",
+            durationMs = 10_000,
+            completionPercentage = 100,
+            failureReason = null,
+            offline = false,
+        )
+
+        assertEquals(1, db.playbackEventDao().count())
+        assertEquals(id.toString(), db.playbackEventDao().oldest().first().clientEventId)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `flushPlaybackEvents removes only the events the server confirmed`() = runTest {
+        tokenStore.saveToken("tok-1")
+        repository.recordPlaybackEvent(
+            campaignId = "c1", creativeId = "cr1", status = "completed",
+            startedAt = "2026-01-01T00:00:00Z", completedAt = "2026-01-01T00:00:10Z",
+            durationMs = 10_000, completionPercentage = 100, failureReason = null, offline = false,
+            clientEventId = UUID.fromString("00000000-0000-0000-0000-000000000001"),
+        )
+        repository.recordPlaybackEvent(
+            campaignId = "c1", creativeId = "cr1", status = "failed",
+            startedAt = "2026-01-01T00:01:00Z", completedAt = "2026-01-01T00:01:05Z",
+            durationMs = 5_000, completionPercentage = null, failureReason = "decode_error", offline = false,
+            clientEventId = UUID.fromString("00000000-0000-0000-0000-000000000002"),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   |{"clientEventId":"00000000-0000-0000-0000-000000000001","ok":true,"recorded":true},
+                   |{"clientEventId":"00000000-0000-0000-0000-000000000002","ok":false}]}
+                """.trimMargin(),
+            ),
+        )
+
+        repository.flushPlaybackEvents()
+
+        assertEquals(1, db.playbackEventDao().count())
+        assertEquals(
+            "00000000-0000-0000-0000-000000000002",
+            db.playbackEventDao().oldest().first().clientEventId,
+        )
+    }
+
+    @Test
+    fun `flushPlaybackEvents on 401 revokes the credential instead of dropping the queue`() = runTest {
+        tokenStore.saveToken("tok-1")
+        repository.recordPlaybackEvent(
+            campaignId = "c1", creativeId = "cr1", status = "completed",
+            startedAt = "2026-01-01T00:00:00Z", completedAt = null,
+            durationMs = null, completionPercentage = null, failureReason = null, offline = false,
+        )
+        server.enqueue(
+            MockResponse()
+                .setBody("""{"error":"unauthorized","message":"Invalid or revoked device credential."}""")
+                .setResponseCode(401),
+        )
+
+        repository.flushPlaybackEvents()
+
+        assertNull(tokenStore.readToken())
+        assertFalse(repository.isEnrolled.first())
+        // The event itself is left alone; only the credential is cleared.
+        assertEquals(1, db.playbackEventDao().count())
+    }
+
+    @Test
+    fun `flushPlaybackEvents on a network failure leaves the queue intact for the next attempt`() = runTest {
+        tokenStore.saveToken("tok-1")
+        repository.recordPlaybackEvent(
+            campaignId = "c1", creativeId = "cr1", status = "completed",
+            startedAt = "2026-01-01T00:00:00Z", completedAt = null,
+            durationMs = null, completionPercentage = null, failureReason = null, offline = false,
+        )
+        server.shutdown()
+
+        repository.flushPlaybackEvents()
+
+        assertEquals(1, db.playbackEventDao().count())
+        assertNotNull(tokenStore.readToken())
     }
 
     @OptIn(DelicateCoroutinesApi::class, ExperimentalCoroutinesApi::class)

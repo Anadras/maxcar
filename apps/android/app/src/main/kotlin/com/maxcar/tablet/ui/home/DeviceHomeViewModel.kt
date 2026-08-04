@@ -1,12 +1,15 @@
 package com.maxcar.tablet.ui.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.maxcar.tablet.data.local.DeviceStateEntity
 import com.maxcar.tablet.data.local.RemoteConfigEntity
 import com.maxcar.tablet.data.repository.DeviceRepository
+import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.work.DeviceTelemetry
+import com.maxcar.tablet.work.DeviceWorkScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,10 +25,13 @@ data class DeviceHomeUiState(
     val remoteConfig: RemoteConfigEntity? = null,
     val connectionCheck: ConnectionCheckStatus = ConnectionCheckStatus.IDLE,
     val connectionCheckMessage: String? = null,
+    val readyMediaCount: Int = 0,
 )
 
 class DeviceHomeViewModel(
     private val repository: DeviceRepository,
+    private val mediaDownloadManager: MediaDownloadManager,
+    private val appContext: Context,
     private val telemetryProvider: () -> DeviceTelemetry,
 ) : ViewModel() {
 
@@ -33,11 +39,24 @@ class DeviceHomeViewModel(
     val uiState: StateFlow<DeviceHomeUiState> = _uiState.asStateFlow()
 
     init {
-        combine(repository.deviceState, repository.remoteConfig) { state, config ->
-            state to config
-        }.onEach { (state, config) ->
-            _uiState.value = _uiState.value.copy(deviceState = state, remoteConfig = config)
-        }.launchIn(viewModelScope)
+        combine(
+            repository.deviceState,
+            repository.remoteConfig,
+            mediaDownloadManager.readyPlaylist,
+        ) { state, config, ready -> Triple(state, config, ready.size) }
+            .onEach { (state, config, readyCount) ->
+                _uiState.value = _uiState.value.copy(
+                    deviceState = state,
+                    remoteConfig = config,
+                    readyMediaCount = readyCount,
+                )
+            }.launchIn(viewModelScope)
+    }
+
+    /** "Sincronizar agora" (item 42): triggers an immediate grade sync
+     * without waiting for the periodic schedule. */
+    fun syncMediaNow() {
+        DeviceWorkScheduler.syncMediaNow(appContext)
     }
 
     /** "Testar conexão agora": an on-demand heartbeat, useful while an
@@ -74,10 +93,12 @@ class DeviceHomeViewModel(
 
     class Factory(
         private val repository: DeviceRepository,
+        private val mediaDownloadManager: MediaDownloadManager,
+        private val appContext: Context,
         private val telemetryProvider: () -> DeviceTelemetry,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            DeviceHomeViewModel(repository, telemetryProvider) as T
+            DeviceHomeViewModel(repository, mediaDownloadManager, appContext, telemetryProvider) as T
     }
 }

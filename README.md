@@ -15,8 +15,14 @@ derivada do último sinal e dashboard de frota real.
 O MAX-006 entrega o primeiro código real do tablet: um app Android nativo
 (Kotlin/Compose) em `apps/android`, com identidade própria, ativação por
 código de uso único gerado no painel, credencial hash-only Keystore-backed e
-heartbeat autenticado offline-first (Room + WorkManager). Player, mídia,
-GEO e localização em segundo plano permanecem fora deste marco.
+heartbeat autenticado offline-first (Room + WorkManager).
+
+O MAX-007 entrega o primeiro player real: o tablet baixa e valida
+(SHA-256) os criativos da grade REGULAR atribuída a ele, reproduz vídeo
+(Media3 ExoPlayer) e imagem em tela cheia, continuamente e offline, e
+sincroniza eventos de reprodução de forma idempotente quando a conexão
+volta. GEO, localização em segundo plano e kiosk corporativo completo
+(Device Owner) permanecem fora deste marco.
 
 ## Stack
 
@@ -149,5 +155,10 @@ Consulte [autenticação](docs/AUTH.md), [produto](docs/product/PRODUCT.md),
 [ativação do tablet](docs/architecture/ANDROID_ENROLLMENT.md),
 [offline-first Android](docs/architecture/ANDROID_OFFLINE_FIRST.md),
 [segurança do dispositivo](docs/architecture/DEVICE_SECURITY.md),
+[player Android](docs/architecture/ANDROID_PLAYER.md),
+[manifesto e sincronização de mídia](docs/architecture/ANDROID_MEDIA_SYNC.md),
+[cache offline de mídia](docs/architecture/ANDROID_MEDIA_CACHE.md),
+[eventos de reprodução](docs/architecture/ANDROID_PLAYBACK_EVENTS.md),
+[preparar um tablet para o piloto](docs/architecture/ANDROID_PILOT_TABLET_SETUP.md),
 [deploy de staging](docs/deployment/STAGING.md) e os ADRs em
 `docs/decisions`.

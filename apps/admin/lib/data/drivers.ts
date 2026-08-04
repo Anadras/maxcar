@@ -1,7 +1,11 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 
-export async function listDrivers(search = '', status = '') {
+export async function listDrivers(
+  search = '',
+  status = '',
+  archived: 'active' | 'archived' | 'all' = 'active',
+) {
   const supabase = await createClient();
   let query = supabase
     .from('drivers')
@@ -19,6 +23,8 @@ export async function listDrivers(search = '', status = '') {
       status as 'pending' | 'active' | 'inactive' | 'suspended',
     );
   }
+  if (archived === 'active') query = query.is('archived_at', null);
+  if (archived === 'archived') query = query.not('archived_at', 'is', null);
   const { data, error } = await query;
   if (error) throw error;
   return data

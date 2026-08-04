@@ -19,13 +19,18 @@ export default async function DriversPage({
   searchParams: Promise<{
     q?: string;
     status?: string;
+    archived?: string;
     success?: string;
     error?: string;
   }>;
 }) {
   const params = await searchParams;
+  const archived =
+    params.archived === 'archived' || params.archived === 'all'
+      ? params.archived
+      : 'active';
   const [drivers, auth] = await Promise.all([
-    listDrivers(params.q, params.status),
+    listDrivers(params.q, params.status, archived),
     getAuthContext(),
   ]);
   const canWrite = !!auth && canManageFleet(auth.profile.role);
@@ -65,6 +70,15 @@ export default async function DriversPage({
             <option value="inactive">Inativos</option>
             <option value="suspended">Suspensos</option>
           </select>
+          <select
+            name="archived"
+            defaultValue={archived}
+            aria-label="Arquivamento"
+          >
+            <option value="active">Não arquivados</option>
+            <option value="archived">Arquivados</option>
+            <option value="all">Todos</option>
+          </select>
           <button className="button button-secondary" type="submit">
             Filtrar
           </button>
@@ -103,6 +117,7 @@ export default async function DriversPage({
                     <td>{driver.vehicle_code ?? 'Sem vínculo'}</td>
                     <td>
                       <StatusBadge value={LABEL[driver.status]} />
+                      {driver.archived_at && <StatusBadge value="Arquivado" />}
                     </td>
                     <td>
                       <Link href={`/motoristas/${driver.id}`}>Abrir</Link>

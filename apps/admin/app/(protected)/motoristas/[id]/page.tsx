@@ -1,6 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  archiveDriver,
+  deleteDriverPermanently,
+  restoreDriver,
+  setDriverActive,
+} from '../lifecycle-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -173,6 +180,24 @@ export default async function DriverDetailPage({
           </div>
         )}
       </SectionCard>
+      {canWrite && (
+        <SectionCard
+          title="Ciclo de vida"
+          subtitle="Desativar, arquivar e excluir são ações distintas — veja docs/admin/FLEET_LIFECYCLE.md."
+        >
+          <FleetLifecycleActions
+            entityLabel="motorista"
+            entityDisplayName={driver.full_name}
+            isArchived={Boolean(driver.archived_at)}
+            isActive={driver.status !== 'inactive'}
+            isSuperAdmin={auth?.profile.role === 'super_admin'}
+            archiveAction={archiveDriver.bind(null, id)}
+            restoreAction={restoreDriver.bind(null, id)}
+            setActiveAction={setDriverActive.bind(null, id)}
+            deleteAction={deleteDriverPermanently.bind(null, id)}
+          />
+        </SectionCard>
+      )}
     </div>
   );
 }

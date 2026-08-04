@@ -1800,6 +1800,60 @@ progress::-webkit-progress-value {
   background: transparent;
   border-color: var(--border);
 }
+.button-danger {
+  color: white;
+  background: linear-gradient(135deg, var(--red), #d3363f);
+  box-shadow: 0 8px 22px rgba(255, 95, 109, 0.2);
+}
+.button-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(255, 95, 109, 0.3);
+}
+.lifecycle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lifecycle-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.lifecycle-delete-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 95, 109, 0.35);
+  border-radius: 11px;
+  background: rgba(255, 95, 109, 0.06);
+}
+.lifecycle-delete-warning {
+  color: var(--red);
+  font-size: 12px;
+  margin: 0;
+}
+.lifecycle-delete-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.lifecycle-delete-form input,
+.lifecycle-delete-form textarea {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.lifecycle-delete-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 .mini-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

@@ -20,13 +20,18 @@ export default async function VehiclesPage({
   searchParams: Promise<{
     q?: string;
     status?: string;
+    archived?: string;
     success?: string;
     error?: string;
   }>;
 }) {
   const params = await searchParams;
+  const archived =
+    params.archived === 'archived' || params.archived === 'all'
+      ? params.archived
+      : 'active';
   const [vehicles, auth] = await Promise.all([
-    listVehicles(params.q, params.status),
+    listVehicles(params.q, params.status, archived),
     getAuthContext(),
   ]);
   const canWrite = !!auth && canManageFleet(auth.profile.role);
@@ -65,6 +70,15 @@ export default async function VehiclesPage({
             <option value="maintenance">Manutenção</option>
             <option value="unassigned">Não alocados</option>
             <option value="retired">Desativados</option>
+          </select>
+          <select
+            name="archived"
+            defaultValue={archived}
+            aria-label="Arquivamento"
+          >
+            <option value="active">Não arquivados</option>
+            <option value="archived">Arquivados</option>
+            <option value="all">Todos</option>
           </select>
           <button className="button button-secondary" type="submit">
             Filtrar
@@ -110,6 +124,7 @@ export default async function VehiclesPage({
                     <td>{vehicle.device_code ?? 'Sem dispositivo'}</td>
                     <td>
                       <StatusBadge value={LABEL[vehicle.status]} />
+                      {vehicle.archived_at && <StatusBadge value="Arquivado" />}
                     </td>
                     <td>
                       <Link href={`/veiculos/${vehicle.id}`}>Abrir</Link>

@@ -80,7 +80,12 @@ async function getDevicesWithLatestHeartbeats() {
   });
 }
 
-export async function listDevices(search = '', connection = '', link = '') {
+export async function listDevices(
+  search = '',
+  connection = '',
+  link = '',
+  archived: 'active' | 'archived' | 'all' = 'active',
+) {
   const devices = await getDevicesWithLatestHeartbeats();
   const term = search.trim().toLowerCase();
   return devices.filter(
@@ -94,7 +99,9 @@ export async function listDevices(search = '', connection = '', link = '') {
         ].some((value) => value?.toLowerCase().includes(term))) &&
       (!connection || device.connection_status === connection) &&
       (link !== 'linked' || device.vehicle_id !== null) &&
-      (link !== 'unlinked' || device.vehicle_id === null),
+      (link !== 'unlinked' || device.vehicle_id === null) &&
+      (archived !== 'active' || device.archived_at === null) &&
+      (archived !== 'archived' || device.archived_at !== null),
   );
 }
 

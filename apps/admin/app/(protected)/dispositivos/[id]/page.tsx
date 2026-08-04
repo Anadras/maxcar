@@ -6,8 +6,16 @@ import {
   revokeDeviceCredential,
   revokePendingEnrollmentCode,
 } from '../enrollment-actions';
+import {
+  archiveDevice,
+  deleteDevicePermanently,
+  restoreDevice,
+  setDeviceActive,
+  unlinkDeviceVehicle,
+} from '../lifecycle-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
+import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -313,6 +321,27 @@ export default async function DeviceDetailPage({
           </div>
         )}
       </SectionCard>
+      {canManage && (
+        <SectionCard
+          title="Ciclo de vida"
+          subtitle="Desativar, arquivar e excluir são ações distintas — veja docs/admin/FLEET_LIFECYCLE.md."
+        >
+          <FleetLifecycleActions
+            entityLabel="dispositivo"
+            entityDisplayName={device.device_code}
+            isArchived={Boolean(device.archived_at)}
+            isActive={device.status !== 'maintenance'}
+            isSuperAdmin={auth?.profile.role === 'super_admin'}
+            canUnlink={Boolean(device.vehicle_id)}
+            unlinkLabel="o veículo"
+            archiveAction={archiveDevice.bind(null, id)}
+            restoreAction={restoreDevice.bind(null, id)}
+            setActiveAction={setDeviceActive.bind(null, id)}
+            unlinkAction={unlinkDeviceVehicle.bind(null, id)}
+            deleteAction={deleteDevicePermanently.bind(null, id)}
+          />
+        </SectionCard>
+      )}
     </div>
   );
 }

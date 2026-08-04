@@ -17,13 +17,18 @@ export default async function DevicesPage({
     q?: string;
     connection?: string;
     link?: string;
+    archived?: string;
     success?: string;
     error?: string;
   }>;
 }) {
   const params = await searchParams;
+  const archived =
+    params.archived === 'archived' || params.archived === 'all'
+      ? params.archived
+      : 'active';
   const [devices, allDevices, activeVehicles, auth] = await Promise.all([
-    listDevices(params.q, params.connection, params.link),
+    listDevices(params.q, params.connection, params.link, archived),
     listDevices(),
     listVehicles('', 'active'),
     getAuthContext(),
@@ -137,6 +142,15 @@ export default async function DevicesPage({
             <option value="linked">Vinculados</option>
             <option value="unlinked">Sem veículo</option>
           </select>
+          <select
+            name="archived"
+            defaultValue={archived}
+            aria-label="Arquivamento"
+          >
+            <option value="active">Não arquivados</option>
+            <option value="archived">Arquivados</option>
+            <option value="all">Todos</option>
+          </select>
           <button className="button button-secondary" type="submit">
             Filtrar
           </button>
@@ -181,6 +195,7 @@ export default async function DevicesPage({
                       <StatusBadge
                         value={CONNECTION_LABEL[device.connection_status]}
                       />
+                      {device.archived_at && <StatusBadge value="Arquivado" />}
                     </td>
                     <td>
                       {device.battery_level === null

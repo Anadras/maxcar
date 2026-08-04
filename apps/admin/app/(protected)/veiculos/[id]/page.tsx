@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import {
+  archiveVehicle,
+  deleteVehiclePermanently,
+  restoreVehicle,
+  setVehicleActive,
+  unlinkVehicleDriver,
+} from '../lifecycle-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
@@ -152,6 +160,27 @@ export default async function VehicleDetailPage({
           )}
         </div>
       </SectionCard>
+      {canWrite && (
+        <SectionCard
+          title="Ciclo de vida"
+          subtitle="Desativar, arquivar e excluir são ações distintas — veja docs/admin/FLEET_LIFECYCLE.md."
+        >
+          <FleetLifecycleActions
+            entityLabel="veículo"
+            entityDisplayName={vehicle.internal_code}
+            isArchived={Boolean(vehicle.archived_at)}
+            isActive={vehicle.status !== 'maintenance'}
+            isSuperAdmin={auth?.profile.role === 'super_admin'}
+            canUnlink={Boolean(vehicle.driver_id)}
+            unlinkLabel="o motorista"
+            archiveAction={archiveVehicle.bind(null, id)}
+            restoreAction={restoreVehicle.bind(null, id)}
+            setActiveAction={setVehicleActive.bind(null, id)}
+            unlinkAction={unlinkVehicleDriver.bind(null, id)}
+            deleteAction={deleteVehiclePermanently.bind(null, id)}
+          />
+        </SectionCard>
+      )}
     </div>
   );
 }

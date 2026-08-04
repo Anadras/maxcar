@@ -78,6 +78,48 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_events: {
+        Row: {
+          action: string
+          actor_role: Database["public"]["Enums"]["app_role"]
+          actor_user_id: string | null
+          before_snapshot: Json | null
+          created_at: string
+          entity_id: string
+          entity_label: string
+          entity_type: string
+          id: string
+          metadata: Json
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          actor_role: Database["public"]["Enums"]["app_role"]
+          actor_user_id?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          entity_id: string
+          entity_label: string
+          entity_type: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          actor_role?: Database["public"]["Enums"]["app_role"]
+          actor_user_id?: string | null
+          before_snapshot?: Json | null
+          created_at?: string
+          entity_id?: string
+          entity_label?: string
+          entity_type?: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+        }
+        Relationships: []
+      }
       campaign_creatives: {
         Row: {
           active: boolean
@@ -530,6 +572,7 @@ export type Database = {
       devices: {
         Row: {
           app_version: string | null
+          archived_at: string | null
           created_at: string
           device_code: string
           id: string
@@ -541,6 +584,7 @@ export type Database = {
         }
         Insert: {
           app_version?: string | null
+          archived_at?: string | null
           created_at?: string
           device_code: string
           id?: string
@@ -552,6 +596,7 @@ export type Database = {
         }
         Update: {
           app_version?: string | null
+          archived_at?: string | null
           created_at?: string
           device_code?: string
           id?: string
@@ -691,6 +736,7 @@ export type Database = {
       }
       drivers: {
         Row: {
+          archived_at: string | null
           created_at: string
           document_number: string | null
           email: string | null
@@ -701,6 +747,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           document_number?: string | null
           email?: string | null
@@ -711,6 +758,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           document_number?: string | null
           email?: string | null
@@ -1166,6 +1214,7 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          archived_at: string | null
           created_at: string
           driver_id: string | null
           id: string
@@ -1178,6 +1227,7 @@ export type Database = {
           year: number | null
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           driver_id?: string | null
           id?: string
@@ -1190,6 +1240,7 @@ export type Database = {
           year?: number | null
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           driver_id?: string | null
           id?: string
@@ -1482,6 +1533,30 @@ export type Database = {
       }
     }
     Functions: {
+      archive_device: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      archive_driver: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      archive_vehicle: {
+        Args: { p_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      delete_device_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      delete_driver_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      delete_vehicle_permanently: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       enroll_device: {
         Args: {
           p_android_version?: string
@@ -1565,6 +1640,9 @@ export type Database = {
           recorded: boolean
         }[]
       }
+      restore_device: { Args: { p_id: string }; Returns: undefined }
+      restore_driver: { Args: { p_id: string }; Returns: undefined }
+      restore_vehicle: { Args: { p_id: string }; Returns: undefined }
       revoke_device_credential: {
         Args: { p_device_id: string }
         Returns: undefined
@@ -1612,6 +1690,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_device_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
+      set_driver_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
+      set_vehicle_active: {
+        Args: { p_active: boolean; p_id: string }
+        Returns: undefined
+      }
       simulate_device_heartbeat: {
         Args: {
           p_app_version?: string
@@ -1644,6 +1734,8 @@ export type Database = {
           within_radius: boolean
         }[]
       }
+      unlink_device_vehicle: { Args: { p_id: string }; Returns: undefined }
+      unlink_vehicle_driver: { Args: { p_id: string }; Returns: undefined }
       update_own_profile_name: {
         Args: { p_full_name: string }
         Returns: undefined

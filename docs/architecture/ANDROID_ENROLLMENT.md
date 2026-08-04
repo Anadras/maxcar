@@ -103,3 +103,35 @@ falha de rede nunca passa por esse caminho; só uma rejeição explícita do
 servidor revoga localmente. Reativar gera um novo código no painel e repete o
 fluxo acima; `DeviceStateEntity` é reescrito com os dados da nova credencial,
 como na primeira ativação.
+
+## Credencial local ilegível ≠ revogação (MAX-011 Bloco A)
+
+Um bug real, identificado num piloto em campo, fazia o tablet pedir um novo
+código de ativação com frequência mesmo com a credencial ainda válida no
+servidor: `sendHeartbeat`/`refreshConfig`/`MediaDownloadManager.sync`/
+`GeoRulesSyncManager.sync` liam o token local e, quando `null` — por
+qualquer motivo, não só revogação real: uma escrita ainda não confirmada em
+disco, uma falha momentânea do Keystore — lançavam o **mesmo**
+`DeviceApiError.Unauthorized` que uma resposta HTTP 401 real produz. O
+manipulador de falha, que só deveria reagir a uma rejeição confirmada do
+servidor, não conseguia distinguir os dois casos e limpava `isEnrolled`
+sem nunca ter feito uma chamada de rede.
+
+Corrigido com um tipo de erro dedicado,
+`DeviceApiError.CredentialUnavailable` — nunca lançado a partir de uma
+resposta do servidor, só quando a leitura local falha antes de qualquer
+chamada de rede acontecer. Só `DeviceApiError.Unauthorized` (uma resposta
+HTTP 401 real) aciona `handleRevocation()`; `CredentialUnavailable` é
+tratado como "tentar de novo no próximo ciclo" (`SyncOutcome.RETRY` no
+`SyncCoordinator`), nunca como desativação. Quando isso acontece com o
+dispositivo marcado como ativado, `AppPreferences.credentialMissingLocally`
+fica `true` e o diagnóstico mostra um aviso com um botão explícito
+"Reativar este tablet" (`DeviceRepository.reenrollAfterCredentialLoss`) —
+uma recuperação decidida pelo operador, nunca automática.
+
+`SecureTokenStore.saveToken`/`clear` também passaram a usar
+`commit()` (síncrono) em vez de `apply()` (assíncrono): salvar o token e
+marcar `isEnrolled = true` precisam ser efetivamente duráveis antes que
+qualquer ciclo de sync seguinte possa rodar, ou uma queda do processo bem
+no meio da ativação deixaria exatamente esse mesmo estado inconsistente
+(marcado como ativado, sem token gravado em disco).

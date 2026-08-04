@@ -44,6 +44,8 @@ import com.maxcar.tablet.work.DeviceWorkScheduler
 
 class MainActivity : ComponentActivity() {
 
+    private var playerModeActive = false
+
     private val repository: DeviceRepository
         get() = (application as MaxcarApplication).container.deviceRepository
 
@@ -88,7 +90,14 @@ class MainActivity : ComponentActivity() {
      * REGULAR playback keeps working normally. */
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { /* GeoEngine re-checks the permission itself the next time it starts. */ }
+    ) {
+        // The player/service may already have attempted to start while the
+        // permission dialog was open. Re-evaluate now so the first trip does
+        // not require killing or reopening the application before GEO works.
+        if (playerModeActive) {
+            (application as MaxcarApplication).container.geoEngine.refreshLocationPermission()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -143,6 +152,7 @@ class MainActivity : ComponentActivity() {
      * lifetime, not the Lock Task one: GPS should keep running while
      * "preparing content" too, since the vehicle may already be moving. */
     private fun applyKioskMode(playerActive: Boolean, lockTaskEligible: Boolean) {
+        playerModeActive = playerActive
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         if (playerActive) {
             controller.hide(WindowInsetsCompat.Type.systemBars())

@@ -265,4 +265,18 @@ class MediaDownloadManagerTest {
         assertTrue(result.isFailure)
         assertNull(tokenStore.readToken())
     }
+
+    @Test
+    fun `sync never clears the credential when it simply can't be read locally (MAX-011 regression)`() = runTest {
+        tokenStore.clear() // no server round trip should even be attempted
+        server.enqueue(okhttp3.mockwebserver.MockResponse().setResponseCode(500))
+
+        val result = manager.sync()
+
+        assertTrue(result.exceptionOrNull() is com.maxcar.tablet.domain.DeviceApiError.CredentialUnavailable)
+        assertEquals(0, server.requestCount)
+        // Nothing to clear (the token was already null), but the important
+        // part is this never called setEnrolled(false) either — see the
+        // equivalent DeviceRepository-level test for the direct assertion.
+    }
 }

@@ -45,6 +45,11 @@ class DeviceRepository(
     val deviceState: Flow<DeviceStateEntity?> = deviceStateDao.observe()
     val remoteConfig: Flow<RemoteConfigEntity?> = remoteConfigDao.observe()
 
+    /** True when enrolled but the local credential is unreadable — see
+     * [markCredentialMissingIfEnrolled]. Drives a visible recovery banner,
+     * never an automatic re-enrollment. */
+    val credentialMissingLocally: Flow<Boolean> = appPreferences.credentialMissingLocally
+
     suspend fun installationId(): UUID = installationIdStore.getOrCreate()
 
     /** Exchanges a human-typed enrollment code for a device credential. */
@@ -117,9 +122,10 @@ class DeviceRepository(
         val clockSkewSeconds = appPreferences.clockSkewSnapshot()
         val token = secureTokenStore.readToken()
         if (token == null) {
-            appPreferences.setEnrolled(false)
-            return Result.failure(DeviceApiError.Unauthorized("Not enrolled."))
+            markCredentialMissingIfEnrolled("sendHeartbeat")
+            return Result.failure(DeviceApiError.CredentialUnavailable("No local credential."))
         }
+        appPreferences.setCredentialMissingLocally(false)
         val result = runCatching {
             val response = withContext(Dispatchers.IO) {
                 apiClient.heartbeat(
@@ -185,13 +191,22 @@ class DeviceRepository(
         return result
     }
 
-    /** Attempts to flush queued heartbeats, oldest first. Stops at the
-     * first failure so events are never sent out of order. */
+    /** Attempts to flush queued heartbeats, oldest first. A network outage
+     * or a confirmed revocation stops the whole pass (every remaining item
+     * would fail identically); any other single event's own failure is
+     * recorded and skipped so it can never permanently block everything
+     * queued behind it — MAX-011's "evento inválido não bloqueia o lote"
+     * requirement, which the previous unconditional `return` on any
+     * failure violated. */
     suspend fun flushPendingEvents(limit: Int = 20) {
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         pendingEventDao.pruneOlderThan(retentionCutoff)
 
-        val token = secureTokenStore.readToken() ?: return
+        val token = secureTokenStore.readToken()
+        if (token == null) {
+            markCredentialMissingIfEnrolled("flushPendingEvents")
+            return
+        }
         for (event in pendingEventDao.oldest(limit)) {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
@@ -213,8 +228,23 @@ class DeviceRepository(
             }.onFailure { error ->
                 logFailure("flushPendingEvents", error)
                 pendingEventDao.recordAttempt(event.id, System.currentTimeMillis())
-                if (error is DeviceApiError.Unauthorized) handleRevocation()
-                return
+                when (error) {
+                    // A confirmed revocation: every remaining item would
+                    // fail the exact same way, and the device is about to
+                    // bounce to the enrollment screen regardless.
+                    is DeviceApiError.Unauthorized -> {
+                        handleRevocation()
+                        return
+                    }
+                    // The server is unreachable at all: retrying the next
+                    // item immediately would just fail identically: stop
+                    // this pass, try again next cycle.
+                    is DeviceApiError.NetworkUnavailable -> return
+                    // Any other failure is specific to this one event
+                    // (e.g. a malformed payload) — record it and move on,
+                    // never let it block everything queued behind it.
+                    else -> Unit
+                }
             }
         }
     }
@@ -263,7 +293,11 @@ class DeviceRepository(
         val retentionCutoff = System.currentTimeMillis() - RETENTION_MILLIS
         playbackEventDao.pruneOlderThan(retentionCutoff)
 
-        val token = secureTokenStore.readToken() ?: return
+        val token = secureTokenStore.readToken()
+        if (token == null) {
+            markCredentialMissingIfEnrolled("flushPlaybackEvents")
+            return
+        }
         val pending = playbackEventDao.oldest(limit)
         if (pending.isEmpty()) return
 
@@ -301,7 +335,11 @@ class DeviceRepository(
 
     suspend fun refreshConfig(): Result<RemoteConfigEntity> {
         val token = secureTokenStore.readToken()
-            ?: return Result.failure(DeviceApiError.Unauthorized("Not enrolled."))
+        if (token == null) {
+            markCredentialMissingIfEnrolled("refreshConfig")
+            return Result.failure(DeviceApiError.CredentialUnavailable("No local credential."))
+        }
+        appPreferences.setCredentialMissingLocally(false)
         return runCatching {
             val response = withContext(Dispatchers.IO) { apiClient.getConfig(token) }
             deviceStateDao.get()?.let {
@@ -341,6 +379,29 @@ class DeviceRepository(
     private suspend fun handleRevocation() {
         secureTokenStore.clear()
         appPreferences.setEnrolled(false)
+        appPreferences.setCredentialMissingLocally(false)
+    }
+
+    /** A local token read came back empty. If the device isn't marked
+     * enrolled, this is expected and harmless — nothing to flag. If it
+     * *is* marked enrolled, this is a broken local state (EncryptedShared-
+     * Preferences/Keystore fault, not a server decision) that needs to be
+     * visible to an operator, never silently treated as a revocation. */
+    private suspend fun markCredentialMissingIfEnrolled(step: String) {
+        if (appPreferences.isEnrolledSnapshot()) {
+            android.util.Log.w(LOG_TAG, "$step: enrolled but local credential is unreadable")
+            appPreferences.setCredentialMissingLocally(true)
+        }
+    }
+
+    /** The explicit, operator-initiated recovery for the state above —
+     * never called automatically by a sync path. Exposed to the
+     * diagnostics screen as "Reativar este tablet" once
+     * [AppPreferences.credentialMissingLocally] has been showing true for
+     * a while and the operator has confirmed the tablet really does need a
+     * new activation code. */
+    suspend fun reenrollAfterCredentialLoss() {
+        handleRevocation()
     }
 
     private suspend fun queuePendingHeartbeat(

@@ -31,6 +31,24 @@ data class GeoStatus(
     val lastGeoCampaignId: String? = null,
     val lastError: String? = null,
     val simulated: Boolean = false,
+    /** How many GEO rules are synced and fully downloaded — zero here
+     * (while a real fix should exist) points straight at a sync problem,
+     * not a location/distance problem. */
+    val readyRuleCount: Int = 0,
+    /** The single closest rule to the last known location, whatever its
+     * state — this is what answers "why isn't the GEO ad showing" without
+     * requiring the operator to understand geofences, cooldowns or the
+     * priority queue (MAX-011 Bloco D's on-device GEO diagnostic). */
+    val nearestRule: GeoRuleDiagnostic? = null,
+)
+
+data class GeoRuleDiagnostic(
+    val geofenceId: String,
+    val campaignId: String,
+    val distanceMeters: Double,
+    val radiusMeters: Int,
+    val isInside: Boolean,
+    val cooldownRemainingSeconds: Long,
 )
 
 /**
@@ -60,11 +78,14 @@ class GeoEngine(
 
     private var rules: List<GeoRuleEntity> = emptyList()
     private var started = false
+    private var rulesCollectorStarted = false
 
     fun start() {
         if (started) return
-        started = true
-        scope.launch { geoRulesSyncManager.readyRules.collect { rules = it } }
+        if (!rulesCollectorStarted) {
+            rulesCollectorStarted = true
+            scope.launch { geoRulesSyncManager.readyRules.collect { rules = it } }
+        }
 
         if (!locationEngine.hasPermission()) {
             _status.value = _status.value.copy(
@@ -72,6 +93,7 @@ class GeoEngine(
             )
             return
         }
+        started = true
         locationEngine.start(
             onLocation = { sample -> onLocation(sample, simulated = false) },
             onError = { error ->
@@ -85,6 +107,19 @@ class GeoEngine(
         started = false
         locationEngine.stop()
         _status.value = _status.value.copy(active = false)
+    }
+
+    /**
+     * Android may start the player/service before the runtime permission
+     * dialog has finished. Re-evaluate immediately after that dialog instead
+     * of waiting for an app/service restart. This is essential on a fresh
+     * installation: previously GEO could remain inactive for the whole trip
+     * even after the operator tapped "Permitir".
+     */
+    fun refreshLocationPermission() {
+        locationEngine.stop()
+        started = false
+        start()
     }
 
     /** Dev-only entry point for the simulated-GEO-test tool (MAX-008 item
@@ -109,15 +144,31 @@ class GeoEngine(
 
     private fun onLocation(sample: LocationSample, simulated: Boolean) {
         val now = System.currentTimeMillis()
+        val currentRules = rules
+        val nearest = currentRules.minByOrNull { stateMachine.distanceTo(it, sample) }
         _status.value = _status.value.copy(
             lastLatitude = sample.latitude,
             lastLongitude = sample.longitude,
             lastAccuracyMeters = sample.accuracyMeters,
             lastUpdateAtMillis = now,
             simulated = simulated,
+            readyRuleCount = currentRules.size,
+            nearestRule = nearest?.let { rule ->
+                val distance = stateMachine.distanceTo(rule, sample)
+                val remainingCooldownMs = rule.lastTriggeredAtMillis?.let {
+                    (it + rule.cooldownSeconds * 1000L) - now
+                } ?: 0L
+                GeoRuleDiagnostic(
+                    geofenceId = rule.geofenceId,
+                    campaignId = rule.campaignId,
+                    distanceMeters = distance,
+                    radiusMeters = rule.radiusMeters,
+                    isInside = distance <= rule.radiusMeters,
+                    cooldownRemainingSeconds = (remainingCooldownMs / 1000).coerceAtLeast(0),
+                )
+            },
         )
 
-        val currentRules = rules
         val transitions = stateMachine.evaluate(currentRules, sample, now)
         for (transition in transitions) {
             val rule = currentRules.find { it.geofenceId == transition.geofenceId } ?: continue

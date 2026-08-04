@@ -28,6 +28,23 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { prefs -> prefs[KEY_IS_ENROLLED] = enrolled }
     }
 
+    suspend fun isEnrolledSnapshot(): Boolean = isEnrolled.first()
+
+    /** True when the device is marked enrolled but the local credential
+     * (Keystore-backed, [com.maxcar.tablet.data.local.SecureTokenStore])
+     * could not be read on the last sync attempt — a local storage fault,
+     * never proof the server revoked anything. Drives a visible "reativar
+     * este tablet" banner (an operator-initiated recovery, never an
+     * automatic one) instead of silently bouncing back to the enrollment
+     * screen. Cleared automatically the next time a sync call successfully
+     * reads a token again. */
+    val credentialMissingLocally: Flow<Boolean> =
+        dataStore.data.map { prefs -> prefs[KEY_CREDENTIAL_MISSING_LOCALLY] ?: false }
+
+    suspend fun setCredentialMissingLocally(missing: Boolean) {
+        dataStore.edit { prefs -> prefs[KEY_CREDENTIAL_MISSING_LOCALLY] = missing }
+    }
+
     val manifestVersion: Flow<String?> =
         dataStore.data.map { prefs -> prefs[KEY_MANIFEST_VERSION] }
 
@@ -141,6 +158,7 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
 
     private companion object {
         val KEY_IS_ENROLLED = booleanPreferencesKey("is_enrolled")
+        val KEY_CREDENTIAL_MISSING_LOCALLY = booleanPreferencesKey("credential_missing_locally")
         val KEY_MANIFEST_VERSION = stringPreferencesKey("manifest_version")
         val KEY_PLAYER_STATE = stringPreferencesKey("player_state")
         val KEY_CURRENT_CAMPAIGN_ID = stringPreferencesKey("current_campaign_id")

@@ -29,6 +29,7 @@ data class DeviceHomeUiState(
     val connectionCheckMessage: String? = null,
     val readyMediaCount: Int = 0,
     val geoStatus: GeoStatus = GeoStatus(),
+    val credentialMissingLocally: Boolean = false,
 )
 
 class DeviceHomeViewModel(
@@ -48,15 +49,26 @@ class DeviceHomeViewModel(
             repository.remoteConfig,
             mediaDownloadManager.readyPlaylist,
             geoEngine.status,
-        ) { state, config, ready, geoStatus -> Data4(state, config, ready.size, geoStatus) }
+            repository.credentialMissingLocally,
+        ) { state, config, ready, geoStatus, credentialMissing ->
+            Data5(state, config, ready.size, geoStatus, credentialMissing)
+        }
             .onEach { data ->
                 _uiState.value = _uiState.value.copy(
                     deviceState = data.state,
                     remoteConfig = data.config,
                     readyMediaCount = data.readyCount,
                     geoStatus = data.geoStatus,
+                    credentialMissingLocally = data.credentialMissing,
                 )
             }.launchIn(viewModelScope)
+    }
+
+    /** Explicit, operator-confirmed recovery from a broken local
+     * credential (MAX-011 Bloco A) — never triggered automatically. Sends
+     * the tablet back to the enrollment screen for a fresh code. */
+    fun reactivateAfterCredentialLoss() {
+        viewModelScope.launch { repository.reenrollAfterCredentialLoss() }
     }
 
     /** Dev-only simulated GEO test (MAX-008 item 20): feeds a fake fix
@@ -67,11 +79,12 @@ class DeviceHomeViewModel(
         geoEngine.simulateLocation(latitude, longitude)
     }
 
-    private data class Data4(
+    private data class Data5(
         val state: DeviceStateEntity?,
         val config: RemoteConfigEntity?,
         val readyCount: Int,
         val geoStatus: GeoStatus,
+        val credentialMissing: Boolean,
     )
 
     /** "Sincronizar agora" (item 42): triggers an immediate grade sync

@@ -34,6 +34,27 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit 
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
+        if (state.credentialMissingLocally) {
+            Text(
+                "Não foi possível ler a credencial deste tablet no armazenamento " +
+                    "seguro do aparelho. Isso não significa que a ativação foi " +
+                    "revogada — pode ser um problema temporário. Se persistir, " +
+                    "reative o tablet abaixo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            Button(
+                onClick = viewModel::reactivateAfterCredentialLoss,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text("Reativar este tablet")
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+        }
+
         InfoRow("Estado", "Ativado")
         InfoRow(
             "Servidor",
@@ -90,6 +111,52 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit 
             geo.lastGeoCampaignId ?: "Nenhuma",
         )
         InfoRow("Último erro de localização", geo.lastError ?: "Nenhum")
+
+        Text(
+            "Diagnóstico da campanha GEO",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+        InfoRow("Regras GEO sincronizadas", geo.readyRuleCount.toString())
+        val nearest = geo.nearestRule
+        when {
+            geo.readyRuleCount == 0 -> Text(
+                "Nenhuma campanha GEO chegou a este tablet ainda. " +
+                    "Toque em \"Sincronizar agora\" ou confirme que o " +
+                    "tablet tem internet.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            nearest == null -> Text(
+                "Aguardando a primeira localização do GPS.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            else -> {
+                InfoRow(
+                    "Distância até o local mais próximo",
+                    "%.0f m (raio configurado: %d m)".format(
+                        nearest.distanceMeters, nearest.radiusMeters,
+                    ),
+                )
+                InfoRow(
+                    "Situação",
+                    if (nearest.isInside) "Dentro do raio" else "Fora do raio",
+                )
+                Text(
+                    when {
+                        !nearest.isInside ->
+                            "O tablet está a %.0f m do estabelecimento. O raio configurado é %d m — a campanha entra assim que o tablet chegar mais perto."
+                                .format(nearest.distanceMeters, nearest.radiusMeters)
+                        nearest.cooldownRemainingSeconds > 0 ->
+                            "O tablet está dentro do raio, mas essa campanha já foi exibida recentemente e está em intervalo de espera (faltam %d s)."
+                                .format(nearest.cooldownRemainingSeconds)
+                        else ->
+                            "O tablet está dentro do raio e a campanha está pronta para entrar assim que o anúncio atual terminar."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
 
         if (BuildConfig.DEBUG) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))

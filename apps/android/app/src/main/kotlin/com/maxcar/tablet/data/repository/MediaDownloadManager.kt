@@ -80,7 +80,7 @@ class MediaDownloadManager(
      */
     suspend fun sync(): Result<Unit> = runCatching {
         val token = tokenStore.readToken()
-            ?: throw DeviceApiError.Unauthorized("Not enrolled.")
+            ?: throw DeviceApiError.CredentialUnavailable("No local credential.")
         val manifest = withContext(Dispatchers.IO) { apiClient.getManifest(token) }
         val incoming = manifest.playlist.associateBy { it.creativeId }
         val existing = playlistItemDao.getAll().associateBy { it.creativeId }
@@ -141,9 +141,11 @@ class MediaDownloadManager(
         appPreferences.setManifestVersion(manifest.manifestVersion)
     }.onFailure { error ->
         // Duplicated from DeviceRepository.handleRevocation rather than
-        // shared across the two classes: a network failure must never
-        // clear the credential, only an explicit 401 — the same rule, but
-        // media sync has no other reason to depend on DeviceRepository.
+        // shared across the two classes: only a server-confirmed 401
+        // (DeviceApiError.Unauthorized) may ever clear the credential — a
+        // missing local token (CredentialUnavailable) never does, since it
+        // was never actually rejected by the server. Media sync has no
+        // other reason to depend on DeviceRepository.
         if (error is DeviceApiError.Unauthorized) {
             tokenStore.clear()
             appPreferences.setEnrolled(false)

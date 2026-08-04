@@ -40,17 +40,38 @@ class SecureTokenStore(context: Context) : TokenStore {
         )
     }
 
-    override fun readToken(): String? = prefs.getString(KEY_TOKEN, null)
+    // A decrypt failure (a Keystore key invalidated by the OS, a corrupted
+    // prefs file) throws rather than returning null — never let that crash
+    // a caller or, worse, be silently indistinguishable from "no token was
+    // ever saved". Logged and surfaced as null either way: the caller
+    // layer (DeviceRepository) is responsible for treating "no local
+    // token" as fundamentally different from a server-confirmed 401 — see
+    // DeviceApiError.CredentialUnavailable.
+    override fun readToken(): String? = runCatching { prefs.getString(KEY_TOKEN, null) }
+        .onFailure { android.util.Log.w(LOG_TAG, "readToken failed: ${it::class.simpleName}") }
+        .getOrNull()
 
+    // commit() (synchronous, blocking) rather than apply() (fire-and-forget
+    // background write) is deliberate: enroll() persists this token and
+    // then durably marks isEnrolled = true in the same call. With apply(),
+    // a process death in the narrow window between the in-memory write and
+    // the eventual disk flush would leave isEnrolled = true with no token
+    // ever actually written to disk — every subsequent sync attempt would
+    // then find isEnrolled true but no credential, which is exactly the
+    // "keeps asking for a new activation code" failure this store exists
+    // to prevent.
     override fun saveToken(token: String) {
-        prefs.edit().putString(KEY_TOKEN, token).apply()
+        runCatching { prefs.edit().putString(KEY_TOKEN, token).commit() }
+            .onFailure { android.util.Log.w(LOG_TAG, "saveToken failed: ${it::class.simpleName}") }
     }
 
     override fun clear() {
-        prefs.edit().remove(KEY_TOKEN).apply()
+        runCatching { prefs.edit().remove(KEY_TOKEN).commit() }
+            .onFailure { android.util.Log.w(LOG_TAG, "clear failed: ${it::class.simpleName}") }
     }
 
     private companion object {
         const val KEY_TOKEN = "device_token"
+        const val LOG_TAG = "MaxcarTokenStore"
     }
 }

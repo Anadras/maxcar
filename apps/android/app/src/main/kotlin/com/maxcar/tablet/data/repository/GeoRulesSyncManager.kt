@@ -45,7 +45,7 @@ class GeoRulesSyncManager(
 
     suspend fun sync(): Result<Unit> = runCatching {
         val token = tokenStore.readToken()
-            ?: throw DeviceApiError.Unauthorized("Not enrolled.")
+            ?: throw DeviceApiError.CredentialUnavailable("No local credential.")
         val response = withContext(Dispatchers.IO) { apiClient.getGeoRules(token) }
         val incoming = response.rules.associateBy { it.geofenceId }
         val existing = geoRuleDao.getAll().associateBy { it.geofenceId }
@@ -94,6 +94,8 @@ class GeoRulesSyncManager(
             geoRuleDao.deleteNotIn(incoming.keys.toList())
         }
     }.onFailure { error ->
+        // Only a server-confirmed 401 clears the credential — a merely
+        // unreadable local token (CredentialUnavailable) never does.
         if (error is DeviceApiError.Unauthorized) tokenStore.clear()
     }
 

@@ -1,16 +1,13 @@
 'use server';
 
-import { createHash, randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { z } from 'zod';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { messageUrl } from '@/lib/forms';
 import { createClient } from '@/lib/supabase/server';
-import {
-  creativeMetadataSchema,
-  inspectCreativeFile,
-} from '@/lib/validation/creatives';
+import { creativeMetadataSchema } from '@/lib/validation/creatives';
 
 async function writableCampaign(campaignId: string) {
   const auth = await getAuthContext();
@@ -29,92 +26,137 @@ async function writableCampaign(campaignId: string) {
   return { supabase, campaign: data };
 }
 
-export async function uploadCreative(campaignId: string, formData: FormData) {
-  const detailPath = `/campanhas/${campaignId}`;
+const preparationSchema = creativeMetadataSchema.extend({
+  creativeId: z.uuid(),
+  creativeType: z.enum(['image', 'video']),
+  extension: z.enum(['jpg', 'jpeg', 'png', 'webp', 'mp4', 'webm']),
+  mimeType: z.enum([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'video/mp4',
+    'video/webm',
+  ]),
+  fileSizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(50 * 1024 * 1024),
+  checksum: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+const acceptedFilePairs = new Set([
+  'image:jpg:image/jpeg',
+  'image:jpeg:image/jpeg',
+  'image:png:image/png',
+  'image:webp:image/webp',
+  'video:mp4:video/mp4',
+  'video:webm:video/webm',
+]);
+
+export async function prepareCreativeUpload(
+  campaignId: string,
+  input: z.input<typeof preparationSchema>,
+) {
   const { supabase, campaign } = await writableCampaign(campaignId);
-  const metadata = creativeMetadataSchema.safeParse({
-    name: formData.get('name'),
-    durationSeconds: formData.get('durationSeconds'),
-  });
+  const metadata = preparationSchema.safeParse(input);
   if (!metadata.success) {
-    redirect(
-      messageUrl(
-        detailPath,
-        'error',
-        metadata.error.issues[0]?.message ?? 'Dados do criativo inválidos.',
-      ),
-    );
+    return {
+      ok: false as const,
+      error: metadata.error.issues[0]?.message ?? 'Dados do arquivo inválidos.',
+    };
   }
-  const file = formData.get('file');
-  if (!(file instanceof File)) {
-    redirect(messageUrl(detailPath, 'error', 'Selecione um arquivo.'));
+  const pair = `${metadata.data.creativeType}:${metadata.data.extension}:${metadata.data.mimeType}`;
+  if (!acceptedFilePairs.has(pair)) {
+    return { ok: false as const, error: 'Formato de arquivo não aceito.' };
   }
-
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const inspection = inspectCreativeFile(file, bytes);
-  if (!inspection.success) {
-    redirect(messageUrl(detailPath, 'error', inspection.error));
+  if (
+    metadata.data.creativeType === 'image' &&
+    metadata.data.fileSizeBytes > 10 * 1024 * 1024
+  ) {
+    return { ok: false as const, error: 'A imagem deve ter no máximo 10 MB.' };
   }
-
-  const creativeId = randomUUID();
-  const storagePath = `advertisers/${campaign.advertiser_id}/campaigns/${campaign.id}/${creativeId}.${inspection.extension}`;
-  const checksum = createHash('sha256').update(bytes).digest('hex');
+  const storagePath = `advertisers/${campaign.advertiser_id}/campaigns/${campaign.id}/${metadata.data.creativeId}.${metadata.data.extension}`;
 
   const { error: metadataError } = await supabase
     .from('campaign_creatives')
     .insert({
-      id: creativeId,
+      id: metadata.data.creativeId,
       campaign_id: campaign.id,
       name: metadata.data.name,
-      creative_type: inspection.creativeType,
+      creative_type: metadata.data.creativeType,
       storage_path: storagePath,
       duration_seconds: metadata.data.durationSeconds,
-      file_size_bytes: file.size,
-      checksum,
+      file_size_bytes: metadata.data.fileSizeBytes,
+      checksum: metadata.data.checksum,
+      active: false,
     });
   if (metadataError) {
     console.error('Creative metadata insert failed', {
       code: metadataError.code,
       message: metadataError.message,
     });
-    redirect(
-      messageUrl(detailPath, 'error', 'Não foi possível registrar o criativo.'),
-    );
+    return {
+      ok: false as const,
+      error: 'Não foi possível preparar o envio do arquivo.',
+    };
   }
+  return {
+    ok: true as const,
+    creativeId: metadata.data.creativeId,
+    storagePath,
+  };
+}
 
-  const { error: uploadError } = await supabase.storage
+export async function finalizeCreativeUpload(
+  campaignId: string,
+  creativeId: string,
+) {
+  const { supabase } = await writableCampaign(campaignId);
+  const { data: creative, error: creativeError } = await supabase
+    .from('campaign_creatives')
+    .select('id, storage_path, active')
+    .eq('id', creativeId)
+    .eq('campaign_id', campaignId)
+    .maybeSingle();
+  if (creativeError || !creative) {
+    return { ok: false as const, error: 'O envio não pôde ser finalizado.' };
+  }
+  const { error: signedUrlError } = await supabase.storage
     .from('campaign-media')
-    .upload(storagePath, bytes, {
-      cacheControl: '31536000',
-      contentType: file.type,
-      upsert: false,
-    });
-  if (uploadError) {
-    const { error: cleanupError } = await supabase
-      .from('campaign_creatives')
-      .delete()
-      .eq('id', creativeId);
-    console.error('Creative upload failed', {
-      message: uploadError.message,
-      metadataCleanupFailed: Boolean(cleanupError),
-    });
-    redirect(
-      messageUrl(
-        detailPath,
-        'error',
-        'O upload não foi concluído. Nenhum criativo foi ativado.',
-      ),
-    );
+    .createSignedUrl(creative.storage_path, 60);
+  if (signedUrlError) {
+    return {
+      ok: false as const,
+      error: 'O arquivo não chegou ao armazenamento.',
+    };
   }
+  const { error: activationError } = await supabase
+    .from('campaign_creatives')
+    .update({ active: true })
+    .eq('id', creativeId)
+    .eq('campaign_id', campaignId);
+  if (activationError) {
+    return {
+      ok: false as const,
+      error: 'O arquivo chegou, mas não pôde ser ativado.',
+    };
+  }
+  revalidatePath(`/campanhas/${campaignId}`);
+  return { ok: true as const };
+}
 
-  revalidatePath(detailPath);
-  redirect(
-    messageUrl(
-      detailPath,
-      'success',
-      'Criativo enviado, validado e processado com SHA-256.',
-    ),
-  );
+export async function cancelCreativeUpload(
+  campaignId: string,
+  creativeId: string,
+) {
+  const { supabase } = await writableCampaign(campaignId);
+  await supabase
+    .from('campaign_creatives')
+    .delete()
+    .eq('id', creativeId)
+    .eq('campaign_id', campaignId)
+    .eq('active', false);
 }
 
 export async function setCreativeActive(

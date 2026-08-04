@@ -4,7 +4,12 @@ import {
 } from '@maxcar/business-rules';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { setCreativeActive, uploadCreative } from './creative-actions';
+import {
+  cancelCreativeUpload,
+  finalizeCreativeUpload,
+  prepareCreativeUpload,
+  setCreativeActive,
+} from './creative-actions';
 import {
   addCampaignToDefaultPlaylist,
   publishCampaignAndSync,
@@ -39,11 +44,9 @@ export default async function CampaignDetailPage({
   searchParams: Promise<{ success?: string; error?: string }>;
 }) {
   const { id } = await params;
-  const [query, campaign, creatives, geofences, auth] = await Promise.all([
+  const [query, campaign, auth] = await Promise.all([
     searchParams,
     getCampaign(id),
-    listCampaignCreatives(id),
-    listCampaignGeofences(id),
     getAuthContext(),
   ]);
   if (!campaign || !campaign.campaign_type || !campaign.status) notFound();
@@ -52,10 +55,45 @@ export default async function CampaignDetailPage({
   const canPublish = Boolean(
     auth && ['super_admin', 'admin'].includes(auth.profile.role),
   );
+  const [creativesResult, geofencesResult, playlistResult] =
+    await Promise.allSettled([
+      listCampaignCreatives(id),
+      campaign.campaign_type === 'geo'
+        ? listCampaignGeofences(id)
+        : Promise.resolve([]),
+      campaign.campaign_type === 'regular' && canManageGrid
+        ? isCampaignInDefaultPlaylist(id)
+        : Promise.resolve(false),
+    ]);
+  const creatives =
+    creativesResult.status === 'fulfilled' ? creativesResult.value : [];
+  const geofences =
+    geofencesResult.status === 'fulfilled' ? geofencesResult.value : [];
   const inDefaultPlaylist =
-    campaign.campaign_type === 'regular' && canManageGrid
-      ? await isCampaignInDefaultPlaylist(id)
-      : false;
+    playlistResult.status === 'fulfilled' ? playlistResult.value : false;
+  const unavailableSections = [
+    creativesResult.status === 'rejected' ? 'arquivos' : null,
+    geofencesResult.status === 'rejected' ? 'local de ativação' : null,
+    playlistResult.status === 'rejected' ? 'programação dos tablets' : null,
+  ].filter((section): section is string => Boolean(section));
+  if (unavailableSections.length > 0) {
+    console.error('Campaign detail loaded with unavailable sections', {
+      campaignId: id,
+      sections: unavailableSections,
+      creativeError:
+        creativesResult.status === 'rejected'
+          ? errorCode(creativesResult.reason)
+          : undefined,
+      geofenceError:
+        geofencesResult.status === 'rejected'
+          ? errorCode(geofencesResult.reason)
+          : undefined,
+      playlistError:
+        playlistResult.status === 'rejected'
+          ? errorCode(playlistResult.reason)
+          : undefined,
+    });
+  }
   const readinessInput = {
     campaignType: campaign.campaign_type,
     startsAt: campaign.starts_at,
@@ -71,7 +109,15 @@ export default async function CampaignDetailPage({
 
   return (
     <div className="page campaign-detail">
-      <FlashMessage success={query.success} error={query.error} />
+      <FlashMessage
+        success={query.success}
+        error={
+          query.error ??
+          (unavailableSections.length > 0
+            ? `A campanha abriu, mas não foi possível carregar: ${unavailableSections.join(', ')}. Você ainda pode enviar um novo arquivo e tentar novamente.`
+            : undefined)
+        }
+      />
       <Breadcrumbs
         items={[
           { label: 'Campanhas', href: '/campanhas' },
@@ -232,8 +278,12 @@ export default async function CampaignDetailPage({
             canWrite={canWrite}
             toggleAction={setCreativeActive.bind(null, id)}
           />
-          {canWrite && (
-            <CreativeUploadForm action={uploadCreative.bind(null, id)} />
+          {canWrite && campaign.advertiser_id && (
+            <CreativeUploadForm
+              prepareAction={prepareCreativeUpload.bind(null, id)}
+              finalizeAction={finalizeCreativeUpload.bind(null, id)}
+              cancelAction={cancelCreativeUpload.bind(null, id)}
+            />
           )}
         </SectionCard>
       </div>
@@ -327,4 +377,11 @@ export default async function CampaignDetailPage({
       )}
     </div>
   );
+}
+
+function errorCode(error: unknown) {
+  if (!error || typeof error !== 'object') return 'unknown';
+  return 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : 'unclassified';
 }

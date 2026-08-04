@@ -1,4 +1,5 @@
 import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
+import type { Database } from '@maxcar/shared/database-types';
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 
@@ -34,8 +35,39 @@ export async function getCampaign(id: string) {
     .select('*')
     .eq('id', id)
     .maybeSingle();
-  if (error) throw error;
-  return data;
+  if (!error) return data;
+
+  // A campaign must remain editable even if the reporting view is briefly
+  // unavailable after a deploy or schema refresh. The base table is the
+  // authority for editing; the extra view counts are informational only.
+  console.error('Campaign admin view unavailable; using base table', {
+    campaignId: id,
+    code: error.code,
+  });
+  const { data: campaign, error: campaignError } = await supabase
+    .from('campaigns')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (campaignError) throw campaignError;
+  if (!campaign) return null;
+
+  let advertiserName: string | null = null;
+  if (campaign.advertiser_id) {
+    const { data: advertiser } = await supabase
+      .from('advertisers')
+      .select('trade_name')
+      .eq('id', campaign.advertiser_id)
+      .maybeSingle();
+    advertiserName = advertiser?.trade_name ?? null;
+  }
+  return {
+    ...campaign,
+    advertiser_name: advertiserName,
+    creative_count: null,
+    geofence_count: null,
+    impression_count: null,
+  } satisfies Database['public']['Views']['campaign_admin_view']['Row'];
 }
 
 export async function listGeoCampaignOptions() {

@@ -17,7 +17,9 @@ export function serviceClient() {
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
-    'authorization, x-client-info, apikey, content-type',
+    'authorization, x-client-info, apikey, content-type, ' +
+    'x-maxcar-key-id, x-maxcar-timestamp, x-maxcar-nonce, ' +
+    'x-maxcar-body-sha256, x-maxcar-signature, x-maxcar-signature-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 

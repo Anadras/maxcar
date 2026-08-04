@@ -9,13 +9,14 @@
 // as REGULAR ones.
 
 import {
-  bearerToken,
   errorResponse,
   jsonResponse,
   preflightResponse,
   serviceClient,
 } from '../_shared/device-api.ts';
+import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
 
+const FUNCTION_PATH = '/device-geo-rules';
 const DOWNLOAD_URL_TTL_SECONDS = 1800;
 
 interface GeoRuleItem {
@@ -47,13 +48,14 @@ Deno.serve(async (req) => {
     );
   }
 
-  const token = bearerToken(req);
-  if (!token) {
-    return jsonResponse(
-      { error: 'unauthorized', message: 'Missing device credential.' },
-      401,
-    );
-  }
+  const rawBodyText = await req.text();
+  const tokenResult = await resolveDeviceApiToken(
+    req,
+    new TextEncoder().encode(rawBodyText),
+    FUNCTION_PATH,
+  );
+  if (!tokenResult.ok) return tokenResult.response;
+  const token = tokenResult.token;
 
   const supabase = serviceClient();
   const { data, error } = await supabase.rpc('get_device_geo_rules', {

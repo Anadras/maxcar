@@ -12,11 +12,13 @@
 // safe to delete; one bad event in a batch must not fail the rest.
 
 import {
-  bearerToken,
   jsonResponse,
   preflightResponse,
   serviceClient,
 } from '../_shared/device-api.ts';
+import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
+
+const FUNCTION_PATH = '/device-playback-events';
 
 // Keeps a single request bounded regardless of what a client sends;
 // anything beyond this is picked up on the next sync cycle.
@@ -44,17 +46,18 @@ Deno.serve(async (req) => {
     );
   }
 
-  const token = bearerToken(req);
-  if (!token) {
-    return jsonResponse(
-      { error: 'unauthorized', message: 'Missing device credential.' },
-      401,
-    );
-  }
+  const rawBodyText = await req.text();
+  const tokenResult = await resolveDeviceApiToken(
+    req,
+    new TextEncoder().encode(rawBodyText),
+    FUNCTION_PATH,
+  );
+  if (!tokenResult.ok) return tokenResult.response;
+  const token = tokenResult.token;
 
   let body: { events?: PlaybackEventBody[] };
   try {
-    body = await req.json();
+    body = JSON.parse(rawBodyText);
   } catch {
     return jsonResponse(
       { error: 'invalid_request', message: 'Body must be JSON.' },

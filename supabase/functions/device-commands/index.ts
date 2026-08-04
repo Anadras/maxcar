@@ -14,12 +14,14 @@
 // device-manifest vs device-playback-events.
 
 import {
-  bearerToken,
   errorResponse,
   jsonResponse,
   preflightResponse,
   serviceClient,
 } from '../_shared/device-api.ts';
+import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
+
+const FUNCTION_PATH = '/device-commands';
 
 interface AckBody {
   commandId?: string;
@@ -30,13 +32,14 @@ interface AckBody {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse();
 
-  const token = bearerToken(req);
-  if (!token) {
-    return jsonResponse(
-      { error: 'unauthorized', message: 'Missing device credential.' },
-      401,
-    );
-  }
+  const rawBodyText = await req.text();
+  const tokenResult = await resolveDeviceApiToken(
+    req,
+    new TextEncoder().encode(rawBodyText),
+    FUNCTION_PATH,
+  );
+  if (!tokenResult.ok) return tokenResult.response;
+  const token = tokenResult.token;
 
   const supabase = serviceClient();
 
@@ -63,7 +66,7 @@ Deno.serve(async (req) => {
   if (req.method === 'POST') {
     let body: AckBody;
     try {
-      body = await req.json();
+      body = JSON.parse(rawBodyText);
     } catch {
       return jsonResponse(
         { error: 'invalid_request', message: 'Body must be JSON.' },

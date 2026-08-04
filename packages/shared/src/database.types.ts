@@ -246,6 +246,13 @@ export type Database = {
             foreignKeyName: "campaign_devices_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "campaign_devices_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_monitoring_view"
             referencedColumns: ["id"]
           },
@@ -455,6 +462,13 @@ export type Database = {
             foreignKeyName: "device_commands_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_monitoring_view"
             referencedColumns: ["id"]
           },
@@ -515,6 +529,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -618,6 +639,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_enrollment_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -775,6 +803,13 @@ export type Database = {
             foreignKeyName: "device_heartbeats_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_monitoring_view"
             referencedColumns: ["id"]
           },
@@ -811,6 +846,114 @@ export type Database = {
             columns: ["last_geo_campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_key_credentials: {
+        Row: {
+          activated_at: string | null
+          algorithm: string
+          created_at: string
+          created_by: string | null
+          device_id: string
+          hardware_backed: boolean | null
+          id: string
+          key_id: string
+          last_used_at: string | null
+          metadata: Json
+          public_key_der: string
+          public_key_fingerprint: string
+          replaced_by: string | null
+          revoked_at: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          algorithm?: string
+          created_at?: string
+          created_by?: string | null
+          device_id: string
+          hardware_backed?: boolean | null
+          id?: string
+          key_id?: string
+          last_used_at?: string | null
+          metadata?: Json
+          public_key_der: string
+          public_key_fingerprint: string
+          replaced_by?: string | null
+          revoked_at?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          algorithm?: string
+          created_at?: string
+          created_by?: string | null
+          device_id?: string
+          hardware_backed?: boolean | null
+          id?: string
+          key_id?: string
+          last_used_at?: string | null
+          metadata?: Json
+          public_key_der?: string
+          public_key_fingerprint?: string
+          replaced_by?: string | null
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_key_credentials_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_key_credentials_replaced_by_fkey"
+            columns: ["replaced_by"]
+            isOneToOne: false
+            referencedRelation: "device_key_credentials"
             referencedColumns: ["id"]
           },
         ]
@@ -933,6 +1076,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "driver_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -1172,6 +1322,13 @@ export type Database = {
             foreignKeyName: "geofence_events_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "geofence_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
             referencedRelation: "device_monitoring_view"
             referencedColumns: ["id"]
           },
@@ -1290,6 +1447,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "impressions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -1446,6 +1610,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "playlists_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -1762,6 +1933,22 @@ export type Database = {
         }
         Relationships: []
       }
+      device_key_admin_view: {
+        Row: {
+          algorithm: string | null
+          device_code: string | null
+          device_id: string | null
+          hardware_backed: boolean | null
+          has_active_key: boolean | null
+          has_active_legacy_token: boolean | null
+          key_activated_at: string | null
+          key_created_at: string | null
+          key_id: string | null
+          key_last_used_at: string | null
+          public_key_fingerprint: string | null
+        }
+        Relationships: []
+      }
       device_latest_heartbeat_view: {
         Row: {
           app_version: string | null
@@ -1826,6 +2013,13 @@ export type Database = {
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_heartbeats_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
             referencedColumns: ["device_id"]
           },
           {
@@ -2035,6 +2229,30 @@ export type Database = {
         Args: { p_id: string; p_reason?: string }
         Returns: undefined
       }
+      check_and_record_device_nonce: {
+        Args: { p_key_id: string; p_nonce: string }
+        Returns: boolean
+      }
+      complete_device_key_enrollment: {
+        Args: { p_enrollment_attempt_id: string }
+        Returns: {
+          device_code: string
+          device_id: string
+          key_id: string
+          vehicle_code: string
+          vehicle_id: string
+        }[]
+      }
+      complete_device_key_recovery: {
+        Args: { p_recovery_attempt_id: string }
+        Returns: {
+          device_code: string
+          device_id: string
+          key_id: string
+          vehicle_code: string
+          vehicle_id: string
+        }[]
+      }
       create_device_command: {
         Args: {
           p_command_type: Database["public"]["Enums"]["device_command_type"]
@@ -2107,6 +2325,31 @@ export type Database = {
         }[]
       }
       get_device_geo_rules: { Args: { p_token: string }; Returns: Json }
+      get_device_key_enrollment_challenge: {
+        Args: { p_enrollment_attempt_id: string }
+        Returns: {
+          challenge: string
+          completed_at: string
+          expires_at: string
+          public_key_der: string
+        }[]
+      }
+      get_device_key_for_verification: {
+        Args: { p_key_id: string }
+        Returns: {
+          device_id: string
+          public_key_der: string
+          revoked_at: string
+        }[]
+      }
+      get_device_key_recovery_challenge: {
+        Args: { p_recovery_attempt_id: string }
+        Returns: {
+          challenge: string
+          expires_at: string
+          public_key_der: string
+        }[]
+      }
       get_device_manifest: { Args: { p_token: string }; Returns: Json }
       get_device_pending_commands: {
         Args: { p_token: string }
@@ -2116,6 +2359,7 @@ export type Database = {
           created_at: string
         }[]
       }
+      mint_device_session_token: { Args: { p_key_id: string }; Returns: string }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -2199,6 +2443,7 @@ export type Database = {
         Args: { p_device_id: string }
         Returns: undefined
       }
+      revoke_device_key: { Args: { p_device_id: string }; Returns: undefined }
       save_establishment: {
         Args: {
           p_active: boolean
@@ -2288,6 +2533,33 @@ export type Database = {
           geofence_id: string
           radius_meters: number
           within_radius: boolean
+        }[]
+      }
+      start_device_key_enrollment: {
+        Args: {
+          p_algorithm: string
+          p_android_version?: string
+          p_app_version?: string
+          p_code: string
+          p_hardware_backed?: boolean
+          p_installation_id: string
+          p_manufacturer?: string
+          p_model?: string
+          p_public_key_der: string
+          p_public_key_fingerprint: string
+        }
+        Returns: {
+          challenge: string
+          enrollment_attempt_id: string
+          expires_at: string
+        }[]
+      }
+      start_device_key_recovery: {
+        Args: { p_public_key_fingerprint: string }
+        Returns: {
+          challenge: string
+          expires_at: string
+          recovery_attempt_id: string
         }[]
       }
       test_geo_campaign_delivery: {

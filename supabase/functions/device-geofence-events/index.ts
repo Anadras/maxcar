@@ -13,12 +13,13 @@
 // enter/exit/dwell transition itself.
 
 import {
-  bearerToken,
   jsonResponse,
   preflightResponse,
   serviceClient,
 } from '../_shared/device-api.ts';
+import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
 
+const FUNCTION_PATH = '/device-geofence-events';
 const MAX_EVENTS_PER_REQUEST = 50;
 
 interface GeofenceEventBody {
@@ -41,17 +42,18 @@ Deno.serve(async (req) => {
     );
   }
 
-  const token = bearerToken(req);
-  if (!token) {
-    return jsonResponse(
-      { error: 'unauthorized', message: 'Missing device credential.' },
-      401,
-    );
-  }
+  const rawBodyText = await req.text();
+  const tokenResult = await resolveDeviceApiToken(
+    req,
+    new TextEncoder().encode(rawBodyText),
+    FUNCTION_PATH,
+  );
+  if (!tokenResult.ok) return tokenResult.response;
+  const token = tokenResult.token;
 
   let body: { events?: GeofenceEventBody[] };
   try {
-    body = await req.json();
+    body = JSON.parse(rawBodyText);
   } catch {
     return jsonResponse(
       { error: 'invalid_request', message: 'Body must be JSON.' },

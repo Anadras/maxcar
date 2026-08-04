@@ -8,12 +8,14 @@
 // so this function does exactly that one extra step per item.
 
 import {
-  bearerToken,
   errorResponse,
   jsonResponse,
   preflightResponse,
   serviceClient,
 } from '../_shared/device-api.ts';
+import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
+
+const FUNCTION_PATH = '/device-manifest';
 
 // Long enough to survive a slow 4G download started right after fetching
 // the manifest; short enough that it's never treated as a stored,
@@ -43,13 +45,14 @@ Deno.serve(async (req) => {
     );
   }
 
-  const token = bearerToken(req);
-  if (!token) {
-    return jsonResponse(
-      { error: 'unauthorized', message: 'Missing device credential.' },
-      401,
-    );
-  }
+  const rawBodyText = await req.text();
+  const tokenResult = await resolveDeviceApiToken(
+    req,
+    new TextEncoder().encode(rawBodyText),
+    FUNCTION_PATH,
+  );
+  if (!tokenResult.ok) return tokenResult.response;
+  const token = tokenResult.token;
 
   const supabase = serviceClient();
   const { data, error } = await supabase.rpc('get_device_manifest', {

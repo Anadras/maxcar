@@ -81,7 +81,7 @@ entre o que aconteceu na rede e o que o `WorkManager` deve fazer:
 | ------------------------------------------------------- | -------------- | ---------------------------------------------------------- |
 | Ciclo completo sem erro                                 | `SUCCESS`      | `success()` — próximo ciclo no agendamento normal          |
 | Offline / timeout (`DeviceApiError.NetworkUnavailable`) | `SUCCESS`      | `success()` — não é uma falha, é o estado offline esperado |
-| Credencial revogada/inválida (`401`)                    | `UNAUTHORIZED` | `failure()` — reativação resolve, retry não ajudaria       |
+| Identidade rejeitada pelo servidor (`401`)               | `UNAUTHORIZED` | `failure()` — o próprio app tenta recuperar a identidade automaticamente antes do próximo ciclo (ver [DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md)); retry não ajudaria |
 | Erro de servidor / inesperado                           | `RETRY`        | `retry()` — backoff exponencial padrão do WorkManager      |
 
 Sem loop infinito: `WorkManager` aplica seu próprio backoff exponencial a

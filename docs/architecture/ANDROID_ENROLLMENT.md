@@ -3,7 +3,17 @@
 Como um tablet novo, sem identidade prévia, vira um dispositivo autenticado.
 Cobre o fluxo ponta a ponta: painel → Edge Function → Android. Para o modelo
 de ameaça e as garantias de segurança por trás de cada passo, veja
-[DEVICE_SECURITY.md](DEVICE_SECURITY.md).
+[DEVICE_SECURITY.md](DEVICE_SECURITY.md); para o esquema de assinatura por
+chave em detalhe, veja [DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md).
+
+> **MAX-010.6**: desde este marco, o código de ativação continua sendo o
+> mesmo texto humano-digitável de sempre, mas o que ele ativa mudou — em vez
+> de devolver um token estático guardado em disco, o fluxo agora prova posse
+> de uma chave EC P-256 gerada no Android Keystore, que nunca sai do
+> aparelho. O código abaixo descreve esse fluxo atual; a seção
+> ["MAX-011: instabilidade de armazenamento"](#max-011-instabilidade-de-armazenamento-não-resolvida-num-tablet-físico)
+> ao final documenta, como registro histórico, o problema que motivou essa
+> mudança.
 
 ## Visão geral do fluxo
 
@@ -16,23 +26,39 @@ painel (staff)              banco                    Android
      │                           │◀── operador digita ─────┤
      │                           │    o código no tablet    │
      │                           │                         │
-     │                    device-enroll (Edge Function)     │
-     │                           │◀── code + installation_id│
-     │                           │──── device_token ───────▶│
+     │              device-enroll-key-start (Edge Function) │
+     │                           │◀── code + chave pública ─┤
+     │                           │───────── desafio ───────▶│
+     │                           │                         │  assina o desafio
+     │             device-enroll-key-complete (Edge Function)│  com a chave privada
+     │                           │◀── enrollmentAttemptId + │
+     │                           │       assinatura ────────┤
+     │                           │──── device_id/key_id ───▶│
      │                           │                         │
-     │                           │◀── heartbeat autenticado ┤
+     │                           │◀── requisição assinada ──┤
 ```
 
 ## No painel
 
-`/dispositivos/[id]` mostra o card "Ativação do tablet"
-(`apps/admin/components/device-enrollment-panel.tsx`), com três estados
-possíveis vindos de `device_enrollment_admin_view`
-(`apps/admin/lib/data/devices.ts#getDeviceEnrollment`):
+`/dispositivos/[id]` mostra dois cards distintos, deliberadamente separados
+já que um dispositivo só usa um esquema por vez:
 
-- **Não ativado** — sem código pendente e sem credencial.
-- **Código pendente** — um código foi gerado e ainda não expirou/foi usado.
-- **Ativado** — existe uma credencial de dispositivo não revogada.
+- **"Ativação do tablet"** (`apps/admin/components/device-enrollment-panel.tsx`),
+  com três estados vindos de `device_enrollment_admin_view`
+  (`apps/admin/lib/data/devices.ts#getDeviceEnrollment`): **Não ativado**
+  (sem código pendente e sem credencial), **Código pendente** (um código foi
+  gerado e ainda não expirou/foi usado), **Ativado** (existe uma credencial
+  v1 — token estático — não revogada). Continua sendo o ponto de partida
+  para qualquer ativação, incluindo a v2 por chave: o mesmo código
+  humano-digitável de sempre é o que o Android usa para provar posse da
+  chave no `device-enroll-key-start`/`-complete`.
+- **"Autenticação do tablet"** (`apps/admin/components/device-key-identity-panel.tsx`),
+  com o estado da identidade v2 vindo de `device_key_admin_view`
+  (`apps/admin/lib/data/devices.ts#getDeviceKeyIdentity`): se há uma chave
+  ativa, o algoritmo, se é protegida por hardware, quando foi ativada e o
+  último uso; se não há, um aviso indicando se o tablet ainda está no
+  esquema v1 (token estático) ou nunca foi ativado. Ver
+  [DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md).
 
 "Gerar código" chama `generateEnrollmentCode`
 (`apps/admin/app/(protected)/dispositivos/enrollment-actions.ts`), que
@@ -40,12 +66,14 @@ invoca a RPC `generate_device_enrollment_code` e devolve o código em texto
 puro **uma única vez**, como estado de componente (`useActionState`) — nunca
 por redirect ou parâmetro de URL, para não deixar o código no histórico do
 navegador. Volta a chamar a função gera um novo código e revoga
-automaticamente qualquer código pendente anterior.
+automaticamente qualquer código pendente anterior. Esse mesmo código serve
+tanto para uma primeira ativação por chave quanto para reativar um tablet
+que precise de uma identidade nova.
 
-Revogar (código pendente ou credencial já emitida) usa as RPCs
-`revoke_device_enrollment_code` / `revoke_device_credential`, atrás de
-`ConfirmSubmitButton` para a revogação de credencial — ela desativa o tablet
-imediatamente.
+Revogar usa as RPCs `revoke_device_enrollment_code` (código pendente),
+`revoke_device_credential` (credencial v1) e `revoke_device_key`
+(identidade v2), todas atrás de `ConfirmSubmitButton` quando desativam algo
+já ativo — desativa o tablet imediatamente.
 
 Todas essas ações exigem `canManageFleet` (papel `super_admin`, `admin` ou
 `operations`); a mesma checagem de papel existe de novo dentro das funções
@@ -79,14 +107,16 @@ português mapeadas uma a uma a partir de `DeviceApiError`
 | `RateLimited`                                | Muitas tentativas                         |
 | `ServerError`/`Unexpected`                   | Servidor indisponível (mensagem genérica) |
 
-Ao enviar, `DeviceRepository.enroll(code)` chama a Edge Function
-`device-enroll` com o `installation_id` persistido (gerado uma vez por
-`InstallationIdStore`, nunca reaproveitando `ANDROID_ID` ou outro
-identificador de hardware). A resposta traz o `device_token` (guardado
-imediatamente em `SecureTokenStore`, nunca em Room/DataStore/log) e os dados
-do dispositivo/veículo (gravados em `DeviceStateEntity`). Em caso de sucesso,
-`EnrollmentViewModel` agenda `InitialSyncWorker` e a tela troca para
-`DeviceHomeScreen`.
+Ao enviar, `DeviceRepository.enroll(code)` gera (ou reutiliza, numa
+repetição) a chave EC P-256 do Keystore via `DeviceKeyStore.getOrCreateKeyInfo()`,
+chama `device-enroll-key-start` com o `installation_id` persistido (gerado
+uma vez por `InstallationIdStore`, nunca reaproveitando `ANDROID_ID` ou
+outro identificador de hardware) e a chave pública/fingerprint, assina o
+desafio devolvido e chama `device-enroll-key-complete`. A resposta traz o
+`key_id` (não-secreto — guardado em `DeviceStateEntity`, junto com os dados
+de dispositivo/veículo) e nenhum segredo, já que o único segredo (a chave
+privada) nunca saiu do Keystore. Em caso de sucesso, `EnrollmentViewModel`
+agenda `InitialSyncWorker` e a tela troca para `DeviceHomeScreen`.
 
 `MainActivity.kt` decide qual tela mostrar observando
 `DeviceRepository.isEnrolled` (`Flow<Boolean>`, apoiado em DataStore):
@@ -95,48 +125,53 @@ para `DeviceHomeScreen`, `false` para `EnrollmentScreen`.
 
 ## Revogação
 
-Uma credencial revogada no painel não apaga nada no tablet. O próximo
-heartbeat recebe 401, `DeviceRepository.handleRevocation()` limpa **apenas**
-o token e a flag `isEnrolled` — histórico em Room e a fila de eventos
-pendentes continuam intactos — e a UI volta para `EnrollmentScreen`. Uma
-falha de rede nunca passa por esse caminho; só uma rejeição explícita do
-servidor revoga localmente. Reativar gera um novo código no painel e repete o
-fluxo acima; `DeviceStateEntity` é reescrito com os dados da nova credencial,
-como na primeira ativação.
+Uma identidade revogada no painel não apaga nada no tablet. O próximo
+heartbeat recebe 401, `DeviceRepository.handleUnauthorizedDeviceKey()`
+limpa **apenas** o pareamento local `key_id` — a chave física no Keystore, o
+histórico em Room e a fila de eventos pendentes continuam intactos. O ciclo
+seguinte tenta recuperar a identidade automaticamente (ver
+[DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md#recuperação-identidade-sem-um-novo-código));
+como a chave foi de fato revogada no servidor, essa tentativa falha do mesmo
+jeito controlado que um fingerprint desconhecido, e o app mostra o aviso
+"credencial ausente localmente" em vez de voltar sozinho para
+`EnrollmentScreen`. Uma falha de rede nunca passa por esse caminho; só uma
+rejeição explícita do servidor derruba o pareamento local. Reativar gera um
+novo código no painel e repete o fluxo de enrollment; `DeviceStateEntity` é
+reescrito com os dados da nova identidade, reaproveitando a mesma chave do
+Keystore se ela ainda existir.
 
-## Credencial local ilegível ≠ revogação (MAX-011 Bloco A)
+## Credencial local ilegível ≠ revogação (MAX-011 Bloco A, preservado no MAX-010.6)
 
-Um bug real, identificado num piloto em campo, fazia o tablet pedir um novo
-código de ativação com frequência mesmo com a credencial ainda válida no
-servidor: `sendHeartbeat`/`refreshConfig`/`MediaDownloadManager.sync`/
-`GeoRulesSyncManager.sync` liam o token local e, quando `null` — por
-qualquer motivo, não só revogação real: uma escrita ainda não confirmada em
-disco, uma falha momentânea do Keystore — lançavam o **mesmo**
-`DeviceApiError.Unauthorized` que uma resposta HTTP 401 real produz. O
-manipulador de falha, que só deveria reagir a uma rejeição confirmada do
-servidor, não conseguia distinguir os dois casos e limpava `isEnrolled`
-sem nunca ter feito uma chamada de rede.
+Um bug real, identificado num piloto em campo com o esquema v1 (token
+estático), fazia o tablet pedir um novo código de ativação com frequência
+mesmo com a credencial ainda válida no servidor: as chamadas de
+sincronização liam o token local e, quando `null` — por qualquer motivo,
+não só revogação real: uma escrita ainda não confirmada em disco, uma falha
+momentânea do Keystore — lançavam o **mesmo** `DeviceApiError.Unauthorized`
+que uma resposta HTTP 401 real produz. O manipulador de falha, que só
+deveria reagir a uma rejeição confirmada do servidor, não conseguia
+distinguir os dois casos e limpava `isEnrolled` sem nunca ter feito uma
+chamada de rede.
 
 Corrigido com um tipo de erro dedicado,
 `DeviceApiError.CredentialUnavailable` — nunca lançado a partir de uma
-resposta do servidor, só quando a leitura local falha antes de qualquer
-chamada de rede acontecer. Só `DeviceApiError.Unauthorized` (uma resposta
-HTTP 401 real) aciona `handleRevocation()`; `CredentialUnavailable` é
-tratado como "tentar de novo no próximo ciclo" (`SyncOutcome.RETRY` no
+resposta do servidor, só quando a resolução local de identidade
+(`DeviceRepository.resolveKeyId`) não encontra uma chave utilizável antes de
+qualquer chamada de rede acontecer. Essa mesma garantia se aplica ao esquema
+v2: só `DeviceApiError.Unauthorized` (uma resposta HTTP 401 real) aciona
+`handleUnauthorizedDeviceKey()`; `CredentialUnavailable` é tratado como
+"tentar de novo no próximo ciclo" (`SyncOutcome.RETRY` no
 `SyncCoordinator`), nunca como desativação. Quando isso acontece com o
 dispositivo marcado como ativado, `AppPreferences.credentialMissingLocally`
 fica `true` e o diagnóstico mostra um aviso com um botão explícito
 "Reativar este tablet" (`DeviceRepository.reenrollAfterCredentialLoss`) —
-uma recuperação decidida pelo operador, nunca automática.
-
-`DeviceRepository.enroll()` também passou a verificar o retorno de
-`SecureTokenStore.saveToken()` — que agora devolve `Boolean`, não `Unit` —
-antes de marcar `isEnrolled = true`. Um piloto em campo demonstrou
-exatamente essa falha: `saveToken()` não lançava exceção nenhuma, mas a
-escrita nunca chegava a persistir de fato; o app seguia adiante e marcava a
-ativação como concluída mesmo assim. `enroll()` agora falha (nunca marca
-`isEnrolled`) sempre que `saveToken()` reportar que a escrita não foi
-durável.
+uma recuperação decidida pelo operador, nunca automática. Diferente do
+esquema v1, porém, o MAX-010.6 tenta uma recuperação automática *antes*
+de chegar a esse aviso — ver
+[DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md#recuperação-identidade-sem-um-novo-código)
+— então o aviso agora só aparece quando a chave do Keystore em si
+desapareceu, ou quando a recuperação automática já foi tentada e recusada
+pelo servidor.
 
 ## MAX-011: instabilidade de armazenamento não resolvida num tablet físico
 
@@ -201,3 +236,21 @@ MediaTek além do DuraSpeed (`com.mediatek.capctrl.service`,
 sandbox privado do app (ex.: AccountManager) como última alternativa se o
 armazenamento privado deste hardware provar ser fundamentalmente pouco
 confiável.
+
+### Desfecho: MAX-010.6 elimina a dependência em vez de continuar
+### diagnosticando
+
+Nenhuma dessas hipóteses foi confirmada como causa raiz antes do marco
+seguinte mudar a abordagem por completo: em vez de continuar perseguindo por
+que o armazenamento do token específico deste aparelho era instável, o
+MAX-010.6 removeu o token estático inteiramente. `SecureTokenStore`,
+`DeviceCredentialEntity` e a tabela `device_credential` local foram
+apagados do código do Android; a identidade do dispositivo agora é uma
+chave no Android Keystore (ver [DEVICE_KEY_AUTH.md](DEVICE_KEY_AUTH.md)),
+que por natureza da própria API do Keystore não pode "desaparecer
+silenciosamente" da mesma forma que uma linha de Room podia — e mesmo que o
+registro local do `key_id` se perca de novo por qualquer motivo parecido, a
+recuperação automática (mesmo documento, seção "Recuperação") fecha
+exatamente esse loop sem precisar de um novo código. Esta seção permanece
+como registro histórico do problema que motivou a mudança, não como
+descrição do comportamento atual.

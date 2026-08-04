@@ -48,5 +48,10 @@ Deno.serve(async (req) => {
     kioskEnabled: data.kiosk_enabled,
     loggingLevel: data.logging_level,
     configVersion: data.config_version,
+    // MAX-010: lets the tablet validate its admin PIN fully offline —
+    // the plaintext PIN itself is never sent anywhere past
+    // set_device_maintenance_pin.
+    maintenancePinHash: data.maintenance_pin_hash,
+    maintenancePinSalt: data.maintenance_pin_salt,
   });
 });

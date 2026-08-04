@@ -1,7 +1,13 @@
 import type { Database } from '@maxcar/shared/database-types';
 import Link from 'next/link';
 
-type Device = Database['public']['Tables']['devices']['Row'];
+// Only what this form actually reads — decoupled from the full row shape
+// so callers never need to select sensitive columns (e.g.
+// maintenance_pin_hash/salt, MAX-010) just to satisfy this type.
+type Device = Pick<
+  Database['public']['Tables']['devices']['Row'],
+  'device_code' | 'vehicle_id' | 'status' | 'app_version'
+>;
 type VehicleOption = {
   id: string;
   internal_code: string;

@@ -80,15 +80,25 @@ marco):
 
 ## 6. Sair do modo player (uso técnico)
 
-Cinco toques no canto inferior direito → diagnóstico → **Voltar ao
-player** para retornar. Durante o piloto, sem Device Owner configurado, um
-técnico também pode forçar a saída via ADB:
+Cinco toques no canto inferior direito abrem um diálogo de **PIN de
+manutenção** (MAX-010, nunca diagnóstico direto) — defina o PIN primeiro
+no painel (`/dispositivos/[id]`, card "Kiosk e manutenção",
+`super_admin`). PIN correto → diagnóstico. **Voltar ao player** retorna ao
+modo operacional. Ver
+[ANDROID_MAINTENANCE_MODE.md](ANDROID_MAINTENANCE_MODE.md) para o fluxo
+completo, incluindo o bloqueio após tentativas incorretas.
+
+Durante o piloto, sem Device Owner configurado, um técnico também pode
+forçar a saída via ADB:
 
 ```bash
 adb shell am force-stop com.maxcar.tablet.staging.debug
 ```
 
 ## Device Owner — avaliado, não ativado
+
+Ver também [ANDROID_KIOSK.md](ANDROID_KIOSK.md) para as três camadas de
+kiosk e como o painel reporta qual está realmente ativa.
 
 Lock Task real (bloqueio total de saída, sem depender do gesto oculto)
 exige o app provisionado como **Device Owner** via

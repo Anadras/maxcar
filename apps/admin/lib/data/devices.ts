@@ -27,14 +27,17 @@ async function getDevicesWithLatestHeartbeats() {
   ] = await Promise.all([
     supabase
       .from('devices')
+      // Explicit column list — never `*` — so a new sensitive column
+      // (maintenance_pin_hash/salt, MAX-010) never accidentally starts
+      // flowing through this shared query by default.
       .select(
-        '*, vehicles(internal_code, license_plate, driver_id, drivers(full_name))',
+        'id, vehicle_id, device_code, status, app_version, last_seen_at, last_sync_at, created_at, updated_at, archived_at, vehicles(internal_code, license_plate, driver_id, drivers(full_name))',
       )
       .order('device_code'),
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds, kiosk_level',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -77,6 +80,7 @@ async function getDevicesWithLatestHeartbeats() {
       operational_status: heartbeat?.operational_status ?? null,
       pending_event_count: heartbeat?.pending_event_count ?? null,
       clock_skew_seconds: heartbeat?.clock_skew_seconds ?? null,
+      kiosk_level: heartbeat?.kiosk_level ?? null,
       manifest_synced_at: heartbeat?.manifest_version
         ? (heartbeat?.recorded_at ?? null)
         : null,
@@ -116,20 +120,30 @@ export async function listDevices(
 
 export async function getDevice(id: string) {
   const supabase = await createClient();
-  const [devices, { data: heartbeats, error }] = await Promise.all([
-    getDevicesWithLatestHeartbeats(),
-    supabase
-      .from('device_heartbeats')
-      .select(
-        'id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version',
-      )
-      .eq('device_id', id)
-      .order('recorded_at', { ascending: false })
-      .limit(20),
-  ]);
+  const [devices, { data: heartbeats, error }, { data: pinRow }] =
+    await Promise.all([
+      getDevicesWithLatestHeartbeats(),
+      supabase
+        .from('device_heartbeats')
+        .select(
+          'id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version',
+        )
+        .eq('device_id', id)
+        .order('recorded_at', { ascending: false })
+        .limit(20),
+      // Only ever a boolean reaches the rest of the app — the hash/salt
+      // themselves are never selected outside set_device_maintenance_pin's
+      // own RPC boundary.
+      supabase
+        .from('devices')
+        .select('maintenance_pin_hash')
+        .eq('id', id)
+        .maybeSingle(),
+    ]);
   if (error) throw error;
   const device = devices.find((item) => item.id === id);
   if (!device) return null;
+  const maintenancePinConfigured = pinRow?.maintenance_pin_hash != null;
 
   let currentCampaignName: string | null = null;
   let currentCreativeName: string | null = null;
@@ -166,6 +180,7 @@ export async function getDevice(id: string) {
     currentCampaignName,
     currentCreativeName,
     lastGeoCampaignName,
+    maintenancePinConfigured,
   };
 }
 

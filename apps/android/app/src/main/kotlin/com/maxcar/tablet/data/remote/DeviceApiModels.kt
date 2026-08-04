@@ -52,6 +52,8 @@ data class HeartbeatRequest(
     val operationalStatus: String? = null,
     val pendingEventCount: Int? = null,
     val clockSkewSeconds: Int? = null,
+    // Kiosk layer actually achieved (MAX-010), same additive rule.
+    val kioskLevel: String? = null,
 )
 
 @Serializable
@@ -122,6 +124,8 @@ data class ConfigResponse(
     val kioskEnabled: Boolean,
     val loggingLevel: String,
     val configVersion: Int,
+    val maintenancePinHash: String? = null,
+    val maintenancePinSalt: String? = null,
 )
 
 @Serializable

@@ -7,6 +7,8 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.domain.DeviceApiError
 import com.maxcar.tablet.geo.GeoEngine
+import com.maxcar.tablet.kiosk.KioskLevelDetector
+import com.maxcar.tablet.kiosk.toWireValue
 import com.maxcar.tablet.work.DeviceTelemetry
 
 /** What a sync cycle decided, so the caller (a WorkManager worker) can map
@@ -42,6 +44,7 @@ class SyncCoordinator(
     private val geoEngine: GeoEngine,
     private val commandExecutor: DeviceCommandExecutor,
     private val appPreferences: AppPreferences,
+    private val kioskLevelDetector: KioskLevelDetector,
     private val telemetryProvider: () -> DeviceTelemetry,
 ) {
     suspend fun runCycle(): SyncOutcome {
@@ -69,8 +72,13 @@ class SyncCoordinator(
             lastGeofenceEntryAt = geoStatus.lastGeofenceEntryAtMillis
                 ?.let { java.time.Instant.ofEpochMilli(it).toString() },
             lastGeoCampaignId = geoStatus.lastGeoCampaignId,
-            operationalStatus = operationalStatusFor(playerStatus.state, telemetry),
+            operationalStatus = operationalStatusFor(
+                playerStatus.state, telemetry, appPreferences.diagnosticsOpenSnapshot(),
+            ),
             pendingEventCount = pendingCount,
+            kioskLevel = kioskLevelDetector.currentLevel(
+                immersiveActive = playerStatus.state in IMMERSIVE_PLAYER_STATES,
+            ).toWireValue(),
         )
         heartbeatResult.onFailure { error ->
             if (error is DeviceApiError.Unauthorized) return SyncOutcome.UNAUTHORIZED
@@ -107,10 +115,19 @@ class SyncCoordinator(
         )
     }
 
-    private fun operationalStatusFor(playerState: String?, telemetry: DeviceTelemetry): String = when {
+    private fun operationalStatusFor(
+        playerState: String?,
+        telemetry: DeviceTelemetry,
+        diagnosticsOpen: Boolean,
+    ): String = when {
+        diagnosticsOpen -> "maintenance"
         playerState == "empty" -> "no_content"
         playerState == "playing" && telemetry.networkType == "offline" -> "offline_playing"
         playerState == "playing" -> "playing"
         else -> "ready"
+    }
+
+    private companion object {
+        val IMMERSIVE_PLAYER_STATES = setOf("playing")
     }
 }

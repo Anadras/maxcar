@@ -111,6 +111,7 @@ class DeviceRepository(
         lastGeoCampaignId: String? = null,
         operationalStatus: String? = null,
         pendingEventCount: Int? = null,
+        kioskLevel: String? = null,
     ): Result<Unit> {
         val sentAtMillis = System.currentTimeMillis()
         val clockSkewSeconds = appPreferences.clockSkewSnapshot()
@@ -147,6 +148,7 @@ class DeviceRepository(
                         operationalStatus = operationalStatus,
                         pendingEventCount = pendingEventCount,
                         clockSkewSeconds = clockSkewSeconds,
+                        kioskLevel = kioskLevel,
                     ),
                 )
             }
@@ -312,6 +314,8 @@ class DeviceRepository(
                 loggingLevel = response.loggingLevel,
                 configVersion = response.configVersion,
                 updatedAt = System.currentTimeMillis(),
+                maintenancePinHash = response.maintenancePinHash,
+                maintenancePinSalt = response.maintenancePinSalt,
             )
             remoteConfigDao.upsert(config)
             config

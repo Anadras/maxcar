@@ -42,6 +42,8 @@ interface HeartbeatBody {
   operationalStatus?: string;
   pendingEventCount?: number;
   clockSkewSeconds?: number;
+  // Kiosk layer actually achieved, optional and additive (MAX-010).
+  kioskLevel?: string;
 }
 
 Deno.serve(async (req) => {
@@ -98,6 +100,7 @@ Deno.serve(async (req) => {
       p_operational_status: body.operationalStatus ?? null,
       p_pending_event_count: body.pendingEventCount ?? null,
       p_clock_skew_seconds: body.clockSkewSeconds ?? null,
+      p_kiosk_level: body.kioskLevel ?? null,
     })
     .single();
 

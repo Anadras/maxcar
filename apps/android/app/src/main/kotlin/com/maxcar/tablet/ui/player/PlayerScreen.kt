@@ -31,18 +31,25 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.maxcar.tablet.kiosk.MaintenanceAccessController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * The tablet's default screen once enrolled with a ready grade: fullscreen,
  * no visible controls, no obvious way for a passenger to leave it. A
- * five-tap corner gesture is the only way into the diagnostic screen (item
- * 26) — see [PlayerViewModel.onDiagnosticTap].
+ * five-tap corner gesture opens [MaintenancePinDialog] (MAX-010) — never
+ * diagnostics directly; the gesture alone was never meant to be the
+ * security boundary, only the PIN is.
  */
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel, onOpenDiagnostics: () -> Unit) {
+fun PlayerScreen(
+    viewModel: PlayerViewModel,
+    maintenanceAccessController: MaintenanceAccessController,
+    onOpenDiagnostics: () -> Unit,
+) {
     val state by viewModel.uiState.collectAsState()
+    var showPinDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -72,8 +79,19 @@ fun PlayerScreen(viewModel: PlayerViewModel, onOpenDiagnostics: () -> Unit) {
                 .align(Alignment.BottomEnd)
                 .size(64.dp)
                 .pointerInput(Unit) {
-                    detectTapGestures(onTap = { viewModel.onDiagnosticTap(onOpenDiagnostics) })
+                    detectTapGestures(onTap = { viewModel.onDiagnosticTap { showPinDialog = true } })
                 },
+        )
+    }
+
+    if (showPinDialog) {
+        MaintenancePinDialog(
+            controller = maintenanceAccessController,
+            onDismiss = { showPinDialog = false },
+            onUnlocked = {
+                showPinDialog = false
+                onOpenDiagnostics()
+            },
         )
     }
 }

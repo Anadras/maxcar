@@ -17,6 +17,12 @@ data class RemoteConfigEntity(
     val loggingLevel: String,
     val configVersion: Int,
     val updatedAt: Long,
+    // MAX-010: lets the tablet validate its admin PIN fully offline — see
+    // com.maxcar.tablet.kiosk.PinValidator. Null means no PIN has been set
+    // for this device yet, in which case maintenance access stays locked
+    // rather than falling back to "no PIN required".
+    val maintenancePinHash: String? = null,
+    val maintenancePinSalt: String? = null,
 ) {
     companion object {
         const val SINGLETON_ID = 0

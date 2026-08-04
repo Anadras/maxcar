@@ -14,6 +14,8 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.geo.LocationEngine
+import com.maxcar.tablet.kiosk.KioskLevelDetector
+import com.maxcar.tablet.kiosk.MaintenanceAccessController
 import com.maxcar.tablet.sync.DeviceCommandExecutor
 import com.maxcar.tablet.sync.SyncCoordinator
 import com.maxcar.tablet.work.DeviceTelemetry
@@ -91,6 +93,13 @@ class AppContainer(context: Context) {
         appPreferences = appPreferences,
     )
 
+    val kioskLevelDetector = KioskLevelDetector(appContext)
+
+    val maintenanceAccessController = MaintenanceAccessController(
+        remoteConfigDao = database.remoteConfigDao(),
+        appPreferences = appPreferences,
+    )
+
     val syncCoordinator = SyncCoordinator(
         deviceRepository = deviceRepository,
         mediaDownloadManager = mediaDownloadManager,
@@ -99,6 +108,7 @@ class AppContainer(context: Context) {
         geoEngine = geoEngine,
         commandExecutor = commandExecutor,
         appPreferences = appPreferences,
+        kioskLevelDetector = kioskLevelDetector,
         telemetryProvider = { DeviceTelemetry.collect(appContext) },
     )
 }

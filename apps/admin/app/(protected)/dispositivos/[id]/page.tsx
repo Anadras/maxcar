@@ -14,6 +14,7 @@ import {
   setDeviceActive,
   unlinkDeviceVehicle,
 } from '../lifecycle-actions';
+import { setDeviceMaintenancePin } from '../pin-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
 import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
@@ -65,6 +66,13 @@ const COMMAND_STATUS_LABEL: Record<string, string> = {
 // Android: below this the tablet's own clock is trusted for local expiry
 // enforcement; at or above it, only ever an alert here, never silent.
 const SEVERE_CLOCK_SKEW_SECONDS = 3600;
+
+const KIOSK_LEVEL_LABEL: Record<string, string> = {
+  none: 'Nenhum (tela normal)',
+  immersive: 'Imersivo (tela cheia)',
+  lock_task: 'Fixação de tela (Lock Task)',
+  device_owner: 'Device Owner (bloqueio profissional)',
+};
 
 export default async function DeviceDetailPage({
   params,
@@ -384,6 +392,71 @@ export default async function DeviceDetailPage({
           )}
         </SectionCard>
       )}
+      <SectionCard
+        title="Kiosk e manutenção"
+        subtitle="Camada de proteção realmente alcançada pelo tablet (nunca apenas a tentada) e o PIN técnico local. Ver docs/architecture/ANDROID_KIOSK.md."
+      >
+        <dl className="detail-grid">
+          <div>
+            <dt>Camada de kiosk ativa</dt>
+            <dd>
+              {device.kiosk_level ? (
+                <StatusBadge
+                  value={
+                    KIOSK_LEVEL_LABEL[device.kiosk_level] ?? device.kiosk_level
+                  }
+                />
+              ) : (
+                'Sem telemetria'
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>PIN de manutenção</dt>
+            <dd>
+              <StatusBadge
+                value={
+                  device.maintenancePinConfigured
+                    ? 'Configurado'
+                    : 'Não configurado'
+                }
+              />
+            </dd>
+          </div>
+        </dl>
+        {auth?.profile.role === 'super_admin' && (
+          <form
+            action={setDeviceMaintenancePin.bind(null, id)}
+            className="heartbeat-form"
+          >
+            <label>
+              Novo PIN (4 a 8 dígitos)
+              <input
+                name="pin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4,8}"
+                autoComplete="off"
+                required
+              />
+            </label>
+            <label>
+              Confirmar PIN
+              <input
+                name="confirmPin"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]{4,8}"
+                autoComplete="off"
+                required
+              />
+            </label>
+            <button className="button button-secondary" type="submit">
+              {device.maintenancePinConfigured ? 'Trocar PIN' : 'Definir PIN'}
+            </button>
+          </form>
+        )}
+      </SectionCard>
       {canManage && enrollment && (
         <SectionCard
           title="Ativação do tablet"

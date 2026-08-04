@@ -16,6 +16,7 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.geo.LocationEngine
+import com.maxcar.tablet.kiosk.KioskLevelDetector
 import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,6 +131,7 @@ class SyncCoordinatorTest {
             geoEngine = geoEngine,
             commandExecutor = commandExecutor,
             appPreferences = appPreferences,
+            kioskLevelDetector = KioskLevelDetector(context),
             telemetryProvider = { DeviceTelemetry(batteryLevel = 90, networkType = "wifi", storageFreeBytes = 5_000_000_000L) },
         )
     }

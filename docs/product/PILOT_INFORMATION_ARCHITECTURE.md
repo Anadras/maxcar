@@ -1,22 +1,30 @@
 # Pilot information architecture
 
-During the pilot, the administrative experience is organized around two
-real-world hubs rather than database tables.
+The administrative experience gives one-click direct access to every
+operational module — see `apps/admin/components/app-shell.tsx`:
 
-## Client hub
+- **PRINCIPAL**: Início, Campanhas, Dispositivos, Clientes, Motoristas,
+  Veículos, Geofences.
+- **OPERAÇÃO**: Relatórios, Auditoria.
+- **ADMINISTRAÇÃO**: Usuários, Configurações, Meu perfil.
 
-`Clientes` is the commercial starting point. Opening a client exposes its
-units, campaigns and campaign media. Establishments, geofences and campaigns
-remain separate domain records for integrity, but are not separate concepts in
-the main navigation.
+No fleet module (Campanhas, Dispositivos, Motoristas, Veículos, Geofences)
+lives behind a hub or a submenu — every one of them is a direct top-level
+link.
 
-## Pilot hub
+## Revision history
 
-`Pilotos` is the operational starting point. Opening a pilot exposes the linked
-vehicle and tablet, with contextual actions to add or inspect either one.
-Vehicles and devices remain separate domain records because they have distinct
-lifecycles and telemetry, but they are not separate concepts in the main
-navigation.
+An earlier design (MAX pilot simplification marco) organized the panel
+around two hubs instead — "Clientes" (units, campaigns, media) and
+"Pilotos" (driver, vehicle, tablet) — with the individual fleet tables
+demoted to secondary/contextual screens. That hub-only navigation was
+**reverted** (MAX-011 Bloco E) after real pilot usage showed operators
+needed direct, one-click access to Dispositivos/Motoristas/Veículos/
+Geofences without an extra click through a hub concept, especially while
+diagnosing a specific tablet in the field. Establishments and geofences
+remain reachable contextually from inside a client or campaign too — that
+convenience was kept — but they also always have their own top-level entry
+now.
 
 ## Pilot deletion
 

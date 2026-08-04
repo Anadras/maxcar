@@ -7,9 +7,14 @@
 - GEO campaigns never abruptly interrupt currently playing media.
 - GEO campaigns enter a priority queue and are played only after the current media ends.
 - After GEO playback the player returns to the regular schedule.
-- The pilot admin experience has two domain hubs: Clients (units, campaigns,
-  media) and Pilots (driver, vehicle, tablet). Do not restore database-table
-  navigation as the primary information architecture.
+- The main navigation gives one-click direct access to every operational
+  module (Campanhas, Dispositivos, Clientes, Motoristas, Veículos,
+  Geofences) — see `apps/admin/components/app-shell.tsx`. An earlier hub-only
+  design (Clientes/Pilotos as the only entry points, MAX-011's "Bloco A")
+  was reverted after pilot usage showed operators needed direct access to
+  fleet modules without an extra click through a hub concept; establishments
+  and geofences remain reachable contextually from a client/campaign too, but
+  always also have their own top-level entry.
 
 ## Architecture
 

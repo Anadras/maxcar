@@ -14,8 +14,27 @@ interface NavItem {
   roles?: AppRole[];
 }
 
+// Direct, one-click access to every operational module (MAX-011 Bloco E):
+// no module the day-to-day operator needs lives more than one click away,
+// behind a hub concept ("Clientes"/"Pilotos") or a submenu. Establishments
+// and geofences remain reachable from inside a client/campaign when that's
+// contextually useful, but also get their own direct entry here — see
+// AGENTS.md and docs/product/PILOT_INFORMATION_ARCHITECTURE.md for why the
+// earlier hub-only navigation was reverted.
 const primaryNav: NavItem[] = [
   { label: 'Início', href: '/', icon: '▦' },
+  {
+    label: 'Campanhas',
+    href: '/campanhas',
+    icon: '▶',
+    roles: ['super_admin', 'admin', 'commercial'],
+  },
+  {
+    label: 'Dispositivos',
+    href: '/dispositivos',
+    icon: '▤',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
   {
     label: 'Clientes',
     href: '/clientes',
@@ -23,12 +42,33 @@ const primaryNav: NavItem[] = [
     roles: ['super_admin', 'admin', 'commercial'],
   },
   {
-    label: 'Pilotos',
+    label: 'Motoristas',
     href: '/motoristas',
     icon: '♙',
     roles: ['super_admin', 'admin', 'operations'],
   },
+  {
+    label: 'Veículos',
+    href: '/veiculos',
+    icon: '▭',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
+  {
+    label: 'Geofences',
+    href: '/geofences',
+    icon: '◎',
+    roles: ['super_admin', 'admin', 'commercial'],
+  },
+];
+
+const operationsNav: NavItem[] = [
   { label: 'Relatórios', href: '/relatorios', icon: '▥' },
+  {
+    label: 'Auditoria',
+    href: '/configuracoes/auditoria',
+    icon: '☰',
+    roles: ['super_admin'],
+  },
 ];
 
 const adminNav: NavItem[] = [
@@ -38,13 +78,14 @@ const adminNav: NavItem[] = [
     icon: '♧',
     roles: ['super_admin', 'admin'],
   },
-  { label: 'Meu perfil', href: '/perfil', icon: '◌' },
   { label: 'Configurações', href: '/configuracoes', icon: '⚙' },
+  { label: 'Meu perfil', href: '/perfil', icon: '◌' },
 ];
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
   { label: 'PRINCIPAL', items: primaryNav },
-  { label: 'MAIS OPÇÕES', items: adminNav },
+  { label: 'OPERAÇÃO', items: operationsNav },
+  { label: 'ADMINISTRAÇÃO', items: adminNav },
 ];
 
 export function AppShell({

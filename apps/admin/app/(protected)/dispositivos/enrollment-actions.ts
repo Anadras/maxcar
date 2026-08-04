@@ -57,3 +57,18 @@ export async function revokeDeviceCredential(deviceId: string) {
   await supabase.rpc('revoke_device_credential', { p_device_id: deviceId });
   revalidatePath(`/dispositivos/${deviceId}`);
 }
+
+/** MAX-010.6: revokes the tablet's active cryptographic key. Distinct from
+ * [revokeDeviceCredential] (the older, static-token credential) — a
+ * device can hold either or neither depending on which auth generation it
+ * last enrolled under. The tablet regains identity the same way it always
+ * has: a fresh activation code re-enrolls it (see generateEnrollmentCode),
+ * or — if the on-device key itself is still intact — its own automatic
+ * recovery flow, which this action deliberately can't distinguish from
+ * here since it never sees the physical Keystore. */
+export async function revokeDeviceKeyIdentity(deviceId: string) {
+  if (!(await authorize())) return;
+  const supabase = await createClient();
+  await supabase.rpc('revoke_device_key', { p_device_id: deviceId });
+  revalidatePath(`/dispositivos/${deviceId}`);
+}

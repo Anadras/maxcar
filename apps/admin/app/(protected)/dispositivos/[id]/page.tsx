@@ -5,6 +5,7 @@ import { issueDeviceCommand } from '../command-actions';
 import {
   generateEnrollmentCode,
   revokeDeviceCredential,
+  revokeDeviceKeyIdentity,
   revokePendingEnrollmentCode,
 } from '../enrollment-actions';
 import {
@@ -17,6 +18,7 @@ import {
 import { setDeviceMaintenancePin } from '../pin-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
+import { DeviceKeyIdentityPanel } from '@/components/device-key-identity-panel';
 import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
@@ -25,6 +27,7 @@ import { getAuthContext } from '@/lib/auth/context';
 import {
   getDevice,
   getDeviceEnrollment,
+  getDeviceKeyIdentity,
   listDeviceCommandsSummary,
 } from '@/lib/data/devices';
 import {
@@ -146,6 +149,7 @@ export default async function DeviceDetailPage({
   if (!device) notFound();
   const canManage = !!auth && canManageFleet(auth.profile.role);
   const enrollment = canManage ? await getDeviceEnrollment(id) : null;
+  const keyIdentity = canManage ? await getDeviceKeyIdentity(id) : null;
   const commands = canManage
     ? await listDeviceCommandsSummary(id)
     : { current: [], recent: [] };
@@ -527,6 +531,22 @@ export default async function DeviceDetailPage({
             generateAction={generateEnrollmentCode.bind(null, id)}
             revokeCodeAction={revokePendingEnrollmentCode.bind(null, id)}
             revokeCredentialAction={revokeDeviceCredential.bind(null, id)}
+          />
+        </SectionCard>
+      )}
+      {canManage && keyIdentity && (
+        <SectionCard
+          title="Autenticação do tablet"
+          subtitle="Identidade criptográfica do dispositivo (MAX-010.6) — substitui o token estático por uma chave que nunca sai do tablet."
+        >
+          <DeviceKeyIdentityPanel
+            hasActiveKey={keyIdentity.has_active_key ?? false}
+            hasActiveLegacyToken={keyIdentity.has_active_legacy_token ?? false}
+            algorithm={keyIdentity.algorithm}
+            hardwareBacked={keyIdentity.hardware_backed}
+            keyActivatedAt={keyIdentity.key_activated_at}
+            keyLastUsedAt={keyIdentity.key_last_used_at}
+            revokeAction={revokeDeviceKeyIdentity.bind(null, id)}
           />
         </SectionCard>
       )}

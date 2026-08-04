@@ -195,6 +195,21 @@ export async function getDeviceEnrollment(deviceId: string) {
   return data;
 }
 
+/** MAX-010.6: the tablet's cryptographic identity (never the v1 static
+ * token this replaces). Only the non-secret fingerprint/metadata is ever
+ * selected here — the public key DER itself isn't exposed to this view at
+ * all, and there is no column anywhere that could leak a private key. */
+export async function getDeviceKeyIdentity(deviceId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('device_key_admin_view')
+    .select('*')
+    .eq('device_id', deviceId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 const COMMAND_SELECT =
   'id, command_type, status, created_at, delivered_at, completed_at, result';
 

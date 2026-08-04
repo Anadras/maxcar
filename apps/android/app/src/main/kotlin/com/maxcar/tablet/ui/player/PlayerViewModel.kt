@@ -15,6 +15,7 @@ import com.maxcar.tablet.data.local.GeoRuleEntity
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.MediaDownloadManager
+import com.maxcar.tablet.data.repository.MediaPreparationStatus
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.Job
@@ -50,6 +51,8 @@ class PlayerViewModel(
 
     private val _uiState = MutableStateFlow<PlayerUiState>(PlayerUiState.Initializing)
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+    private val _preparationStatus = MutableStateFlow(MediaPreparationStatus())
+    val preparationStatus: StateFlow<MediaPreparationStatus> = _preparationStatus.asStateFlow()
 
     private var queue: List<PlaylistItemEntity> = emptyList()
     private var pendingQueue: List<PlaylistItemEntity>? = null
@@ -74,6 +77,14 @@ class PlayerViewModel(
     init {
         viewModelScope.launch {
             mediaDownloadManager.readyPlaylist.collect { items -> onQueueUpdated(items) }
+        }
+        viewModelScope.launch {
+            mediaDownloadManager.preparationStatus.collect { status ->
+                _preparationStatus.value = status
+                if (_uiState.value is PlayerUiState.Empty) {
+                    reportStatus(STATE_EMPTY, null, null, status.diagnosticCode)
+                }
+            }
         }
         exoPlayer.addListener(
             object : Player.Listener {
@@ -128,7 +139,12 @@ class PlayerViewModel(
             consecutiveFailures = 0
             if (items.isEmpty()) {
                 _uiState.value = PlayerUiState.Empty
-                reportStatus(STATE_EMPTY, null, null, null)
+                reportStatus(
+                    STATE_EMPTY,
+                    null,
+                    null,
+                    _preparationStatus.value.diagnosticCode,
+                )
             } else {
                 playCurrent()
             }

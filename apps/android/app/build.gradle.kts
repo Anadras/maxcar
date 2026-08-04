@@ -102,6 +102,9 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
     implementation("androidx.activity:activity-compose:1.13.0")
+    // Play Services still pulls Fragment 1.1.0 transitively. Keep a current
+    // version explicit so Activity Result APIs are safe on the pilot tablet.
+    implementation("androidx.fragment:fragment-ktx:1.8.9")
     implementation("androidx.navigation:navigation-compose:2.9.8")
 
     implementation("androidx.compose.ui:ui")

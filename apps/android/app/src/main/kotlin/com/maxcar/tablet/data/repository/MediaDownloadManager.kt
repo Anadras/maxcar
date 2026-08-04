@@ -59,6 +59,15 @@ class MediaDownloadManager(
             items.filter { it.isCurrentlyValid(now) }
         }
 
+    /** A small, non-sensitive explanation of why the player has nothing
+     * to show. This is intentionally derived from local Room state: it is
+     * useful even while fully offline and never contains a signed URL,
+     * token or stack trace. */
+    val preparationStatus: Flow<MediaPreparationStatus> =
+        combine(playlistItemDao.observeAll(), readyPlaylist) { all, playable ->
+            summarizeMediaPreparation(all, playable.size)
+        }
+
     suspend fun readyCount(): Int = playlistItemDao.countReady()
 
     /**
@@ -101,7 +110,17 @@ class MediaDownloadManager(
         for (item in manifest.playlist) {
             val row = playlistItemDao.get(item.creativeId) ?: continue
             if (row.downloadStatus == PlaylistItemEntity.STATUS_READY) continue
-            val downloadUrl = incoming[item.creativeId]?.downloadUrl ?: continue
+            val downloadUrl = incoming[item.creativeId]?.downloadUrl
+            if (downloadUrl == null) {
+                playlistItemDao.updateStatus(
+                    item.creativeId,
+                    PlaylistItemEntity.STATUS_FAILED,
+                    null,
+                    "missing_download_url",
+                    System.currentTimeMillis(),
+                )
+                continue
+            }
             downloadOne(item, downloadUrl)
         }
 
@@ -210,6 +229,57 @@ class MediaDownloadManager(
         // rather than risk wrongly blanking the screen.
         const val SEVERE_CLOCK_SKEW_SECONDS = 3600
     }
+}
+
+data class MediaPreparationStatus(
+    val totalItems: Int = 0,
+    val playableItems: Int = 0,
+    val pendingItems: Int = 0,
+    val downloadingItems: Int = 0,
+    val failedItems: Int = 0,
+    val diagnosticCode: String = "manifest_not_received",
+) {
+    val passengerTitle: String
+        get() = when {
+            playableItems > 0 -> "Conteúdo pronto"
+            downloadingItems > 0 || pendingItems > 0 -> "Baixando conteúdo"
+            failedItems > 0 -> "Não foi possível preparar o conteúdo"
+            totalItems > 0 -> "Aguardando o horário da campanha"
+            else -> "Aguardando programação"
+        }
+
+    val passengerMessage: String
+        get() = when {
+            downloadingItems > 0 || pendingItems > 0 -> "A reprodução começa automaticamente ao terminar."
+            failedItems > 0 -> "O sistema tentará novamente na próxima sincronização."
+            totalItems > 0 -> "A reprodução começa automaticamente no período programado."
+            else -> "Configure e publique uma campanha no painel MAXCAR."
+        }
+}
+
+internal fun summarizeMediaPreparation(
+    items: List<PlaylistItemEntity>,
+    playableItems: Int,
+): MediaPreparationStatus {
+    val pending = items.count { it.downloadStatus == PlaylistItemEntity.STATUS_PENDING }
+    val downloading = items.count { it.downloadStatus == PlaylistItemEntity.STATUS_DOWNLOADING }
+    val failed = items.count { it.downloadStatus == PlaylistItemEntity.STATUS_FAILED }
+    val code = when {
+        playableItems > 0 -> "ready"
+        downloading > 0 -> "media_downloading"
+        pending > 0 -> "media_pending"
+        failed > 0 -> "media_download_failed"
+        items.isNotEmpty() -> "outside_campaign_schedule"
+        else -> "manifest_empty"
+    }
+    return MediaPreparationStatus(
+        totalItems = items.size,
+        playableItems = playableItems,
+        pendingItems = pending,
+        downloadingItems = downloading,
+        failedItems = failed,
+        diagnosticCode = code,
+    )
 }
 
 private fun ManifestPlaylistItem.toPendingEntity(manifestVersion: String, now: Long) =

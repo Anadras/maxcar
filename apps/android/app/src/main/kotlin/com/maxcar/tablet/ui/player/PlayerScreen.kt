@@ -32,6 +32,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.maxcar.tablet.kiosk.MaintenanceAccessController
+import com.maxcar.tablet.data.repository.MediaPreparationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -49,6 +50,7 @@ fun PlayerScreen(
     onOpenDiagnostics: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsState()
+    val preparationStatus by viewModel.preparationStatus.collectAsState()
     var showPinDialog by remember { mutableStateOf(false) }
 
     Box(
@@ -67,7 +69,7 @@ fun PlayerScreen(
                     LocalImageItem(path = current.item.localPath)
                 }
             }
-            PlayerUiState.Empty -> NoContentScreen()
+            PlayerUiState.Empty -> NoContentScreen(preparationStatus)
             PlayerUiState.Initializing -> Unit
         }
 
@@ -121,10 +123,10 @@ private fun LocalImageItem(path: String?) {
 }
 
 @Composable
-private fun NoContentScreen() {
+private fun NoContentScreen(status: MediaPreparationStatus) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "MAXCAR\nConteúdo sendo preparado.",
+            text = "MAXCAR\n\n${status.passengerTitle}\n${status.passengerMessage}",
             color = Color(0xFFEAF1FB),
             textAlign = TextAlign.Center,
         )

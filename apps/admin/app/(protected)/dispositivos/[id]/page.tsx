@@ -436,57 +436,6 @@ export default async function DeviceDetailPage({
             </div>
           </dl>
         </SectionCard>
-        {canManage && (
-          <SectionCard
-            title="Comandos remotos"
-            subtitle="Conjunto fechado de operações seguras — nunca shell arbitrário. Entregue no próximo ciclo de sincronização do tablet."
-          >
-            <div className="lifecycle-actions-row">
-              {(Object.keys(COMMAND_LABEL) as DeviceCommandType[]).map(
-                (commandType) => (
-                  <form
-                    key={commandType}
-                    action={issueDeviceCommand.bind(null, id)}
-                  >
-                    <input
-                      type="hidden"
-                      name="commandType"
-                      value={commandType}
-                    />
-                    <button className="button button-secondary" type="submit">
-                      {COMMAND_LABEL[commandType]}
-                    </button>
-                  </form>
-                ),
-              )}
-            </div>
-            {commands.current.length === 0 &&
-            commands.recent.length === 0 ? (
-              <p className="section-empty">Nenhum comando enviado ainda.</p>
-            ) : (
-              <>
-                {commands.current.length > 0 && (
-                  <>
-                    <h3 className="section-subheading">Em andamento</h3>
-                    <CommandTable commands={commands.current} />
-                  </>
-                )}
-                {commands.recent.length > 0 && (
-                  <>
-                    <h3 className="section-subheading">Últimos concluídos</h3>
-                    <CommandTable commands={commands.recent} />
-                  </>
-                )}
-              </>
-            )}
-            <Link
-              href={`/dispositivos/${id}/comandos`}
-              className="section-link"
-            >
-              Ver histórico completo →
-            </Link>
-          </SectionCard>
-        )}
         <SectionCard
           title="Kiosk e manutenção"
           subtitle="Camada de proteção realmente alcançada pelo tablet (nunca apenas a tentada) e o PIN técnico local. Ver docs/architecture/ANDROID_KIOSK.md."
@@ -570,61 +519,6 @@ export default async function DeviceDetailPage({
           />
         </SectionCard>
       )}
-      {canSimulate && (
-        <SectionCard
-          title="Simulador de heartbeat"
-          subtitle="Ferramenta local; o banco exige superadministrador."
-        >
-          <form action={simulateHeartbeat} className="heartbeat-form">
-            <input type="hidden" name="deviceId" value={id} />
-            <label>
-              Bateria
-              <input
-                name="batteryLevel"
-                type="number"
-                min={0}
-                max={100}
-                defaultValue={85}
-              />
-            </label>
-            <label>
-              Rede
-              <select name="networkConnected" defaultValue="true">
-                <option value="true">Conectada</option>
-                <option value="false">Desconectada</option>
-              </select>
-            </label>
-            <label>
-              GPS
-              <select name="gpsAvailable" defaultValue="true">
-                <option value="true">Disponível</option>
-                <option value="false">Indisponível</option>
-              </select>
-            </label>
-            <label>
-              Latitude
-              <input
-                name="latitude"
-                type="number"
-                step="any"
-                defaultValue={-20.4697}
-              />
-            </label>
-            <label>
-              Longitude
-              <input
-                name="longitude"
-                type="number"
-                step="any"
-                defaultValue={-54.6201}
-              />
-            </label>
-            <button className="button button-secondary" type="submit">
-              Simular heartbeat
-            </button>
-          </form>
-        </SectionCard>
-      )}
       <SectionCard
         title="Histórico de heartbeats"
         subtitle="Últimos 20 sinais persistidos"
@@ -670,26 +564,142 @@ export default async function DeviceDetailPage({
           </div>
         )}
       </SectionCard>
-      {canManage && (
-        <SectionCard
-          title="Ciclo de vida"
-          subtitle="Desativar, arquivar e excluir são ações distintas — veja docs/admin/FLEET_LIFECYCLE.md."
-        >
-          <FleetLifecycleActions
-            entityLabel="dispositivo"
-            entityDisplayName={device.device_code}
-            isArchived={Boolean(device.archived_at)}
-            isActive={device.status !== 'maintenance'}
-            isSuperAdmin={auth?.profile.role === 'super_admin'}
-            canUnlink={Boolean(device.vehicle_id)}
-            unlinkLabel="o veículo"
-            archiveAction={archiveDevice.bind(null, id)}
-            restoreAction={restoreDevice.bind(null, id)}
-            setActiveAction={setDeviceActive.bind(null, id)}
-            unlinkAction={unlinkDeviceVehicle.bind(null, id)}
-            deleteAction={deleteDevicePermanently.bind(null, id)}
-          />
-        </SectionCard>
+      {(canManage || canSimulate) && (
+        <details className="technical-details">
+          <summary>Ferramentas avançadas</summary>
+          {canManage && (
+            <SectionCard
+              title="Comandos remotos"
+              subtitle="Conjunto fechado de operações seguras — nunca shell arbitrário. Entregue no próximo ciclo de sincronização do tablet."
+            >
+              <div className="lifecycle-actions-row">
+                {(Object.keys(COMMAND_LABEL) as DeviceCommandType[]).map(
+                  (commandType) => (
+                    <form
+                      key={commandType}
+                      action={issueDeviceCommand.bind(null, id)}
+                    >
+                      <input
+                        type="hidden"
+                        name="commandType"
+                        value={commandType}
+                      />
+                      <button
+                        className="button button-secondary"
+                        type="submit"
+                      >
+                        {COMMAND_LABEL[commandType]}
+                      </button>
+                    </form>
+                  ),
+                )}
+              </div>
+              {commands.current.length === 0 &&
+              commands.recent.length === 0 ? (
+                <p className="section-empty">Nenhum comando enviado ainda.</p>
+              ) : (
+                <>
+                  {commands.current.length > 0 && (
+                    <>
+                      <h3 className="section-subheading">Em andamento</h3>
+                      <CommandTable commands={commands.current} />
+                    </>
+                  )}
+                  {commands.recent.length > 0 && (
+                    <>
+                      <h3 className="section-subheading">
+                        Últimos concluídos
+                      </h3>
+                      <CommandTable commands={commands.recent} />
+                    </>
+                  )}
+                </>
+              )}
+              <Link
+                href={`/dispositivos/${id}/comandos`}
+                className="section-link"
+              >
+                Ver histórico completo →
+              </Link>
+            </SectionCard>
+          )}
+          {canSimulate && (
+            <SectionCard
+              title="Simulador de heartbeat"
+              subtitle="Ferramenta local; o banco exige superadministrador."
+            >
+              <form action={simulateHeartbeat} className="heartbeat-form">
+                <input type="hidden" name="deviceId" value={id} />
+                <label>
+                  Bateria
+                  <input
+                    name="batteryLevel"
+                    type="number"
+                    min={0}
+                    max={100}
+                    defaultValue={85}
+                  />
+                </label>
+                <label>
+                  Rede
+                  <select name="networkConnected" defaultValue="true">
+                    <option value="true">Conectada</option>
+                    <option value="false">Desconectada</option>
+                  </select>
+                </label>
+                <label>
+                  GPS
+                  <select name="gpsAvailable" defaultValue="true">
+                    <option value="true">Disponível</option>
+                    <option value="false">Indisponível</option>
+                  </select>
+                </label>
+                <label>
+                  Latitude
+                  <input
+                    name="latitude"
+                    type="number"
+                    step="any"
+                    defaultValue={-20.4697}
+                  />
+                </label>
+                <label>
+                  Longitude
+                  <input
+                    name="longitude"
+                    type="number"
+                    step="any"
+                    defaultValue={-54.6201}
+                  />
+                </label>
+                <button className="button button-secondary" type="submit">
+                  Simular heartbeat
+                </button>
+              </form>
+            </SectionCard>
+          )}
+          {canManage && (
+            <SectionCard
+              title="Ciclo de vida"
+              subtitle="Desativar, arquivar e excluir são ações distintas — veja docs/admin/FLEET_LIFECYCLE.md."
+            >
+              <FleetLifecycleActions
+                entityLabel="dispositivo"
+                entityDisplayName={device.device_code}
+                isArchived={Boolean(device.archived_at)}
+                isActive={device.status !== 'maintenance'}
+                isSuperAdmin={auth?.profile.role === 'super_admin'}
+                canUnlink={Boolean(device.vehicle_id)}
+                unlinkLabel="o veículo"
+                archiveAction={archiveDevice.bind(null, id)}
+                restoreAction={restoreDevice.bind(null, id)}
+                setActiveAction={setDeviceActive.bind(null, id)}
+                unlinkAction={unlinkDeviceVehicle.bind(null, id)}
+                deleteAction={deleteDevicePermanently.bind(null, id)}
+              />
+            </SectionCard>
+          )}
+        </details>
       )}
     </div>
   );

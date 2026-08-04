@@ -34,6 +34,19 @@ import {
 } from '@/lib/fleet';
 import type { DeviceCommandType } from '@maxcar/shared';
 
+// device.status is an administrative lifecycle field (provisioning/
+// maintenance/retired/etc.), not live connectivity — the enum happens to
+// also use the words "online"/"offline", which read as current
+// connection state if shown unlabeled next to "Conexão" (the real,
+// heartbeat-age-based field). Distinct label + wording rules that out.
+const DEVICE_LIFECYCLE_LABEL: Record<string, string> = {
+  provisioning: 'Em provisionamento',
+  online: 'Em operação',
+  offline: 'Fora de operação (manual)',
+  maintenance: 'Em manutenção',
+  retired: 'Aposentado',
+};
+
 const OPERATIONAL_STATUS_LABEL: Record<string, string> = {
   ready: 'Pronto',
   playing: 'Reproduzindo',
@@ -191,9 +204,11 @@ export default async function DeviceDetailPage({
             </dd>
           </div>
           <div>
-            <dt>Situação</dt>
+            <dt>Etapa operacional</dt>
             <dd>
-              <StatusBadge value={device.status} />
+              <StatusBadge
+                value={DEVICE_LIFECYCLE_LABEL[device.status] ?? device.status}
+              />
             </dd>
           </div>
           <div>
@@ -221,31 +236,27 @@ export default async function DeviceDetailPage({
             </dd>
           </div>
           <div>
-            <dt>Bateria</dt>
+            <dt>Última bateria informada</dt>
             <dd>
               {device.battery_level === null
                 ? 'Sem telemetria'
-                : `${device.battery_level}%`}
+                : `${device.battery_level}% — ${formatRelativeTime(device.heartbeat_at)}`}
             </dd>
           </div>
           <div>
-            <dt>Internet</dt>
+            <dt>Última rede informada</dt>
             <dd>
               {device.network_connected === null
                 ? 'Sem telemetria'
-                : device.network_connected
-                  ? 'Conectada'
-                  : 'Desconectada'}
+                : `${device.network_connected ? 'Conectada' : 'Desconectada'} — ${formatRelativeTime(device.heartbeat_at)}`}
             </dd>
           </div>
           <div>
-            <dt>GPS</dt>
+            <dt>Último estado de GPS informado</dt>
             <dd>
               {device.gps_available === null
                 ? 'Sem telemetria'
-                : device.gps_available
-                  ? 'Disponível'
-                  : 'Indisponível'}
+                : `${device.gps_available ? 'Disponível' : 'Indisponível'} — ${formatRelativeTime(device.heartbeat_at)}`}
             </dd>
           </div>
           <div>

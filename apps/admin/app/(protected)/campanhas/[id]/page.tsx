@@ -15,8 +15,12 @@ import {
   publishCampaignAndSync,
   removeCampaignFromDefaultPlaylist,
 } from './playlist-actions';
+import { setCampaignDevices } from './device-assignment-actions';
+import { testGeoCampaignDelivery } from './geo-test-actions';
 import { deleteCampaignPermanently } from '../actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { CampaignDevicePicker } from '@/components/campaign-device-picker';
+import { GeoCampaignTestPanel } from '@/components/geo-campaign-test-panel';
 import { ConfirmSubmitButton } from '@/components/confirm-submit-button';
 import { CreativeGallery } from '@/components/creative-gallery';
 import { CreativeUploadForm } from '@/components/creative-upload-form';
@@ -33,10 +37,15 @@ import {
   formatCampaignPeriod,
   priorityLabel,
 } from '@/lib/campaigns';
+import {
+  listCampaignDeliveryStatus,
+  listCampaignDeviceAssignments,
+} from '@/lib/data/campaign-devices';
 import { getCampaign } from '@/lib/data/campaigns';
 import { listCampaignCreatives } from '@/lib/data/creatives';
 import { listCampaignGeofences } from '@/lib/data/geofences';
 import { isCampaignInDefaultPlaylist } from '@/lib/data/playlists';
+import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
 
 export default async function CampaignDetailPage({
   params,
@@ -57,22 +66,45 @@ export default async function CampaignDetailPage({
   const canPublish = Boolean(
     auth && ['super_admin', 'admin'].includes(auth.profile.role),
   );
-  const [creativesResult, geofencesResult, playlistResult] =
-    await Promise.allSettled([
-      listCampaignCreatives(id),
-      campaign.campaign_type === 'geo'
-        ? listCampaignGeofences(id)
-        : Promise.resolve([]),
-      campaign.campaign_type === 'regular' && canManageGrid
-        ? isCampaignInDefaultPlaylist(id)
-        : Promise.resolve(false),
-    ]);
+  const canSimulateGeoTest =
+    process.env.NODE_ENV !== 'production' &&
+    auth?.profile.role === 'super_admin';
+  const [
+    creativesResult,
+    geofencesResult,
+    playlistResult,
+    deviceAssignmentResult,
+    deliveryStatusResult,
+  ] = await Promise.allSettled([
+    listCampaignCreatives(id),
+    campaign.campaign_type === 'geo'
+      ? listCampaignGeofences(id)
+      : Promise.resolve([]),
+    campaign.campaign_type === 'regular' && canManageGrid
+      ? isCampaignInDefaultPlaylist(id)
+      : Promise.resolve(false),
+    canManageGrid
+      ? listCampaignDeviceAssignments(id)
+      : Promise.resolve({ unrestricted: true, devices: [] }),
+    canManageGrid
+      ? listCampaignDeliveryStatus(id, {
+          updatedAt: campaign.updated_at ?? null,
+          campaignType: campaign.campaign_type,
+        })
+      : Promise.resolve([]),
+  ]);
   const creatives =
     creativesResult.status === 'fulfilled' ? creativesResult.value : [];
   const geofences =
     geofencesResult.status === 'fulfilled' ? geofencesResult.value : [];
   const inDefaultPlaylist =
     playlistResult.status === 'fulfilled' ? playlistResult.value : false;
+  const deviceAssignment =
+    deviceAssignmentResult.status === 'fulfilled'
+      ? deviceAssignmentResult.value
+      : { unrestricted: true, devices: [] };
+  const deliveryStatus =
+    deliveryStatusResult.status === 'fulfilled' ? deliveryStatusResult.value : [];
   const unavailableSections = [
     creativesResult.status === 'rejected' ? 'arquivos' : null,
     geofencesResult.status === 'rejected' ? 'local de ativação' : null,
@@ -373,6 +405,81 @@ export default async function CampaignDetailPage({
                   </div>
                 </article>
               ))}
+            </div>
+          )}
+          {canSimulateGeoTest && geofences.length > 0 && (
+            <>
+              <h3 className="section-subheading">
+                Testar campanha GEO neste dispositivo (simulado)
+              </h3>
+              <GeoCampaignTestPanel
+                devices={deviceAssignment.devices.map((device) => ({
+                  id: device.id,
+                  deviceCode: device.deviceCode,
+                }))}
+                action={testGeoCampaignDelivery.bind(null, id)}
+              />
+            </>
+          )}
+        </SectionCard>
+      )}
+      {canManageGrid && (
+        <SectionCard
+          title="Dispositivos desta campanha"
+          subtitle={
+            campaign.campaign_type === 'geo'
+              ? 'Restrinja quais tablets podem exibir este anúncio GEO, mesmo dentro do raio configurado.'
+              : 'Restrinja quais tablets recebem este anúncio, além da programação normal.'
+          }
+        >
+          <CampaignDevicePicker
+            devices={deviceAssignment.devices}
+            unrestricted={deviceAssignment.unrestricted}
+            action={setCampaignDevices.bind(null, id)}
+          />
+        </SectionCard>
+      )}
+      {canManageGrid && (
+        <SectionCard
+          title="Status de entrega por tablet"
+          subtitle="O que cada tablet elegível está fazendo com esta campanha agora, em linguagem simples."
+        >
+          {deliveryStatus.length === 0 ? (
+            <p className="section-empty">
+              Nenhum tablet ativo elegível para esta campanha ainda.
+            </p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tablet</th>
+                    <th>Veículo</th>
+                    <th>Conexão</th>
+                    <th>Situação</th>
+                    <th>Última sincronização</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveryStatus.map((row) => (
+                    <tr key={row.id}>
+                      <td>
+                        <Link href={`/dispositivos/${row.id}`}>
+                          {row.deviceCode}
+                        </Link>
+                      </td>
+                      <td>{row.vehicleCode ?? 'Sem vínculo'}</td>
+                      <td>
+                        <StatusBadge
+                          value={CONNECTION_LABEL[row.connectionStatus]}
+                        />
+                      </td>
+                      <td>{row.statusLabel}</td>
+                      <td>{formatRelativeTime(row.lastSyncAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </SectionCard>

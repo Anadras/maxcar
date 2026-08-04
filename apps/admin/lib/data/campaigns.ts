@@ -25,7 +25,22 @@ export async function listCampaigns(filters: CampaignFilters = {}) {
   if (filters.status) query = query.eq('status', filters.status);
   const { data, error } = await query;
   if (error) throw error;
-  return data;
+
+  // How many devices each campaign is explicitly restricted to (MAX-011
+  // Bloco C) — an empty count means "unrestricted, reaches every active
+  // device", never "assigned to nobody", so the list must say so plainly
+  // rather than showing a bare 0.
+  const { data: assignments } = await supabase
+    .from('campaign_devices')
+    .select('campaign_id');
+  const deviceCounts = new Map<string, number>();
+  for (const row of assignments ?? []) {
+    deviceCounts.set(row.campaign_id, (deviceCounts.get(row.campaign_id) ?? 0) + 1);
+  }
+  return data.map((campaign) => ({
+    ...campaign,
+    assigned_device_count: campaign.id ? (deviceCounts.get(campaign.id) ?? 0) : 0,
+  }));
 }
 
 export async function getCampaign(id: string) {

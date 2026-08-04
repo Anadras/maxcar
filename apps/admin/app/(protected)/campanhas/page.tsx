@@ -139,6 +139,7 @@ export default async function CampaignsPage({
                   <th>Status</th>
                   <th>Período</th>
                   <th>Preparação</th>
+                  <th>Dispositivos</th>
                   <th>Reproduções</th>
                   <th>Ações</th>
                 </tr>
@@ -176,6 +177,11 @@ export default async function CampaignsPage({
                             : campaign.status === 'active'
                               ? 'No ar'
                               : 'Pronta para publicar'}
+                      </td>
+                      <td>
+                        {campaign.assigned_device_count > 0
+                          ? `${campaign.assigned_device_count} selecionado(s)`
+                          : 'Todos os ativos'}
                       </td>
                       <td>
                         {(campaign.impression_count ?? 0).toLocaleString(

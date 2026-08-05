@@ -43,7 +43,12 @@ export function bearerToken(req: Request): string | null {
 }
 
 /** Maps a Postgres error (from a device-facing RPC) to an HTTP response,
- * without ever forwarding the raw Postgres error object. */
+ * without ever forwarding the raw Postgres error object. The 'MX0xx' range
+ * distinguishes specific enrollment-code rejection reasons (see
+ * supabase/migrations/20260813090000_enrollment_code_error_detail.sql) —
+ * the Android client uses `error` (never the raw SQLSTATE) to show a
+ * specific message instead of one generic "código inválido" for every
+ * possible cause. */
 export function errorResponse(error: { code?: string; message?: string }) {
   const message = error.message ?? 'Unexpected error.';
   switch (error.code) {
@@ -53,6 +58,16 @@ export function errorResponse(error: { code?: string; message?: string }) {
       return jsonResponse({ error: 'rate_limited', message }, 429);
     case '22023':
       return jsonResponse({ error: 'invalid_request', message }, 400);
+    case 'MX010':
+      return jsonResponse({ error: 'code_not_found', message }, 404);
+    case 'MX011':
+      return jsonResponse({ error: 'code_already_used', message }, 409);
+    case 'MX012':
+      return jsonResponse({ error: 'code_revoked', message }, 409);
+    case 'MX013':
+      return jsonResponse({ error: 'code_expired', message }, 410);
+    case 'MX014':
+      return jsonResponse({ error: 'challenge_expired', message }, 410);
     default:
       // Never leak the underlying SQLSTATE/detail to the client.
       console.error('device api error', error.code);

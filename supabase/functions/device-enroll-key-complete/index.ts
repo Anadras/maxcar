@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
   );
   if (challengeError || !challengeRows || challengeRows.length === 0) {
     return jsonResponse(
-      { error: 'invalid_request', message: 'Enrollment attempt not found or expired.' },
+      { error: 'attempt_not_found', message: 'Enrollment attempt not found.' },
       404,
     );
   }
@@ -72,12 +72,11 @@ Deno.serve(async (req) => {
     expires_at: string;
     completed_at: string | null;
   };
-  if (Date.parse(challenge.expires_at) < Date.now()) {
-    return jsonResponse(
-      { error: 'invalid_request', message: 'Enrollment attempt not found or expired.' },
-      404,
-    );
-  }
+  // Deliberately no expiry check here: complete_device_key_enrollment is
+  // the single source of truth for that, and — unlike a plain expires_at
+  // comparison — it also handles the idempotent-replay case correctly
+  // (an attempt that already completed successfully must still succeed on
+  // retry even if its challenge window has since passed).
 
   const signatureValid = await verifyEcdsaP256Signature(
     challenge.public_key_der,
@@ -86,7 +85,7 @@ Deno.serve(async (req) => {
   );
   if (!signatureValid) {
     return jsonResponse(
-      { error: 'unauthorized', message: 'Invalid proof of possession.' },
+      { error: 'invalid_signature', message: 'Invalid proof of possession.' },
       401,
     );
   }

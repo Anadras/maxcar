@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(41);
 
 grant usage on schema extensions to authenticated;
 grant execute on all functions in schema extensions to authenticated;
@@ -23,14 +23,62 @@ insert into public.device_enrollment_codes (device_id, code_hash, expires_at) va
 -- start_device_key_enrollment
 -- ==================================================================
 
+-- MAX-010.6 follow-up: each rejection reason gets its own SQLSTATE/message
+-- instead of one generic "invalid, expired or already used" for every
+-- possible cause — see 20260813090000_enrollment_code_error_detail.sql's
+-- header comment for why that ambiguity mattered in practice.
 select throws_ok(
   $$select public.start_device_key_enrollment(
       'wrongcode', 'd2000000-0000-4000-8000-000000000001',
       encode('\x1234'::bytea, 'base64'), 'fp1', 'ECDSA_P256_SHA256'
     )$$,
-  '42501',
-  'Enrollment code is invalid, expired or already used.',
-  'an unknown code is rejected'
+  'MX010',
+  'Enrollment code not found.',
+  'an unknown code is rejected as not found'
+);
+
+insert into public.devices (id, device_code, status) values
+  ('d1000000-0000-4000-8000-000000000021', 'TB-M11F-02', 'provisioning'),
+  ('d1000000-0000-4000-8000-000000000022', 'TB-M11F-03', 'provisioning'),
+  ('d1000000-0000-4000-8000-000000000023', 'TB-M11F-04', 'provisioning');
+
+insert into public.device_enrollment_codes (device_id, code_hash, expires_at, used_at) values
+  ('d1000000-0000-4000-8000-000000000021', encode(digest('USEDCODE', 'sha256'), 'hex'), now() + interval '15 minutes', now());
+insert into public.device_enrollment_codes (device_id, code_hash, expires_at, revoked_at) values
+  ('d1000000-0000-4000-8000-000000000022', encode(digest('REVKCODE', 'sha256'), 'hex'), now() + interval '15 minutes', now());
+-- created_at and expires_at both pushed into the past (not just
+-- expires_at) since every row inserted in this same test transaction
+-- otherwise shares one pinned now() as created_at's default, and
+-- expires_at > created_at is an enforced check constraint.
+insert into public.device_enrollment_codes (id, device_id, code_hash, expires_at, created_at) values
+  ('a1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000023', encode(digest('EXPCCODE', 'sha256'), 'hex'), now() - interval '1 minute', now() - interval '20 minutes');
+
+select throws_ok(
+  $$select public.start_device_key_enrollment(
+      'usedcode', 'd2000000-0000-4000-8000-000000000002',
+      encode('\x1234'::bytea, 'base64'), 'fp2', 'ECDSA_P256_SHA256'
+    )$$,
+  'MX011',
+  'Enrollment code has already been used.',
+  'a consumed code is rejected as already used'
+);
+select throws_ok(
+  $$select public.start_device_key_enrollment(
+      'revkcode', 'd2000000-0000-4000-8000-000000000003',
+      encode('\x1234'::bytea, 'base64'), 'fp3', 'ECDSA_P256_SHA256'
+    )$$,
+  'MX012',
+  'Enrollment code has been revoked.',
+  'a revoked code is rejected as revoked'
+);
+select throws_ok(
+  $$select public.start_device_key_enrollment(
+      'expccode', 'd2000000-0000-4000-8000-000000000004',
+      encode('\x1234'::bytea, 'base64'), 'fp4', 'ECDSA_P256_SHA256'
+    )$$,
+  'MX013',
+  'Enrollment code has expired.',
+  'an expired code is rejected as expired'
 );
 
 select throws_ok(
@@ -76,8 +124,29 @@ select is(
 select throws_ok(
   $$select public.complete_device_key_enrollment('00000000-0000-4000-8000-000000000000')$$,
   '42501',
-  'Enrollment attempt not found or expired.',
+  'Enrollment attempt not found.',
   'completing an unknown attempt fails'
+);
+
+-- A challenge that expired before ever being completed gets its own
+-- distinct reason (MX014), separate from "not found" above and from the
+-- enrollment *code*'s own 15-minute window (MX013) tested earlier.
+insert into public.devices (id, device_code, status) values
+  ('d1000000-0000-4000-8000-000000000024', 'TB-M11F-05', 'provisioning');
+insert into public.device_enrollment_codes (device_id, code_hash, expires_at) values
+  ('d1000000-0000-4000-8000-000000000024', encode(digest('EXPIRING', 'sha256'), 'hex'), now() + interval '15 minutes');
+select * from public.start_device_key_enrollment(
+    'expiring', 'd2000000-0000-4000-8000-000000000005',
+    encode('\xddee11'::bytea, 'base64'), 'fp-expiring', 'ECDSA_P256_SHA256'
+  ) \gset expiring_
+update private.device_key_enrollment_challenges
+  set created_at = now() - interval '20 minutes', expires_at = now() - interval '1 minute'
+  where id = :'expiring_enrollment_attempt_id'::uuid;
+select throws_ok(
+  format($$select public.complete_device_key_enrollment(%L)$$, :'expiring_enrollment_attempt_id'),
+  'MX014',
+  'Enrollment challenge has expired.',
+  'completing a challenge past its own 5-minute window fails distinctly from an unknown attempt'
 );
 
 select * from public.complete_device_key_enrollment(:'attempt_enrollment_attempt_id'::uuid) \gset result_
@@ -115,14 +184,27 @@ select is(
   'the idempotent replay does not create a second key credential'
 );
 
+-- A retry that lands after the challenge's own 5-minute window has since
+-- passed must still succeed idempotently — this is exactly what the
+-- Android client relies on if its own retry (after a timeout on the first
+-- response) is slow to land: an already-completed attempt is never
+-- re-rejected as "expired" just because time has moved on since success.
+update private.device_key_enrollment_challenges
+  set created_at = now() - interval '20 minutes', expires_at = now() - interval '10 minutes'
+  where id = :'attempt_enrollment_attempt_id'::uuid;
+select lives_ok(
+  format($$select public.complete_device_key_enrollment(%L)$$, :'attempt_enrollment_attempt_id'),
+  'a late retry of an already-completed attempt still succeeds even past the challenge''s own expiry'
+);
+
 -- Re-using the same (now-consumed) code for a second start fails cleanly.
 select throws_ok(
   $$select public.start_device_key_enrollment(
       'devkey01', 'd2000000-0000-4000-8000-000000000002',
       encode('\xddeeff'::bytea, 'base64'), 'fp-test-2', 'ECDSA_P256_SHA256'
     )$$,
-  '42501',
-  'Enrollment code is invalid, expired or already used.',
+  'MX011',
+  'Enrollment code has already been used.',
   'the consumed code cannot start a second enrollment attempt'
 );
 

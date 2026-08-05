@@ -1,5 +1,9 @@
+'use client';
+
 import type { Database } from '@maxcar/shared/database-types';
 import Link from 'next/link';
+import { useState } from 'react';
+import { LocationMap } from './location-map-loader';
 import { SubmitButton } from './submit-button';
 
 type Geofence =
@@ -26,6 +30,21 @@ export function GeofenceForm({
   preselectedEstablishment?: string;
   action: (formData: FormData) => void | Promise<void>;
 }) {
+  // The geofence's point is never entered here — it's inherited from the
+  // establishment (see EstablishmentForm/CoordinateInput for where a
+  // point actually gets typed or dropped on a map). This form only picks
+  // *which* establishment and *what radius*, so the map preview just
+  // reacts to those two choices instead of taking its own lat/lng input.
+  const [establishmentId, setEstablishmentId] = useState(
+    geofence?.establishment_id ?? preselectedEstablishment ?? '',
+  );
+  const [radiusMeters, setRadiusMeters] = useState(
+    geofence?.radius_meters ?? 1000,
+  );
+  const selectedEstablishment = establishments.find(
+    (item) => item.id === establishmentId,
+  );
+
   return (
     <form action={action} className="record-form geofence-form">
       <label>
@@ -55,9 +74,8 @@ export function GeofenceForm({
         Estabelecimento
         <select
           name="establishmentId"
-          defaultValue={
-            geofence?.establishment_id ?? preselectedEstablishment ?? ''
-          }
+          value={establishmentId}
+          onChange={(event) => setEstablishmentId(event.target.value)}
           required
         >
           <option value="" disabled>
@@ -81,7 +99,8 @@ export function GeofenceForm({
           min="50"
           max="100000"
           step="10"
-          defaultValue={geofence?.radius_meters ?? 1000}
+          value={radiusMeters}
+          onChange={(event) => setRadiusMeters(Number(event.target.value) || 0)}
           required
         />
         <small>UX recomendada: 50 m a 5 km; banco suporta até 100 km.</small>
@@ -116,15 +135,30 @@ export function GeofenceForm({
         />
         Geofence ativa
       </label>
-      <div className="map-preview full-field">
-        <span>◎</span>
-        <div>
-          <strong>Localização herdada do estabelecimento</strong>
-          <p>
-            Este fluxo altera apenas o raio. O ponto é editado no cadastro do
-            estabelecimento.
-          </p>
-        </div>
+      <div className="full-field">
+        {selectedEstablishment?.latitude != null &&
+        selectedEstablishment?.longitude != null ? (
+          <>
+            <LocationMap
+              latitude={selectedEstablishment.latitude}
+              longitude={selectedEstablishment.longitude}
+              radiusMeters={radiusMeters > 0 ? radiusMeters : undefined}
+              label={selectedEstablishment.name ?? 'Geofence'}
+            />
+            <p className="section-hint">
+              Ponto herdado de {selectedEstablishment.name} — para mover o
+              ponto em si, edite o estabelecimento.
+            </p>
+          </>
+        ) : (
+          <div className="map-preview">
+            <span>◎</span>
+            <div>
+              <strong>Localização herdada do estabelecimento</strong>
+              <p>Selecione um estabelecimento para ver o ponto e o raio no mapa.</p>
+            </div>
+          </div>
+        )}
       </div>
       <div className="form-actions full-field">
         <Link className="button button-ghost" href="/geofences">

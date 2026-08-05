@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 import type { SimulationState } from '@/app/(protected)/geofences/actions';
+import { CoordinateInput } from './coordinate-input';
 import { SubmitButton } from './submit-button';
 
 const initialState: SimulationState = {};
@@ -22,30 +23,11 @@ export function GeofenceSimulator({
   return (
     <div className="simulation-panel">
       <form action={formAction} className="simulation-form">
-        <label>
-          Latitude do veículo
-          <input
-            name="latitude"
-            type="number"
-            step="any"
-            min="-90"
-            max="90"
-            defaultValue={initialLatitude}
-            required
-          />
-        </label>
-        <label>
-          Longitude do veículo
-          <input
-            name="longitude"
-            type="number"
-            step="any"
-            min="-180"
-            max="180"
-            defaultValue={initialLongitude}
-            required
-          />
-        </label>
+        <CoordinateInput
+          initialLatitude={initialLatitude}
+          initialLongitude={initialLongitude}
+          label="Posição simulada do veículo"
+        />
         <SubmitButton pendingLabel="Calculando no PostGIS…">
           Simular posição do veículo
         </SubmitButton>

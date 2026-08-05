@@ -1,5 +1,6 @@
 import type { Database } from '@maxcar/shared/database-types';
 import Link from 'next/link';
+import { CoordinateInput } from './coordinate-input';
 
 type Establishment =
   Database['public']['Views']['establishment_admin_view']['Row'];
@@ -88,30 +89,6 @@ export function EstablishmentForm({
           required
         />
       </label>
-      <label>
-        Latitude
-        <input
-          name="latitude"
-          type="number"
-          step="any"
-          min="-90"
-          max="90"
-          defaultValue={establishment?.latitude ?? ''}
-          required
-        />
-      </label>
-      <label>
-        Longitude
-        <input
-          name="longitude"
-          type="number"
-          step="any"
-          min="-180"
-          max="180"
-          defaultValue={establishment?.longitude ?? ''}
-          required
-        />
-      </label>
       <label className="checkbox-field">
         <input
           name="active"
@@ -120,16 +97,11 @@ export function EstablishmentForm({
         />
         Estabelecimento ativo
       </label>
-      <div
-        className="map-preview full-field"
-        aria-label="Prévia conceitual do mapa"
-      >
-        <span>◎</span>
-        <div>
-          <strong>Ponto geográfico WGS84</strong>
-          <p>As coordenadas serão persistidas como geography(Point, 4326).</p>
-        </div>
-      </div>
+      <CoordinateInput
+        initialLatitude={establishment?.latitude ?? null}
+        initialLongitude={establishment?.longitude ?? null}
+        label={establishment?.name ?? 'Novo estabelecimento'}
+      />
       <div className="form-actions full-field">
         <Link className="button button-ghost" href="/estabelecimentos">
           Cancelar

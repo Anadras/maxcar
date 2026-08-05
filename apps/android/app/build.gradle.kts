@@ -20,11 +20,15 @@ android {
 
     defaultConfig {
         applicationId = "com.maxcar.tablet"
-        // MAX-010.6: device identity is signed with SHA256withECDSAinP1363Format,
-        // which Android only added in API 30. The pilot fleet's actual hardware
-        // (Black Shark tablets) runs API 35, so raising the floor to 30 costs
-        // nothing in practice and avoids carrying a DER-to-P1363 conversion path
-        // for devices that don't exist in this fleet.
+        // MAX-010.6: no longer tied to a specific API level for signing —
+        // device identity now signs with the universally-supported
+        // SHA256withECDSA and converts DER to the server's raw r‖s format
+        // in Kotlin (see EcdsaSignatureFormat; the previously assumed
+        // SHA256withECDSAinP1363Format doesn't exist on any real Android
+        // provider, confirmed via physical instrumented testing). Kept at
+        // 30 anyway as a pragmatic floor matching the pilot fleet's actual
+        // hardware (Black Shark tablets run API 35) rather than 26, since
+        // there's no device in this fleet the lower floor would ever serve.
         minSdk = 30
         targetSdk = 37
         versionCode = 1

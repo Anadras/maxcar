@@ -387,11 +387,23 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# The device API authenticates with its own opaque bearer token, never a
-# Supabase JWT, so Supabase's own gateway JWT check must be off for these
-# three functions specifically (every other function/table keeps normal
-# auth; this only disables the platform's pre-check on these routes, not
-# any of our own token validation inside them).
+# The device API authenticates with its own opaque bearer token (v1) or
+# its own signed-request scheme (v2, MAX-010.6), never a Supabase JWT, so
+# Supabase's own gateway JWT check must be off for every device-facing
+# function (every other function/table keeps normal auth; this only
+# disables the platform's pre-check on these routes, not any of our own
+# token/signature validation inside them).
+#
+# A function missing from this list defaults to verify_jwt = true on
+# deploy, which rejects every real device request at the platform gateway
+# — before it ever reaches this app's own code — with
+# {"code":"UNAUTHORIZED_NO_AUTH_HEADER"}, not this app's own error format.
+# That gap (device-geo-rules, device-geofence-events, device-commands, and
+# all four MAX-010.6 key endpoints were missing here) is exactly what made
+# a real, working enrollment code look identical to an invalid one on a
+# physical device: the request never got past the gateway, so no amount of
+# fixing the *code* validation logic could ever have shown up as a
+# different result.
 [functions.device-enroll]
 verify_jwt = false
 
@@ -405,6 +417,27 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.device-playback-events]
+verify_jwt = false
+
+[functions.device-geo-rules]
+verify_jwt = false
+
+[functions.device-geofence-events]
+verify_jwt = false
+
+[functions.device-commands]
+verify_jwt = false
+
+[functions.device-enroll-key-start]
+verify_jwt = false
+
+[functions.device-enroll-key-complete]
+verify_jwt = false
+
+[functions.device-recover-key-start]
+verify_jwt = false
+
+[functions.device-recover-key-complete]
 verify_jwt = false
 
 # [edge_runtime.secrets]

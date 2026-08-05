@@ -9,11 +9,16 @@ import com.maxcar.tablet.data.local.AppPreferences
 import com.maxcar.tablet.data.local.FakeDeviceKeyStore
 import com.maxcar.tablet.data.local.InstallationIdStore
 import com.maxcar.tablet.data.remote.DeviceApiClient
+import com.maxcar.tablet.data.local.DeviceIdentityError
 import com.maxcar.tablet.domain.DeviceApiError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.newSingleThreadContext
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -583,5 +588,83 @@ class DeviceRepositoryTest {
             Dispatchers.resetMain()
             mainThread.close()
         }
+    }
+
+    // --- Identity-preparation robustness: a double submission (e.g. two
+    // click events landing before EnrollmentScreen's `enabled = !isSubmitting`
+    // takes effect) must never generate two Keystore keys, and a cancelled
+    // enrollment (screen navigated away, process backgrounded) must never
+    // be reported to the operator as a Keystore failure. ---
+
+    @Test
+    fun `two concurrent enroll calls never generate two Keystore keys`() = runTest {
+        val slowKeyStore = FakeDeviceKeyStore(delayGenerationMillis = 50)
+        val prefsFile = File.createTempFile("test-prefs-${UUID.randomUUID()}", ".preferences_pb")
+        val dataStore = PreferenceDataStoreFactory.create(
+            scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined),
+        ) { prefsFile }
+        val concurrentRepository = DeviceRepository(
+            apiClient = DeviceApiClient(baseUrl = server.url("/").toString(), deviceKeyStore = slowKeyStore),
+            deviceKeyStore = slowKeyStore,
+            installationIdStore = InstallationIdStore(dataStore),
+            appPreferences = AppPreferences(dataStore),
+            deviceStateDao = db.deviceStateDao(),
+            remoteConfigDao = db.remoteConfigDao(),
+            pendingEventDao = db.pendingEventDao(),
+            playbackEventDao = db.playbackEventDao(),
+        )
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-enroll-key-start" -> MockResponse().setBody(
+                    """{"enrollmentAttemptId":"a1","challenge":"$CHALLENGE_B64","expiresAt":"2026-01-01T00:05:00Z"}""",
+                )
+                else -> MockResponse().setBody(
+                    """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1"}""",
+                )
+            }
+        }
+
+        val first = async(Dispatchers.IO) { concurrentRepository.enroll("GOODCODE") }
+        val second = async(Dispatchers.IO) { concurrentRepository.enroll("GOODCODE") }
+        val firstResult = first.await()
+        val secondResult = second.await()
+
+        assertTrue(firstResult.isSuccess)
+        assertTrue(secondResult.isSuccess)
+        assertEquals(
+            "the slow-generation window must never let two overlapping calls both generate a key",
+            1,
+            slowKeyStore.generationCount.get(),
+        )
+    }
+
+    @Test
+    fun `a cancelled enroll propagates cancellation instead of a Keystore-failure message`() = runTest {
+        // Reproduces a real-world case a plain runCatching would otherwise
+        // mishandle: the coroutine calling enroll() is cancelled (screen
+        // navigated away, process backgrounded, ViewModel cleared) before
+        // it can complete. That must propagate as a CancellationException,
+        // per structured concurrency — never come back as
+        // Result.failure(...) mapped to "falha ao preparar a identidade
+        // segura", which would have nothing to do with what actually
+        // happened. Cancelling the coroutine's own job before it runs means
+        // the very first suspension point inside enroll() (entering the
+        // Mutex) throws immediately — deterministic, no timing race needed.
+        var caught: Throwable? = null
+        val job = launch {
+            coroutineContext[kotlinx.coroutines.Job]?.cancel()
+            try {
+                repository.enroll("GOODCODE")
+            } catch (e: CancellationException) {
+                caught = e
+                throw e
+            }
+        }
+        job.join()
+
+        assertTrue(
+            "enroll() must let CancellationException propagate, not swallow it",
+            caught is CancellationException,
+        )
     }
 }

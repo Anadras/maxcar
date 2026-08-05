@@ -1,8 +1,10 @@
 package com.maxcar.tablet.ui.enrollment
 
+import com.maxcar.tablet.data.local.DeviceIdentityError
 import com.maxcar.tablet.domain.DeviceApiError
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
@@ -79,8 +81,41 @@ class EnrollmentViewModelMessagesTest {
         // Not a DeviceApiError at all — exactly what DeviceKeyStore.getOrCreateKeyInfo()/sign()
         // throw on a real Keystore fault, since those calls happen before
         // any network request in DeviceRepository.enroll().
-        val message = friendlyMessage(IllegalStateException("No device key present to sign with."))
-        assertEquals("Falha ao preparar a identidade segura do tablet. Tente novamente.", message)
+        val message = friendlyMessage(DeviceIdentityError.KeyGenerationFailed(RuntimeException("boom")))
         assertNotEquals("Código inválido ou já utilizado.", message)
+        assertNotEquals("Falha ao preparar a identidade segura do tablet. Tente novamente.", message)
+    }
+
+    @Test
+    fun `a DeviceIdentityError message names its exact technical code`() {
+        val message = friendlyMessage(DeviceIdentityError.KeyGenerationFailed(RuntimeException("boom")))
+        assertEquals(
+            "Não foi possível criar a identidade segura deste tablet. Código técnico: KEY_GENERATION_FAILED.",
+            message,
+        )
+    }
+
+    @Test
+    fun `every DeviceIdentityError technical code produces a distinguishable message`() {
+        val cause = RuntimeException("boom")
+        val messages = listOf(
+            friendlyMessage(DeviceIdentityError.KeystoreUnavailable(cause)),
+            friendlyMessage(DeviceIdentityError.KeyGenerationUnsupported(cause)),
+            friendlyMessage(DeviceIdentityError.KeyGenerationFailed(cause)),
+            friendlyMessage(DeviceIdentityError.ExistingKeyUnusable(cause)),
+            friendlyMessage(DeviceIdentityError.PublicKeyUnavailable(cause)),
+            friendlyMessage(DeviceIdentityError.LocalSignatureFailed(cause)),
+        )
+        assertEquals(messages.size, messages.toSet().size)
+        assertTrue(messages.all { it.contains("Código técnico:") })
+    }
+
+    @Test
+    fun `a truly unexpected local throwable still gets a generic, non-blank message`() {
+        // Exactly what should never reach the UI in practice once
+        // DeviceKeyStore wraps every real failure as a DeviceIdentityError
+        // — this is the last-resort fallback, not the primary path.
+        val message = friendlyMessage(RuntimeException("something nobody anticipated"))
+        assertEquals("Falha ao preparar a identidade segura do tablet. Tente novamente.", message)
     }
 }

@@ -21,8 +21,11 @@ import com.maxcar.tablet.data.remote.PlaybackEventRequest
 import com.maxcar.tablet.data.remote.RecoverKeyCompleteRequest
 import com.maxcar.tablet.data.remote.RecoverKeyStartRequest
 import com.maxcar.tablet.domain.DeviceApiError
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.util.Base64
@@ -81,6 +84,9 @@ class DeviceRepository(
      * re-enrollment. */
     val credentialMissingLocally: Flow<Boolean> = appPreferences.credentialMissingLocally
 
+    /** Serializes [enroll] end to end — see that method's doc for why. */
+    private val enrollMutex = Mutex()
+
     suspend fun installationId(): UUID = installationIdStore.getOrCreate()
 
     override suspend fun currentKeyId(): String? = resolveKeyId("currentKeyId")
@@ -104,56 +110,79 @@ class DeviceRepository(
      * Generates the tablet's Keystore key pair first if one doesn't exist
      * yet (idempotent: a retry reuses the same key and the same public
      * key/fingerprint), proves possession of it by signing the server's
-     * challenge, then persists the resulting device/vehicle/key identity. */
-    suspend fun enroll(code: String): Result<DeviceStateEntity> = runCatching {
-        val installationId = installationIdStore.getOrCreate()
-        val keyInfo = deviceKeyStore.getOrCreateKeyInfo()
-        // The OkHttp calls inside DeviceApiClient block the calling thread
-        // (client.newCall(request).execute()). Callers reach this from
-        // viewModelScope, whose default dispatcher is Main — without this
-        // withContext, a real device throws NetworkOnMainThreadException on
-        // every attempt (Robolectric/JVM tests don't enforce that policy,
-        // so this only surfaces on hardware).
-        val startResponse = withContext(Dispatchers.IO) {
-            apiClient.enrollKeyStart(
-                EnrollKeyStartRequest(
-                    code = code,
-                    installationId = installationId.toString(),
-                    publicKey = keyInfo.publicKeyDerBase64,
-                    publicKeyFingerprint = keyInfo.fingerprintHex,
-                    algorithm = KEY_ALGORITHM,
-                    hardwareBacked = keyInfo.hardwareBacked,
-                    appVersion = BuildConfig.VERSION_NAME,
-                    manufacturer = Build.MANUFACTURER,
-                    model = Build.MODEL,
-                    androidVersion = Build.VERSION.RELEASE,
-                ),
+     * challenge, then persists the resulting device/vehicle/key identity.
+     *
+     * Local identity preparation ([DeviceKeyStore.getOrCreateKeyInfo]/
+     * [DeviceKeyStore.sign]) always happens *before* the code is ever sent
+     * to the server — a Keystore fault must never consume an attempt
+     * against, or otherwise be confused with, a rejected code. [enrollMutex]
+     * serializes overlapping calls (e.g. a double-tap landing as two
+     * coroutines before the UI can disable the button) so two callers can
+     * never both race
+     * [DeviceKeyStore.getOrCreateKeyInfo]/[apiClient.enrollKeyStart] for the
+     * same alias/code at once — [com.maxcar.tablet.data.local.AndroidDeviceKeyStore]
+     * has its own internal lock too, but that only protects the Keystore
+     * call itself, not this method's own multi-step sequence. */
+    suspend fun enroll(code: String): Result<DeviceStateEntity> = enrollMutex.withLock {
+        runCatching {
+            val installationId = installationIdStore.getOrCreate()
+            // Keystore access (especially first-time key generation) is a
+            // blocking hardware-crypto call, exactly like the network calls
+            // below — never left on the caller's dispatcher (viewModelScope
+            // defaults to Main), same reasoning as the withContext calls
+            // that already wrap every apiClient call in this method.
+            val keyInfo = withContext(Dispatchers.IO) { deviceKeyStore.getOrCreateKeyInfo() }
+            val startResponse = withContext(Dispatchers.IO) {
+                apiClient.enrollKeyStart(
+                    EnrollKeyStartRequest(
+                        code = code,
+                        installationId = installationId.toString(),
+                        publicKey = keyInfo.publicKeyDerBase64,
+                        publicKeyFingerprint = keyInfo.fingerprintHex,
+                        algorithm = KEY_ALGORITHM,
+                        hardwareBacked = keyInfo.hardwareBacked,
+                        appVersion = BuildConfig.VERSION_NAME,
+                        manufacturer = Build.MANUFACTURER,
+                        model = Build.MODEL,
+                        androidVersion = Build.VERSION.RELEASE,
+                    ),
+                )
+            }
+            val signature = withContext(Dispatchers.IO) {
+                deviceKeyStore.sign(Base64.getDecoder().decode(startResponse.challenge))
+            }
+            val completeResponse = withContext(Dispatchers.IO) {
+                apiClient.enrollKeyComplete(
+                    EnrollKeyCompleteRequest(
+                        enrollmentAttemptId = startResponse.enrollmentAttemptId,
+                        signature = Base64.getEncoder().encodeToString(signature),
+                    ),
+                )
+            }
+            val state = DeviceStateEntity(
+                deviceId = completeResponse.deviceId,
+                deviceCode = completeResponse.deviceCode,
+                vehicleId = completeResponse.vehicleId,
+                vehicleCode = completeResponse.vehicleCode,
+                keyId = completeResponse.keyId,
+                lastHeartbeatAt = null,
+                lastSyncAt = null,
+                updatedAt = System.currentTimeMillis(),
             )
+            deviceStateDao.upsert(state)
+            appPreferences.setEnrolled(true)
+            appPreferences.setCredentialMissingLocally(false)
+            state
+        }.onFailure { error ->
+            // A cancelled coroutine (screen navigated away, process
+            // backgrounded, ViewModel cleared mid-call) must propagate as a
+            // cancellation, per structured concurrency — never be reported
+            // to the operator as "falha ao preparar a identidade segura",
+            // which is what plain runCatching would otherwise turn it into.
+            if (error is CancellationException) throw error
+            logFailure("enroll", error)
         }
-        val signature = deviceKeyStore.sign(Base64.getDecoder().decode(startResponse.challenge))
-        val completeResponse = withContext(Dispatchers.IO) {
-            apiClient.enrollKeyComplete(
-                EnrollKeyCompleteRequest(
-                    enrollmentAttemptId = startResponse.enrollmentAttemptId,
-                    signature = Base64.getEncoder().encodeToString(signature),
-                ),
-            )
-        }
-        val state = DeviceStateEntity(
-            deviceId = completeResponse.deviceId,
-            deviceCode = completeResponse.deviceCode,
-            vehicleId = completeResponse.vehicleId,
-            vehicleCode = completeResponse.vehicleCode,
-            keyId = completeResponse.keyId,
-            lastHeartbeatAt = null,
-            lastSyncAt = null,
-            updatedAt = System.currentTimeMillis(),
-        )
-        deviceStateDao.upsert(state)
-        appPreferences.setEnrolled(true)
-        appPreferences.setCredentialMissingLocally(false)
-        state
-    }.onFailure { logFailure("enroll", it) }
+    }
 
     /**
      * Sends one heartbeat. On success, clears the corresponding pending

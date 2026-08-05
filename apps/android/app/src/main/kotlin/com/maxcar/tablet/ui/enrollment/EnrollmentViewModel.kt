@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.maxcar.tablet.data.local.DeviceIdentityError
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.domain.DeviceApiError
 import com.maxcar.tablet.work.DeviceWorkScheduler
@@ -43,6 +44,8 @@ internal fun friendlyMessage(error: Throwable): String = when (error) {
     is DeviceApiError.RateLimited -> "Muitas tentativas. Aguarde alguns minutos."
     is DeviceApiError.ServerError -> "Servidor indisponível. Tente novamente em instantes."
     is DeviceApiError -> "Não foi possível ativar o tablet. Tente novamente."
+    is DeviceIdentityError ->
+        "Não foi possível criar a identidade segura deste tablet. Código técnico: ${error.technicalCode}."
     else -> "Falha ao preparar a identidade segura do tablet. Tente novamente."
 }
 
@@ -66,6 +69,13 @@ class EnrollmentViewModel(
     }
 
     fun submit() {
+        // Belt-and-suspenders against a double submission: the button's own
+        // `enabled = !isSubmitting` (EnrollmentScreen) can theoretically be
+        // beaten by two click events dispatched before Compose recomposes
+        // to disable it. DeviceRepository.enroll() also serializes with its
+        // own Mutex, but returning here first avoids even queuing a second,
+        // redundant attempt behind the first.
+        if (_uiState.value.isSubmitting) return
         val code = _uiState.value.code
         if (code.isBlank()) {
             _uiState.value = _uiState.value.copy(errorMessage = "Informe o código de ativação.")

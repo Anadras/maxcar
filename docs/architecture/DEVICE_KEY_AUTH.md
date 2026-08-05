@@ -27,14 +27,24 @@ um novo código de ativação.
 
 ## Esquema de assinatura
 
-- **Algoritmo**: ECDSA P-256/SHA-256, formato raw IEEE P1363 (`r‖s`, 64
-  bytes) — não ASN.1 DER. Android assina com
-  `Signature.getInstance("SHA256withECDSAinP1363Format")` (disponível a
-  partir da API 30; ver a nota de `minSdk` em
-  `apps/android/app/build.gradle.kts`), e o servidor verifica com
-  `crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, …)` do Web
-  Crypto do Deno — que espera exatamente esse formato raw, então nenhum dos
-  dois lados precisa parsear ASN.1 DER.
+- **Algoritmo**: ECDSA P-256/SHA-256. O que trafega e o que o servidor
+  verifica é sempre o formato raw IEEE P1363 (`r‖s`, 64 bytes) — o Web
+  Crypto do Deno (`crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' },
+  …)`) só entende esse formato, nunca ASN.1 DER. **Como o Android produz
+  esse formato é diferente do que este projeto assumiu originalmente**:
+  `SHA256withECDSAinP1363Format` — o nome de algoritmo que este projeto
+  esperava que o Android suportasse nativamente — não existe em nenhum
+  provider de segurança real do Android (confirmado por teste instrumentado
+  em hardware físico, Android 15/API 35: `AndroidKeyStore`,
+  `AndroidKeyStoreBCWorkaround` e `AndroidOpenSSL` recusam esse nome). Ele só
+  funcionava nos testes deste projeto porque a JVM de desktop (provider
+  SunEC do OpenJDK) registra esse nome — nenhum teste unitário/Robolectric
+  seria capaz de detectar essa diferença, só um teste físico. O Android
+  assina com o algoritmo padrão e universalmente suportado
+  (`Signature.getInstance("SHA256withECDSA")`, formato DER —
+  `SEQUENCE { INTEGER r, INTEGER s }`) e converte para raw em Kotlin puro
+  (`data/local/EcdsaSignatureFormat.kt`) antes de transmitir. O servidor
+  nunca muda: ele sempre esperou e só entende o formato raw.
 - **Chave pública**: X.509 SubjectPublicKeyInfo DER, base64 no transporte —
   exatamente o que `KeyPair.public.encoded` produz para uma chave EC do
   Keystore e exatamente o que `crypto.subtle.importKey('spki', …)` espera.
@@ -169,6 +179,8 @@ usar chave dali em diante, sem caminho de volta automático para o token.
 | Enrollment (start/complete)                               | `supabase/functions/device-enroll-key-start`, `device-enroll-key-complete` |
 | Recuperação (start/complete)                               | `supabase/functions/device-recover-key-start`, `device-recover-key-complete` |
 | Chave no Android (geração, assinatura, fingerprint)       | `apps/android/.../data/local/DeviceKeyStore.kt` |
+| Conversão DER → raw r‖s (por que existe, ver seu próprio comentário) | `apps/android/.../data/local/EcdsaSignatureFormat.kt` |
+| Teste físico da assinatura no hardware real                | `apps/android/app/src/androidTest/.../DeviceKeyStoreInstrumentedTest.kt` |
 | Construção da requisição canônica + headers                | `apps/android/.../data/remote/DeviceRequestSigner.kt` |
 | Resolução de identidade + recuperação automática          | `apps/android/.../data/repository/DeviceRepository.kt` |
 | Painel: card "Autenticação do tablet"                     | `apps/admin/components/device-key-identity-panel.tsx` |

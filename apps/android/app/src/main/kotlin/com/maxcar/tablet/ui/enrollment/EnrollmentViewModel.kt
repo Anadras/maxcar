@@ -21,14 +21,29 @@ data class EnrollmentUiState(
 )
 
 /** Translates [DeviceApiError] into the exact copy item 30 asks for —
- * never a stack trace, never a raw exception message. */
-private fun friendlyMessage(error: Throwable): String = when (error) {
+ * never a stack trace, never a raw exception message. Each enrollment-code
+ * rejection reason gets its own message (MAX-010.6 follow-up): a generic
+ * "código inválido" for every possible cause made a code simply expiring
+ * mid-activation indistinguishable from an actual bug, from the operator's
+ * side. A [Throwable] that isn't a [DeviceApiError] at all can only come
+ * from the local Keystore step ([com.maxcar.tablet.data.local.DeviceKeyStore]),
+ * since every network/server outcome is always wrapped as one — that's
+ * what the final `else` branch specifically names, rather than folding it
+ * into the same generic message as a rejected code. */
+internal fun friendlyMessage(error: Throwable): String = when (error) {
     is DeviceApiError.NetworkUnavailable -> "Sem conexão. Verifique a rede do tablet."
+    is DeviceApiError.EnrollmentCodeNotFound -> "Código não encontrado. Confira se foi digitado corretamente."
+    is DeviceApiError.EnrollmentCodeExpired -> "Código expirado. Peça um novo código no painel."
+    is DeviceApiError.EnrollmentCodeAlreadyUsed -> "Código já utilizado. Peça um novo código no painel."
+    is DeviceApiError.EnrollmentCodeRevoked -> "Este código não é mais válido. Peça um novo código no painel."
+    is DeviceApiError.EnrollmentAttemptExpired -> "A ativação demorou demais e expirou. Tente novamente."
+    is DeviceApiError.InvalidSignature -> "Falha ao confirmar a identidade do tablet. Tente novamente."
     is DeviceApiError.EnrollmentInvalid -> "Código inválido ou expirado."
     is DeviceApiError.Unauthorized -> "Código inválido ou já utilizado."
     is DeviceApiError.RateLimited -> "Muitas tentativas. Aguarde alguns minutos."
     is DeviceApiError.ServerError -> "Servidor indisponível. Tente novamente em instantes."
-    else -> "Não foi possível ativar o tablet. Tente novamente."
+    is DeviceApiError -> "Não foi possível ativar o tablet. Tente novamente."
+    else -> "Falha ao preparar a identidade segura do tablet. Tente novamente."
 }
 
 class EnrollmentViewModel(

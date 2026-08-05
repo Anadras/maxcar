@@ -192,12 +192,26 @@ class DeviceApiClient(
                 json.decodeFromString(ApiErrorBody.serializer(), bodyText)
             }.getOrNull()
             val message = errorBody?.message ?: "Unexpected error (HTTP ${it.code})."
-            throw when (it.code) {
-                401 -> DeviceApiError.Unauthorized(message)
-                400, 404 -> DeviceApiError.EnrollmentInvalid(message)
-                429 -> DeviceApiError.RateLimited(message)
-                in 500..599 -> DeviceApiError.ServerError(message)
-                else -> DeviceApiError.Unexpected(message)
+            // The `error` slug (never the raw HTTP status alone) drives the
+            // specific enrollment-code rejection reasons — see
+            // supabase/functions/_shared/device-api.ts#errorResponse. Any
+            // slug this client doesn't specifically recognize falls back to
+            // the existing status-based mapping, so every other endpoint's
+            // behavior is unchanged.
+            throw when (errorBody?.error) {
+                "code_not_found" -> DeviceApiError.EnrollmentCodeNotFound(message)
+                "code_already_used" -> DeviceApiError.EnrollmentCodeAlreadyUsed(message)
+                "code_revoked" -> DeviceApiError.EnrollmentCodeRevoked(message)
+                "code_expired" -> DeviceApiError.EnrollmentCodeExpired(message)
+                "challenge_expired", "attempt_not_found" -> DeviceApiError.EnrollmentAttemptExpired(message)
+                "invalid_signature" -> DeviceApiError.InvalidSignature(message)
+                else -> when (it.code) {
+                    401 -> DeviceApiError.Unauthorized(message)
+                    400, 404 -> DeviceApiError.EnrollmentInvalid(message)
+                    429 -> DeviceApiError.RateLimited(message)
+                    in 500..599 -> DeviceApiError.ServerError(message)
+                    else -> DeviceApiError.Unexpected(message)
+                }
             }
         }
     }

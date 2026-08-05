@@ -26,6 +26,27 @@ sealed class DeviceApiError(message: String, cause: Throwable? = null) : Excepti
 
     data class EnrollmentInvalid(val serverMessage: String) : DeviceApiError(serverMessage)
 
+    // --- Enrollment-code rejection reasons (device-enroll-key-start),
+    // each distinct so the UI never collapses them into one generic
+    // "código inválido" — see supabase/migrations/20260813090000_enrollment_code_error_detail.sql
+    // for why that ambiguity made a real field failure (a code expiring
+    // during a slow activation) indistinguishable from an actual bug. ---
+
+    data class EnrollmentCodeNotFound(val serverMessage: String) : DeviceApiError(serverMessage)
+    data class EnrollmentCodeExpired(val serverMessage: String) : DeviceApiError(serverMessage)
+    data class EnrollmentCodeAlreadyUsed(val serverMessage: String) : DeviceApiError(serverMessage)
+    data class EnrollmentCodeRevoked(val serverMessage: String) : DeviceApiError(serverMessage)
+
+    /** The enrollment attempt's own 5-minute proof-of-possession window
+     * elapsed before device-enroll-key-complete was called (distinct from
+     * the 15-minute enrollment *code* window above). */
+    data class EnrollmentAttemptExpired(val serverMessage: String) : DeviceApiError(serverMessage)
+
+    /** device-enroll-key-complete's signature over the server-issued
+     * challenge didn't verify — never confused with an invalid code,
+     * since by this point the code was already accepted. */
+    data class InvalidSignature(val serverMessage: String) : DeviceApiError(serverMessage)
+
     data class RateLimited(val serverMessage: String) : DeviceApiError(serverMessage)
 
     data class ServerError(val serverMessage: String) : DeviceApiError(serverMessage)

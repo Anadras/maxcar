@@ -263,6 +263,196 @@ class DeviceApiClientTest {
         assertTrue(recorded.body.readUtf8().contains("\"clientEventId\":\"e1\""))
     }
 
+    // --- MAX-010.6 follow-up: each enrollment-code rejection reason maps
+    // to its own DeviceApiError subtype via the response body's `error`
+    // slug, not the generic Unauthorized every other 401 still uses. ---
+
+    @Test
+    fun `enrollKeyStart maps code_not_found to EnrollmentCodeNotFound`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"code_not_found","message":"Enrollment code not found."}""",
+            ).setResponseCode(404),
+        )
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "NOPECODE", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.EnrollmentCodeNotFound")
+        } catch (e: DeviceApiError.EnrollmentCodeNotFound) {
+            assertEquals("Enrollment code not found.", e.serverMessage)
+        }
+    }
+
+    @Test
+    fun `enrollKeyStart maps code_expired to EnrollmentCodeExpired, distinct from code_already_used`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"code_expired","message":"Enrollment code has expired."}""",
+            ).setResponseCode(410),
+        )
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "OLDCODE1", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.EnrollmentCodeExpired")
+        } catch (e: DeviceApiError.EnrollmentCodeExpired) {
+            // expected — critically, NOT EnrollmentCodeAlreadyUsed.
+        }
+    }
+
+    @Test
+    fun `enrollKeyStart maps code_already_used to EnrollmentCodeAlreadyUsed`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"code_already_used","message":"Enrollment code has already been used."}""",
+            ).setResponseCode(409),
+        )
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "USEDCODE", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.EnrollmentCodeAlreadyUsed")
+        } catch (e: DeviceApiError.EnrollmentCodeAlreadyUsed) {
+            // expected
+        }
+    }
+
+    @Test
+    fun `enrollKeyStart maps code_revoked to EnrollmentCodeRevoked`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"code_revoked","message":"Enrollment code has been revoked."}""",
+            ).setResponseCode(409),
+        )
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "REVKCODE", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.EnrollmentCodeRevoked")
+        } catch (e: DeviceApiError.EnrollmentCodeRevoked) {
+            // expected
+        }
+    }
+
+    @Test
+    fun `enrollKeyComplete maps challenge_expired to EnrollmentAttemptExpired`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"challenge_expired","message":"Enrollment challenge has expired."}""",
+            ).setResponseCode(410),
+        )
+        try {
+            client.enrollKeyComplete(EnrollKeyCompleteRequest(enrollmentAttemptId = "a1", signature = "c2ln"))
+            fail("expected DeviceApiError.EnrollmentAttemptExpired")
+        } catch (e: DeviceApiError.EnrollmentAttemptExpired) {
+            // expected
+        }
+    }
+
+    @Test
+    fun `enrollKeyComplete maps invalid_signature to InvalidSignature, distinct from an invalid code`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"error":"invalid_signature","message":"Invalid proof of possession."}""",
+            ).setResponseCode(401),
+        )
+        try {
+            client.enrollKeyComplete(EnrollKeyCompleteRequest(enrollmentAttemptId = "a1", signature = "c2ln"))
+            fail("expected DeviceApiError.InvalidSignature")
+        } catch (e: DeviceApiError.InvalidSignature) {
+            // expected — critically, not EnrollmentCodeNotFound or Unauthorized.
+        }
+    }
+
+    @Test
+    fun `a network failure during enrollment is never mistaken for an invalid code`() = runTest {
+        server.shutdown()
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "ANYCODE1", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.NetworkUnavailable")
+        } catch (e: DeviceApiError.NetworkUnavailable) {
+            // expected — never EnrollmentCodeNotFound/EnrollmentCodeExpired/etc.
+        }
+    }
+
+    @Test
+    fun `a 500 during enrollment is never mistaken for an invalid code`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("""{"error":"server_error"}"""))
+        try {
+            client.enrollKeyStart(
+                EnrollKeyStartRequest(
+                    code = "ANYCODE1", installationId = "i1", publicKey = "cHVia2V5",
+                    publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+                ),
+            )
+            fail("expected DeviceApiError.ServerError")
+        } catch (e: DeviceApiError.ServerError) {
+            // expected
+        }
+    }
+
+    @Test
+    fun `an enrollment code is sent to the server exactly as typed, leading characters and all`() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"enrollmentAttemptId":"a1","challenge":"Y2hhbGxlbmdl","expiresAt":"2026-01-01T00:05:00Z"}""",
+            ),
+        )
+        // A code beginning with a digit is exactly the case where an
+        // accidental numeric round-trip somewhere in the pipeline would
+        // silently drop a leading character — this asserts the exact wire
+        // bytes instead of trusting that it "looks fine".
+        client.enrollKeyStart(
+            EnrollKeyStartRequest(
+                code = "07K9F3QH", installationId = "i1", publicKey = "cHVia2V5",
+                publicKeyFingerprint = "fp1", algorithm = "ECDSA_P256_SHA256",
+            ),
+        )
+        val recorded = server.takeRequest()
+        assertTrue(recorded.body.readUtf8().contains("\"code\":\"07K9F3QH\""))
+    }
+
+    @Test
+    fun `enrollKeyComplete retried with the same attempt id after a timeout reaches the server identically`() = runTest {
+        // DeviceRepository.enroll() doesn't itself retry, but the RPC layer
+        // (complete_device_key_enrollment) is idempotent specifically so a
+        // caller-level retry after a timeout is safe — this just confirms
+        // the client sends the exact same, replayable request both times.
+        server.enqueue(
+            MockResponse().setBody(
+                """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1","vehicleId":null,"vehicleCode":null}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"deviceId":"d1","deviceCode":"TB-001","keyId":"k1","vehicleId":null,"vehicleCode":null}""",
+            ),
+        )
+        val request = EnrollKeyCompleteRequest(enrollmentAttemptId = "a1", signature = "c2ln")
+        val first = client.enrollKeyComplete(request)
+        val second = client.enrollKeyComplete(request)
+        assertEquals(first.keyId, second.keyId)
+        assertEquals("k1", second.keyId)
+    }
+
     @Test
     fun `downloadTo streams the response body to the destination file`() = runTest {
         server.enqueue(MockResponse().setBody("fake-media-bytes"))

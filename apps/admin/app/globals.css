@@ -131,6 +131,10 @@ body {
   color: #ffb0b7;
   background: rgba(255, 95, 109, 0.11);
 }
+.form-message-success {
+  color: #7ee2a8;
+  background: rgba(52, 199, 89, 0.11);
+}
 .record-page {
   max-width: 1000px;
 }
@@ -352,6 +356,35 @@ body {
   align-items: center;
   justify-content: center;
   color: var(--muted);
+}
+.coordinate-input {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.coordinate-input textarea {
+  resize: vertical;
+  font-family: inherit;
+}
+.coordinate-decimal-preview {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.coordinate-input-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+.coordinate-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.coordinate-input .location-map {
+  height: 220px;
 }
 .inline-form {
   display: grid;

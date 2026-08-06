@@ -68,6 +68,23 @@ Deno.serve(async (req) => {
   const events = (body.events ?? []).slice(0, MAX_EVENTS_PER_REQUEST);
   const supabase = serviceClient();
 
+  // MAX-013: the v2 bridge token minted above is single-use by design
+  // (private.device_id_for_token marks it used on first lookup) — a
+  // batch endpoint must resolve device_id exactly once and reuse *that*,
+  // never re-present the same token per event, or every event after the
+  // first in a batch fails with what looks like (but isn't) a revoked
+  // credential. See 20260820090000_fix_batch_endpoints_single_use_token.sql.
+  const { data: deviceId, error: deviceIdError } = await supabase.rpc(
+    'resolve_device_id_from_token',
+    { p_token: token },
+  );
+  if (deviceIdError || !deviceId) {
+    return jsonResponse(
+      { error: 'unauthorized', message: deviceIdError?.message ?? 'Invalid device credential.' },
+      401,
+    );
+  }
+
   const results = [];
   for (const event of events) {
     if (!event.clientEventId || !event.campaignId || !event.status) {
@@ -80,8 +97,8 @@ Deno.serve(async (req) => {
     }
 
     const { data, error } = await supabase
-      .rpc('record_device_playback_event', {
-        p_token: token,
+      .rpc('record_device_playback_event_for_device', {
+        p_device_id: deviceId,
         p_campaign_id: event.campaignId,
         p_creative_id: event.creativeId ?? null,
         p_status: event.status,
@@ -96,16 +113,18 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) {
-      // A 401 (revoked/invalid credential) applies to the whole batch, not
-      // just this event: stop immediately so the caller can react once.
-      if (error.code === '42501') {
-        return jsonResponse(
-          { error: 'unauthorized', message: error.message },
-          401,
-        );
-      }
       console.error('device playback event error', error.code);
-      results.push({ clientEventId: event.clientEventId, ok: false });
+      // MAX-013: 22023 here is exclusively record_device_playback_event_for_device's
+      // own "campaignId does not reference a known campaign" check — the
+      // campaign was deleted after this event was already queued locally
+      // (sometimes hours earlier). No retry will ever fix that; tell the
+      // client this row is safe to drop instead of holding the queue
+      // hostage behind an event that can never succeed.
+      results.push({
+        clientEventId: event.clientEventId,
+        ok: false,
+        permanent: error.code === '22023',
+      });
       continue;
     }
 

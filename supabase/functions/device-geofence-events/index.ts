@@ -64,6 +64,20 @@ Deno.serve(async (req) => {
   const events = (body.events ?? []).slice(0, MAX_EVENTS_PER_REQUEST);
   const supabase = serviceClient();
 
+  // MAX-013: same fix as device-playback-events — resolve device_id from
+  // the single-use v2 bridge token exactly once, never re-present it per
+  // event. See 20260820090000_fix_batch_endpoints_single_use_token.sql.
+  const { data: deviceId, error: deviceIdError } = await supabase.rpc(
+    'resolve_device_id_from_token',
+    { p_token: token },
+  );
+  if (deviceIdError || !deviceId) {
+    return jsonResponse(
+      { error: 'unauthorized', message: deviceIdError?.message ?? 'Invalid device credential.' },
+      401,
+    );
+  }
+
   const results = [];
   for (const event of events) {
     if (
@@ -82,8 +96,8 @@ Deno.serve(async (req) => {
     }
 
     const { data, error } = await supabase
-      .rpc('record_device_geofence_event', {
-        p_token: token,
+      .rpc('record_device_geofence_event_for_device', {
+        p_device_id: deviceId,
         p_campaign_geofence_id: event.geofenceId,
         p_event_type: event.eventType,
         p_latitude: event.latitude,
@@ -96,16 +110,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) {
-      // A 401 (revoked/invalid credential) applies to the whole batch, not
-      // just this event: stop immediately so the caller can react once.
-      if (error.code === '42501') {
-        return jsonResponse(
-          { error: 'unauthorized', message: error.message },
-          401,
-        );
-      }
       console.error('device geofence event error', error.code);
-      results.push({ clientEventId: event.clientEventId, ok: false });
+      // MAX-013: same reasoning as device-playback-events — 22023 here
+      // means geofenceId no longer exists, which no retry will fix.
+      results.push({
+        clientEventId: event.clientEventId,
+        ok: false,
+        permanent: error.code === '22023',
+      });
       continue;
     }
 

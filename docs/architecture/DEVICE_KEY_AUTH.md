@@ -108,6 +108,41 @@ Android                    Edge Function                     Postgres
   │◀───────────── resposta ──────┤                                │
 ```
 
+### MAX-013: uso único de verdade, mesmo em endpoints de lote
+
+`device-playback-events` e `device-geofence-events` processam um **lote**
+de eventos localmente enfileirados em um loop, um `record_device_*_event`
+por evento — mas até MAX-013 cada chamada da Edge Function mintava **um**
+`session_token` (uma vez, antes do loop) e reenviava esse mesmo token para
+cada RPC do loop. Como `mint_device_session_token` é literalmente de uso
+único (`private.device_key_session_tokens.used_at` é marcado no primeiro
+`device_id_for_token` bem-sucedido), o primeiro evento do lote sempre
+funcionava — o segundo em diante sempre falhava com `42501` ("Invalid or
+revoked device credential"), e como esse código de erro é indistinguível
+de uma credencial genuinamente inválida, a Edge Function retornava 401
+para o **lote inteiro**, mesmo o evento que já tinha sido gravado. Em
+produção isso significava: `device-playback-events` retornava 401 em
+praticamente 100% das chamadas (qualquer lote com 2+ eventos pendentes, o
+caso comum), e a fila local nunca esvaziava.
+
+Correção (`20260820090000_fix_batch_endpoints_single_use_token.sql`):
+resolver `device_id` **uma única vez** por requisição HTTP
+(`resolve_device_id_from_token`, mesmo `device_id_for_token` por baixo,
+consumindo o token exatamente uma vez — igual a todo outro endpoint) e
+então processar o lote inteiro usando esse `device_id` já resolvido
+(`record_device_playback_event_for_device`/
+`record_device_geofence_event_for_device` — mesma lógica de inserção das
+funções originais, sem repetir a resolução do token). As funções
+originais (`record_device_playback_event`/`record_device_geofence_event`,
+que ainda tomam `p_token`) não foram alteradas nem removidas — continuam
+corretas para qualquer chamador que faça exatamente uma chamada por
+token, que é o padrão de todo outro endpoint deste sistema.
+
+Regra para qualquer endpoint novo que processe múltiplos itens em uma
+única requisição: **nunca reenviar o mesmo `p_token`/session token para
+mais de um RPC** — resolva a identidade uma vez, propague o resultado já
+resolvido pelo resto da chamada.
+
 ## Enrollment: prova de posse por desafio-resposta
 
 `device-enroll-key-start` recebe a chave pública + `installation_id` +

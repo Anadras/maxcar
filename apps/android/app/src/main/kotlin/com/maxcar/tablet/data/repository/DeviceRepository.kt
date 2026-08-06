@@ -406,8 +406,16 @@ class DeviceRepository(
             withContext(Dispatchers.IO) { apiClient.sendPlaybackEvents(keyId, requests) }
         }
         result.onSuccess { response ->
-            response.results.filter { it.ok }.forEach {
+            // MAX-013: a permanent per-event failure (its campaign/creative
+            // no longer exists) is deleted exactly like a success — no
+            // retry will ever record it, and holding onto it would block
+            // oldest(limit)'s FIFO order from ever reaching newer, still-
+            // recordable events behind it.
+            response.results.filter { it.ok || it.permanent }.forEach {
                 playbackEventDao.delete(it.clientEventId)
+            }
+            response.results.filter { !it.ok && !it.permanent }.forEach {
+                playbackEventDao.recordAttempt(it.clientEventId)
             }
         }.onFailure { error ->
             logFailure("flushPlaybackEvents", error)

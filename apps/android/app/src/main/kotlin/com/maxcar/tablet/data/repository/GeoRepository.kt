@@ -48,8 +48,14 @@ class GeoRepository(
             withContext(Dispatchers.IO) { apiClient.sendGeofenceEvents(keyId, requests) }
         }
         result.onSuccess { response ->
-            response.results.filter { it.ok }.forEach {
+            // MAX-013: same reasoning as DeviceRepository.flushPlaybackEvents
+            // — a permanent failure (geofenceId no longer exists) is
+            // dropped, never retried forever ahead of newer events.
+            response.results.filter { it.ok || it.permanent }.forEach {
                 geofenceEventDao.delete(it.clientEventId)
+            }
+            response.results.filter { !it.ok && !it.permanent }.forEach {
+                geofenceEventDao.recordAttempt(it.clientEventId)
             }
         }.onFailure { error ->
             android.util.Log.w(LOG_TAG, "flushGeofenceEvents failed: ${error::class.simpleName}")

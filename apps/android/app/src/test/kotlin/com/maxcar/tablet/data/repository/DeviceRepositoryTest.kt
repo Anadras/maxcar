@@ -366,6 +366,46 @@ class DeviceRepositoryTest {
     }
 
     @Test
+    fun `flushPlaybackEvents deletes a permanently-failed event but retries an ordinary failure`() = runTest {
+        // MAX-013: an event whose campaign/creative was deleted server-side
+        // after it was already queued locally can never succeed on retry —
+        // the server flags it `permanent`, and it must be dropped exactly
+        // like a success, never left stuck at the front of the FIFO queue
+        // blocking newer, still-recordable events behind it. An ordinary
+        // (non-permanent) failure keeps the old retry-forever behavior.
+        preEnroll()
+        repository.recordPlaybackEvent(
+            campaignId = "deleted-campaign", creativeId = "cr1", status = "completed",
+            startedAt = "2026-01-01T00:00:00Z", completedAt = "2026-01-01T00:00:10Z",
+            durationMs = 10_000, completionPercentage = 100, failureReason = null, offline = false,
+            clientEventId = UUID.fromString("00000000-0000-0000-0000-000000000003"),
+        )
+        repository.recordPlaybackEvent(
+            campaignId = "c1", creativeId = "cr1", status = "failed",
+            startedAt = "2026-01-01T00:01:00Z", completedAt = "2026-01-01T00:01:05Z",
+            durationMs = 5_000, completionPercentage = null, failureReason = "decode_error", offline = false,
+            clientEventId = UUID.fromString("00000000-0000-0000-0000-000000000004"),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"results":[
+                   |{"clientEventId":"00000000-0000-0000-0000-000000000003","ok":false,"permanent":true},
+                   |{"clientEventId":"00000000-0000-0000-0000-000000000004","ok":false}]}
+                """.trimMargin(),
+            ),
+        )
+
+        repository.flushPlaybackEvents()
+
+        assertEquals(1, db.playbackEventDao().count())
+        assertEquals(
+            "00000000-0000-0000-0000-000000000004",
+            db.playbackEventDao().oldest().first().clientEventId,
+        )
+        assertEquals(1, db.playbackEventDao().oldest().first().attemptCount)
+    }
+
+    @Test
     fun `flushPlaybackEvents on 401 drops the local key pairing instead of dropping the queue`() = runTest {
         preEnroll()
         repository.recordPlaybackEvent(

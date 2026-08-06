@@ -156,6 +156,12 @@ data class PlaybackEventResult(
     val clientEventId: String,
     val ok: Boolean,
     val recorded: Boolean = false,
+    // MAX-013: true only for an error the server will never resolve on
+    // retry (e.g. campaignId/creativeId no longer exists — the campaign
+    // was deleted after this event was queued locally, possibly hours
+    // earlier). Distinguishes "give up on this one row" from every other
+    // failure, which stays queued and retries next cycle as before.
+    val permanent: Boolean = false,
 )
 
 @Serializable
@@ -238,6 +244,7 @@ data class GeofenceEventResult(
     val clientEventId: String,
     val ok: Boolean,
     val recorded: Boolean = false,
+    val permanent: Boolean = false,
 )
 
 @Serializable

@@ -2417,6 +2417,22 @@ export type Database = {
           recorded: boolean
         }[]
       }
+      record_device_geofence_event_for_device: {
+        Args: {
+          p_accuracy_meters?: number
+          p_campaign_geofence_id: string
+          p_client_event_id?: string
+          p_device_id: string
+          p_distance_meters?: number
+          p_event_type: Database["public"]["Enums"]["geofence_event_type"]
+          p_latitude: number
+          p_longitude: number
+          p_occurred_at?: string
+        }
+        Returns: {
+          recorded: boolean
+        }[]
+      }
       record_device_heartbeat: {
         Args: {
           p_app_version?: string
@@ -2469,6 +2485,28 @@ export type Database = {
         Returns: {
           recorded: boolean
         }[]
+      }
+      record_device_playback_event_for_device: {
+        Args: {
+          p_campaign_id: string
+          p_client_event_id?: string
+          p_completed_at?: string
+          p_completion_percentage?: number
+          p_creative_id: string
+          p_device_id: string
+          p_duration_ms?: number
+          p_failure_reason?: string
+          p_offline?: boolean
+          p_started_at: string
+          p_status: Database["public"]["Enums"]["impression_status"]
+        }
+        Returns: {
+          recorded: boolean
+        }[]
+      }
+      resolve_device_id_from_token: {
+        Args: { p_token: string }
+        Returns: string
       }
       restore_device: { Args: { p_id: string }; Returns: undefined }
       restore_driver: { Args: { p_id: string }; Returns: undefined }

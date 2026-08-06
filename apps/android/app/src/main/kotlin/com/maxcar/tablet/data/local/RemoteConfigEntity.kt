@@ -23,9 +23,14 @@ data class RemoteConfigEntity(
     // rather than falling back to "no PIN required".
     val maintenancePinHash: String? = null,
     val maintenancePinSalt: String? = null,
+    // MAX-011: how long a temporary kiosk exit (PIN-gated diagnostics entry
+    // or a remote disable_kiosk_temporarily command) lasts before Lock Task
+    // automatically re-engages — see AppPreferences.kioskSuspendedUntilMillis.
+    val maintenanceTimeoutSeconds: Int = DEFAULT_MAINTENANCE_TIMEOUT_SECONDS,
 ) {
     companion object {
         const val SINGLETON_ID = 0
+        const val DEFAULT_MAINTENANCE_TIMEOUT_SECONDS = 300
 
         /** Used before the first successful config fetch ever completes. */
         fun defaults() = RemoteConfigEntity(

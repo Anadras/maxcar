@@ -14,6 +14,9 @@ const COMMAND_LABEL: Record<DeviceCommandType, string> = {
   enter_maintenance: 'Entrar em manutenção',
   exit_maintenance: 'Sair da manutenção',
   update_config: 'Atualizar configuração',
+  enable_kiosk: 'Ativar quiosque',
+  disable_kiosk_temporarily: 'Suspender quiosque temporariamente',
+  reenter_kiosk: 'Retomar quiosque agora',
 };
 
 const COMMAND_STATUS_LABEL: Record<string, string> = {

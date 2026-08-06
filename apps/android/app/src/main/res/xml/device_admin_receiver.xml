@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MAX-011: no policies are actually enforced through this legacy
+     device-admin API — Lock Task pinning and screen restrictions are all
+     applied programmatically via DevicePolicyManager once Device Owner
+     status is granted (see AdminReceiver, MainActivity). An empty
+     <uses-policies/> is intentional: this receiver exists only so
+     `dpm set-device-owner` has a valid component to target. -->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies />
+</device-admin>

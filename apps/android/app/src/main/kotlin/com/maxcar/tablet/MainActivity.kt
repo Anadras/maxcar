@@ -1,6 +1,7 @@
 package com.maxcar.tablet
 
 import android.Manifest
+import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -27,9 +28,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.maxcar.tablet.data.local.RemoteConfigEntity
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.LocationForegroundService
+import com.maxcar.tablet.kiosk.AdminReceiver
 import com.maxcar.tablet.kiosk.MaintenanceAccessController
 import com.maxcar.tablet.ui.enrollment.EnrollmentScreen
 import com.maxcar.tablet.ui.enrollment.EnrollmentViewModel
@@ -41,6 +44,7 @@ import com.maxcar.tablet.ui.player.PlayerViewModel
 import com.maxcar.tablet.ui.theme.MaxcarTheme
 import com.maxcar.tablet.work.DeviceTelemetry
 import com.maxcar.tablet.work.DeviceWorkScheduler
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -80,6 +84,7 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             (application as MaxcarApplication).container.geoEngine,
             (application as MaxcarApplication).container.commandExecutor.restartPlayerSignal,
+            (application as MaxcarApplication).container.database.mediaQuarantineDao(),
         )
     }
 
@@ -103,6 +108,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         requestLocationPermissionIfNeeded()
+        configureDeviceOwnerLockTaskPoliciesIfApplicable()
         setContent {
             MaxcarTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -112,6 +118,7 @@ class MainActivity : ComponentActivity() {
                         homeViewModel = homeViewModel,
                         playerViewModel = playerViewModel,
                         maintenanceAccessController = maintenanceAccessController,
+                        appPreferences = (application as MaxcarApplication).container.appPreferences,
                         onModeChanged = ::applyKioskMode,
                     )
                 }
@@ -142,11 +149,12 @@ class MainActivity : ComponentActivity() {
      * (MAX-010's core rule — never trap the operator behind a pinned,
      * content-less screen; the "preparing content" screen stays
      * immersive but unpinned, sync/diagnostics/exit all stay reachable).
-     * Lock Task itself is still attempted defensively: without Device
-     * Owner provisioning (not done for this pilot — see
-     * ANDROID_PILOT_TABLET_SETUP.md) Android either ignores it or shows
-     * OEM screen-pinning UX, never a crash — see `KioskLevelDetector` for
-     * how the panel learns what actually engaged.
+     * Lock Task itself is always attempted defensively via `startLockTask`/
+     * `stopLockTask` below: on a tablet provisioned as Device Owner (see
+     * [configureDeviceOwnerLockTaskPoliciesIfApplicable]) this now achieves
+     * real, inescapable pinning; on one that isn't, Android either ignores
+     * it or shows OEM screen-pinning UX, never a crash — see
+     * `KioskLevelDetector` for how the panel learns what actually engaged.
      *
      * [LocationForegroundService] (MAX-008) follows the immersive
      * lifetime, not the Lock Task one: GPS should keep running while
@@ -173,6 +181,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** MAX-011: `startLockTask()`/`stopLockTask()` alone only ever achieves
+     * screen pinning (a user can still long-press Back+Recents to exit,
+     * and notifications remain reachable) — real, inescapable kiosk mode
+     * additionally requires Device Owner status to declare *this app* as
+     * the only Lock Task-allowed package and to strip every optional Lock
+     * Task feature (Home, Recents/Overview, notifications, global actions,
+     * keyguard). Both calls are idempotent and cheap, so it's safe to make
+     * them unconditionally on every cold start rather than tracking
+     * "already configured" state that could drift from what
+     * DevicePolicyManager actually has recorded. A no-op, not a crash, on
+     * a tablet that hasn't been provisioned as Device Owner yet — see
+     * ANDROID_PILOT_TABLET_SETUP.md. */
+    private fun configureDeviceOwnerLockTaskPoliciesIfApplicable() {
+        val devicePolicyManager = getSystemService(DevicePolicyManager::class.java) ?: return
+        val admin = AdminReceiver.componentName(this)
+        val isDeviceOwner = runCatching { devicePolicyManager.isDeviceOwnerApp(packageName) }
+            .getOrDefault(false)
+        if (!isDeviceOwner) return
+        runCatching {
+            devicePolicyManager.setLockTaskPackages(admin, arrayOf(packageName))
+            devicePolicyManager.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+        }.onFailure { Log.w("MaxcarMainActivity", "Device Owner policy setup failed: ${it::class.simpleName}") }
+    }
+
     private fun startLocationForegroundService() {
         val intent = Intent(this, LocationForegroundService::class.java)
         runCatching {
@@ -188,6 +220,7 @@ private fun MaxcarApp(
     homeViewModel: DeviceHomeViewModel,
     playerViewModel: PlayerViewModel,
     maintenanceAccessController: MaintenanceAccessController,
+    appPreferences: com.maxcar.tablet.data.local.AppPreferences,
     onModeChanged: (playerActive: Boolean, lockTaskEligible: Boolean) -> Unit,
 ) {
     val isEnrolled by repository.isEnrolled.collectAsState(initial = null)
@@ -196,15 +229,64 @@ private fun MaxcarApp(
     var showDiagnostics by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
+    // MAX-011: one deadline (persisted, so it survives a process restart)
+    // covers both temporary-exit paths — a physical PIN unlock into
+    // diagnostics and a remote disable_kiosk_temporarily command. While
+    // `now < kioskSuspendedUntil`, Lock Task stays disengaged regardless of
+    // whether the diagnostics screen itself is open.
+    val kioskSuspendedUntil by appPreferences.kioskSuspendedUntilMillis.collectAsState(initial = null)
+    var nowMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    val kioskSuspended = kioskSuspendedUntil != null && nowMillis < kioskSuspendedUntil!!
+    val maintenanceSecondsRemaining = kioskSuspendedUntil
+        ?.let { ((it - nowMillis) / 1000).coerceAtLeast(0) }
+        ?.takeIf { kioskSuspended }
+
     val playerActive = isEnrolled == true && !showDiagnostics
     // MAX-010's core kiosk rule: rigid screen pinning only ever engages
     // once there's actually READY content to show, and only when the
     // server's kiosk_enabled flag allows it — never a pinned,
     // content-less "preparing…" screen the operator can't get out of.
+    // MAX-011 adds a third gate: a temporary exit (physical or remote)
+    // always wins over an otherwise-eligible player.
     val hasReadyContent = playerUiState is PlayerUiState.Playing
     val lockTaskEligible = playerActive && hasReadyContent &&
-        (remoteConfig?.kioskEnabled ?: false)
+        (remoteConfig?.kioskEnabled ?: false) && !kioskSuspended
     LaunchedEffect(playerActive, lockTaskEligible) { onModeChanged(playerActive, lockTaskEligible) }
+
+    // Entering diagnostics (a physical PIN unlock) starts the same
+    // maintenance window a remote disable_kiosk_temporarily command would;
+    // leaving it (manually or via the timer below) always clears the
+    // deadline. Reusing an existing future deadline instead of overwriting
+    // it is what makes "reopen the app/screen while suspended" respect the
+    // time already elapsed (MAX-011).
+    LaunchedEffect(showDiagnostics) {
+        if (showDiagnostics) {
+            val now = System.currentTimeMillis()
+            val existing = appPreferences.kioskSuspendedUntilSnapshot()
+            if (existing == null || existing <= now) {
+                val timeoutSeconds = remoteConfig?.maintenanceTimeoutSeconds
+                    ?: com.maxcar.tablet.data.local.RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS
+                appPreferences.setKioskSuspendedUntil(now + timeoutSeconds * 1000L)
+            }
+        } else {
+            appPreferences.setKioskSuspendedUntil(null)
+        }
+    }
+
+    // Ticks once a second only while a deadline is actually pending, and
+    // auto-returns to the player the moment it passes — the "retornar
+    // automaticamente" half of MAX-011, independent of any manual action.
+    LaunchedEffect(kioskSuspendedUntil) {
+        while (kioskSuspendedUntil != null) {
+            nowMillis = System.currentTimeMillis()
+            if (nowMillis >= kioskSuspendedUntil!!) {
+                appPreferences.setKioskSuspendedUntil(null)
+                if (showDiagnostics) showDiagnostics = false
+                break
+            }
+            delay(1000)
+        }
+    }
 
     // "Atualização ao abrir o app" (item 43): scheduleInitialSync only
     // otherwise runs once, right after a *new* enrollment succeeds. A cold
@@ -245,7 +327,11 @@ private fun MaxcarApp(
     when (isEnrolled) {
         null -> Unit // Still reading DataStore; avoid an enrollment/player flash.
         true -> if (showDiagnostics) {
-            DeviceHomeScreen(homeViewModel, onBackToPlayer = { showDiagnostics = false })
+            DeviceHomeScreen(
+                homeViewModel,
+                onBackToPlayer = { showDiagnostics = false },
+                secondsUntilAutoReturn = maintenanceSecondsRemaining,
+            )
         } else {
             PlayerScreen(
                 playerViewModel,

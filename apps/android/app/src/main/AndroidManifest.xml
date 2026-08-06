@@ -49,6 +49,22 @@
             </intent-filter>
         </receiver>
 
+        <!-- MAX-011: required for `dpm set-device-owner`. See
+             kiosk/AdminReceiver.kt — no policies are actually applied
+             through this receiver's callbacks, only through
+             DevicePolicyManager calls once Device Owner status is active. -->
+        <receiver
+            android:name=".kiosk.AdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
         <!-- MAX-008: keeps the Location Engine (and, by staying alive, the
              player itself) running while the tablet is in operational mode.
              Started only while the player is the active screen — see

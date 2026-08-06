@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -18,12 +20,24 @@ import com.maxcar.tablet.BuildConfig
 import java.time.Instant
 
 @Composable
-fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit = {}) {
+fun DeviceHomeScreen(
+    viewModel: DeviceHomeViewModel,
+    onBackToPlayer: () -> Unit = {},
+    secondsUntilAutoReturn: Long? = null,
+) {
     val state by viewModel.uiState.collectAsState()
     val deviceState = state.deviceState
 
+    // MAX-011 physical finding: this screen's content (device info + GPS/GEO
+    // diagnostics + the debug simulation button) is taller than the Black
+    // Shark's viewport at its native density, and this Column never
+    // scrolled — the lowest controls (including "Voltar ao player" on some
+    // states) were physically unreachable by touch. verticalScroll is the
+    // real fix; it was previously worked around, when at all, by changing
+    // the OS display density, which is not something a technician in the
+    // field should ever need to do.
     Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text("MAXCAR", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -31,6 +45,19 @@ fun DeviceHomeScreen(viewModel: DeviceHomeViewModel, onBackToPlayer: () -> Unit 
             text = deviceState?.deviceCode ?: "Tablet",
             style = MaterialTheme.typography.displaySmall,
         )
+
+        // MAX-011: the kiosk lockdown is suspended while this screen is
+        // reachable at all — this banner is the "aviso visual" + "contador"
+        // the maintenance-exit flow requires, so nobody is surprised when
+        // Lock Task silently re-engages.
+        if (secondsUntilAutoReturn != null) {
+            Text(
+                "Modo quiosque temporariamente suspenso. Retorno automático em " +
+                    "${secondsUntilAutoReturn}s, ou toque em \"Voltar ao player\".",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 

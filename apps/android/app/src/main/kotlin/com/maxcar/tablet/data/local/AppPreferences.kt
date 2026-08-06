@@ -157,6 +157,28 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
     suspend fun diagnosticsOpenSnapshot(): Boolean =
         dataStore.data.map { it[KEY_DIAGNOSTICS_OPEN] ?: false }.first()
 
+    /** Absolute wall-clock deadline (epoch millis) until which Lock Task
+     * stays disengaged, or null when kiosk is fully active (MAX-011). One
+     * mechanism serves both temporary-exit paths: a physical PIN unlock
+     * into diagnostics and a remote `disable_kiosk_temporarily` command —
+     * both just set this deadline, and `MainActivity` re-engages Lock Task
+     * (and, if diagnostics is open, returns to the player) the moment it
+     * passes. Persisted in DataStore rather than in-memory Compose state so
+     * the remaining time survives a process restart, per MAX-011's "respeitar
+     * o tempo restante" requirement. */
+    val kioskSuspendedUntilMillis: Flow<Long?> =
+        dataStore.data.map { prefs -> prefs[KEY_KIOSK_SUSPENDED_UNTIL] }
+
+    suspend fun kioskSuspendedUntilSnapshot(): Long? =
+        kioskSuspendedUntilMillis.first()
+
+    suspend fun setKioskSuspendedUntil(untilMillis: Long?) {
+        dataStore.edit { prefs ->
+            if (untilMillis != null) prefs[KEY_KIOSK_SUSPENDED_UNTIL] = untilMillis
+            else prefs.remove(KEY_KIOSK_SUSPENDED_UNTIL)
+        }
+    }
+
     private companion object {
         val KEY_IS_ENROLLED = booleanPreferencesKey("is_enrolled")
         val KEY_CREDENTIAL_MISSING_LOCALLY = booleanPreferencesKey("credential_missing_locally")
@@ -170,5 +192,6 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         val KEY_DIAGNOSTICS_OPEN = booleanPreferencesKey("diagnostics_open")
         val KEY_PIN_ATTEMPT_COUNT = intPreferencesKey("pin_attempt_count")
         val KEY_PIN_LOCKED_UNTIL_MILLIS = longPreferencesKey("pin_locked_until_millis")
+        val KEY_KIOSK_SUSPENDED_UNTIL = longPreferencesKey("kiosk_suspended_until_millis")
     }
 }

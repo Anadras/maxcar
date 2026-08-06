@@ -6,23 +6,28 @@ veja [ANDROID_SYNC.md](../architecture/ANDROID_SYNC.md).
 
 ## Um conjunto pequeno e fechado
 
-Seis operações, todas seguras, nenhuma delas capaz de comprometer o
+Nove operações, todas seguras, nenhuma delas capaz de comprometer o
 dispositivo mesmo se um comando fosse forjado:
 
-| `command_type`         | O que faz no tablet                                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `sync_now`             | Marcador — o tablet já está dentro de um ciclo de sync ao processar comandos; nada extra a fazer.                                       |
-| `restart_player`       | Reseta o player para o início da grade atual (`PlayerViewModel.restart`).                                                               |
-| `clear_obsolete_media` | Reexecuta a sincronização de grade REGULAR e regras GEO imediatamente, forçando a mesma reconciliação atômica que já roda a cada ciclo. |
-| `enter_maintenance`    | Liga a flag local `AppPreferences.maintenanceRequested` — consumida pelo modo manutenção (MAX-010).                                     |
-| `exit_maintenance`     | Desliga a mesma flag.                                                                                                                   |
-| `update_config`        | Força um `refreshConfig()` imediato (já acontece a cada ciclo; o comando garante que não é preciso esperar o próximo).                  |
+| `command_type`              | O que faz no tablet                                                                                                                     |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `sync_now`                  | Marcador — o tablet já está dentro de um ciclo de sync ao processar comandos; nada extra a fazer.                                       |
+| `restart_player`            | Reseta o player para o início da grade atual (`PlayerViewModel.restart`).                                                               |
+| `clear_obsolete_media`      | Reexecuta a sincronização de grade REGULAR e regras GEO imediatamente, forçando a mesma reconciliação atômica que já roda a cada ciclo. |
+| `enter_maintenance`         | Liga a flag local `AppPreferences.maintenanceRequested` — consumida pelo modo manutenção (MAX-010).                                     |
+| `exit_maintenance`          | Desliga a mesma flag.                                                                                                                   |
+| `update_config`             | Força um `refreshConfig()` imediato (já acontece a cada ciclo; o comando garante que não é preciso esperar o próximo).                  |
+| `disable_kiosk_temporarily` | MAX-011: grava um prazo (`AppPreferences.kioskSuspendedUntilMillis`) que desliga a elegibilidade de Lock Task até vencer — nunca abre a tela de diagnóstico, só solta o pinning. Ver [ANDROID_KIOSK.md](../architecture/ANDROID_KIOSK.md#saída-temporária-com-retorno-automático-max-011). |
+| `reenter_kiosk`             | Zera esse prazo imediatamente, re-engajando Lock Task assim que o player tiver conteúdo pronto.                                         |
+| `enable_kiosk`              | Idêntico a `reenter_kiosk` — dois nomes para a mesma operação, expostos separadamente no painel para intenções diferentes do operador.  |
 
-Não existe um sétimo tipo genérico "executar comando arbitrário" — o enum
+Não existe um tipo genérico "executar comando arbitrário" — o enum
 do banco (`public.device_command_type`) é o próprio contrato: um tipo que
 não existe nele não pode ser inserido, e o Android trata qualquer
 `command_type` que não reconheça como falha explícita, nunca como um
-no-op silencioso (`DeviceCommandExecutor`, ramo `else`).
+no-op silencioso (`DeviceCommandExecutor`, ramo `else`). Os três tipos do
+MAX-011 foram adicionados via `alter type ... add value` — a mesma
+extensão fechada, nunca uma segunda tabela ou coluna livre.
 
 ## Ciclo de vida de um comando
 

@@ -56,5 +56,9 @@ Deno.serve(async (req) => {
     // set_device_maintenance_pin.
     maintenancePinHash: data.maintenance_pin_hash,
     maintenancePinSalt: data.maintenance_pin_salt,
+    // MAX-011: null lets the tablet fall back to its own built-in default
+    // (RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS) rather than
+    // the server needing to bake one in for every device row.
+    maintenanceTimeoutSeconds: data.maintenance_timeout_seconds,
   });
 });

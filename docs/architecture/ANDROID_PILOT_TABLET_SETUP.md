@@ -95,35 +95,51 @@ forçar a saída via ADB:
 adb shell am force-stop com.maxcar.tablet.staging.debug
 ```
 
-## Device Owner — avaliado, não ativado
+## Device Owner — ativado no TESTE01 (MAX-011)
 
 Ver também [ANDROID_KIOSK.md](ANDROID_KIOSK.md) para as três camadas de
 kiosk e como o painel reporta qual está realmente ativa.
 
-Lock Task real (bloqueio total de saída, sem depender do gesto oculto)
-exige o app provisionado como **Device Owner** via
-`dpm set-device-owner`, o que só é possível em um aparelho recém-resetado
-de fábrica (ou sem conta Google configurada). Isso não foi executado neste
-marco — exigiria um factory reset do tablet físico, uma ação destrutiva e
-irreversível sem autorização explícita.
+Ao contrário do que este documento presumia num marco anterior, o
+TESTE01 **não precisou de factory reset**: `dpm set-device-owner` exige
+apenas que o aparelho não tenha nenhum Device Owner/Profile Owner ativo,
+zero contas configuradas e um único usuário — condições que um Black
+Shark recém-saído de fábrica e nunca logado numa conta Google já
+satisfaz, mesmo depois de meses de uso só com `adb install`. Verificar
+antes de tentar:
 
-Se decidido para um marco futuro:
+```bash
+adb shell dpm list-owners        # deve dizer "no owners"
+adb shell dumpsys account        # deve dizer "Accounts: 0"
+adb shell pm list users          # deve listar só um usuário
+```
 
-- **Comando**: `adb shell dpm set-device-owner com.maxcar.tablet.staging.debug/.AdminReceiver`
-  (exige um `DeviceAdminReceiver` que este marco não implementa) executado
-  logo após o factory reset, antes de qualquer conta ser adicionada.
-- **Impacto do reset**: apaga todos os dados do aparelho — enrollment,
-  grade baixada, configurações locais. Precisa ser feito antes do tablet
-  ser instalado no veículo, não depois.
-- **O que isso desbloqueia**: `startLockTask()` passa a bloquear
-  efetivamente Home/Recents/notificações; `DevicePolicyManager` permite
-  desabilitar configurações do sistema, instalar/atualizar o app
-  silenciosamente e impedir a instalação de outros apps — a base de um MDM
-  corporativo real.
-- Sem isso, o que já está implementado (imersivo, back bloqueado, gesto
-  oculto) é a "primeira camada" seguramente testável descrita em
-  [ANDROID_PLAYER.md](ANDROID_PLAYER.md#tela-cheia-e-tela-ligada) — real,
-  mas não à prova de um usuário técnico.
+Se qualquer uma dessas três condições falhar (uma conta Google foi
+adicionada, por exemplo), **aí sim** um factory reset seria o jeito de
+voltar a esse estado limpo — mas isso só deveria ser tentado com
+autorização explícita, e apenas depois de confirmar que é realmente a
+causa via os três comandos acima.
+
+Comando usado (nome de componente **totalmente qualificado** — ver
+[ANDROID_KIOSK.md](ANDROID_KIOSK.md#device-owner-max-011) para por que a
+forma curta `.AdminReceiver` falha):
+
+```bash
+adb shell dpm set-device-owner \
+  com.maxcar.tablet.staging.debug/com.maxcar.tablet.kiosk.AdminReceiver
+```
+
+**O que isso desbloqueou, confirmado fisicamente**: `startLockTask()`
+agora bloqueia de fato Home, Recentes, a barra de notificações e o botão
+Voltar — testado via `adb shell input keyevent`/`cmd statusbar
+expand-notifications`, o player nunca saiu de primeiro plano e continuou
+avançando pela grade normalmente. O heartbeat reporta
+`kiosk_level = 'device_owner'` no painel.
+
+O app_remote_config.kiosk_enabled (interruptor geral, existia desde o
+MAX-006) precisou ser ligado manualmente no Cloud — estava `false` por
+padrão porque nada usava esse valor antes do MAX-011 implementar de fato
+o bloqueio.
 
 ## Auto-start e otimização de bateria
 

@@ -68,6 +68,14 @@ Não é uma tela nova: é a tela de diagnóstico já existente desde o MAX-006
   ferramentas já existentes, sem nada removido.
 - "Voltar ao player" retoma o modo operacional normal (imersivo, e Lock
   Task de novo se ainda elegível).
+- **MAX-011**: entrar aqui também arma o mesmo temporizador de retorno
+  automático que `disable_kiosk_temporarily` usa (ver
+  [ANDROID_KIOSK.md](ANDROID_KIOSK.md#saída-temporária-com-retorno-automático-max-011))
+  — um banner mostra a contagem regressiva, e o app volta ao player
+  sozinho se ninguém tocar "Voltar ao player" antes do prazo (padrão 5
+  min, configurável por dispositivo). Isto é novo: antes deste marco, um
+  técnico que esquecesse o tablet aberto em diagnóstico o deixava fora do
+  Lock Task indefinidamente.
 
 ## Comando remoto de manutenção
 
@@ -79,6 +87,11 @@ confirmação local antes de entrar remotamente em manutenção; neste marco,
 ela é gravada e reportável, mas a única forma real de abrir o diagnóstico
 continua sendo o gesto + PIN físicos no tablet — um comando remoto nunca
 contorna essa exigência.
+
+`disable_kiosk_temporarily`/`reenter_kiosk`/`enable_kiosk` (MAX-011) são
+deliberadamente um mecanismo **separado**: soltam o Lock Task remotamente
+sem abrir diagnóstico, preservando a mesma regra acima — ver
+[ANDROID_KIOSK.md](ANDROID_KIOSK.md#saída-temporária-com-retorno-automático-max-011).
 
 ## Registro de entrada/saída
 

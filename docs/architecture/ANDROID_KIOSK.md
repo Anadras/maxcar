@@ -38,7 +38,7 @@ fixar tela, mesmo com conteúdo pronto — só o imersivo.
 | ----------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | **Imersivo**            | Barras de sistema escondidas, sem controles visíveis                     | Sempre que `playerActive`                                                         | Um usuário técnico que force-stop o app via ADB                                                                 |
 | **Lock Task (fixação)** | Home/Recents bloqueados, enquanto o Android permitir                     | `startLockTask()`, condicionado a `lockTaskEligible`                              | Sem Device Owner, o próprio Android pode ignorar ou pedir confirmação do usuário — nunca presumir que funcionou |
-| **Device Owner**        | Bloqueio profissional real (Home/Recents/notificações inegociáveis, MDM) | `dpm set-device-owner`, exige factory reset — **nunca executado automaticamente** | Só por outro Device Owner ou reset de fábrica                                                                   |
+| **Device Owner**        | Bloqueio profissional real (Home/Recents/notificações inegociáveis, MDM) | `dpm set-device-owner` — ver seção abaixo, **ativado no TESTE01 em 2026-08-05, sem factory reset** | Só por outro Device Owner ou reset de fábrica                                                                   |
 
 ## O painel nunca finge proteção que não existe
 
@@ -55,12 +55,87 @@ manutenção" do detalhe do dispositivo — a mesma filosofia de "nunca dado
 inventado" do resto do monitoramento (ver
 [DEVICE_MONITORING.md](DEVICE_MONITORING.md)).
 
-## Device Owner — avaliado, não ativado
+## Device Owner (MAX-011)
 
-Ver a seção dedicada em
-[ANDROID_PILOT_TABLET_SETUP.md](ANDROID_PILOT_TABLET_SETUP.md#device-owner--avaliado-não-ativado)
-— nada mudou neste marco: continua exigindo um factory reset manual e
-autorizado, nunca executado por este código.
+O app agora declara um `DeviceAdminReceiver` (`kiosk/AdminReceiver.kt`,
+`res/xml/device_admin_receiver.xml`, `<receiver>` no manifest) e
+`MainActivity.configureDeviceOwnerLockTaskPoliciesIfApplicable()` chama,
+uma vez a cada cold start:
+
+```kotlin
+devicePolicyManager.setLockTaskPackages(admin, arrayOf(packageName))
+devicePolicyManager.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+```
+
+`LOCK_TASK_FEATURE_NONE` é o que bloqueia Home/Recents/notificações/
+global actions de forma real, não apenas o pinning "melhor esforço" que já
+existia. Ambas as chamadas são no-op silencioso (`isDeviceOwnerApp ==
+false`, guarded por `runCatching`) numa tablet ainda não provisionada.
+
+**Provisionamento em si nunca é automático** — é uma ação irreversível
+(só desfeita por outro Device Owner ou factory reset) e continua exigindo
+autorização explícita antes de rodar:
+
+```bash
+adb shell dpm set-device-owner \
+  com.maxcar.tablet.staging.debug/com.maxcar.tablet.kiosk.AdminReceiver
+```
+
+Note o componente **totalmente qualificado**
+(`com.maxcar.tablet.kiosk.AdminReceiver`, não
+`com.maxcar.tablet.staging.debug.kiosk.AdminReceiver`) — o `applicationId`
+de staging (`com.maxcar.tablet.staging.debug`, via `applicationIdSuffix`)
+diverge do namespace real do manifest (`com.maxcar.tablet`), e `dpm`
+resolve nomes relativos (`.kiosk.AdminReceiver`) contra o primeiro
+argumento, não contra o namespace do manifest — usar a forma curta falha
+com `Not active admin`, mesmo com o app instalado e o receiver
+corretamente declarado.
+
+**Pré-requisitos** (verificados via `adb shell dpm list-owners` +
+`adb shell dumpsys account` antes de tentar): nenhum Device Owner/Profile
+Owner já ativo, **zero contas configuradas no aparelho**, um único
+usuário. Quando essas três condições valem, `dpm set-device-owner`
+funciona via ADB **sem exigir factory reset** — o factory reset só é
+necessário para *remover* contas/usuários pré-existentes que violem essas
+condições, não é um requisito incondicional do comando em si.
+
+Validado fisicamente no TESTE01 em 2026-08-05: `dpm list-owners`
+confirmou `DeviceOwner,Affiliated`; heartbeat reportou
+`kiosk_level = 'device_owner'`; Home, Recentes, barra de notificações e
+Voltar testados via `adb shell input keyevent`/`cmd statusbar
+expand-notifications` — nenhum saiu do player, que continuou avançando
+pela grade normalmente durante todo o teste.
+
+## Saída temporária com retorno automático (MAX-011)
+
+Um único mecanismo cobre as duas formas de suspender o quiosque
+temporariamente — nunca abre a tela de diagnóstico remotamente, só a
+libera do pinning:
+
+- **PIN físico** (5 toques + PIN correto → diagnóstico).
+- **Comando remoto** `disable_kiosk_temporarily` (painel → `device_commands`
+  → `DeviceCommandExecutor`), sem abrir diagnóstico — só libera o Lock
+  Task, mantendo a política de "comando remoto nunca contorna o gesto
+  físico" já documentada em
+  [ANDROID_MAINTENANCE_MODE.md](ANDROID_MAINTENANCE_MODE.md).
+
+Ambos apenas gravam um prazo absoluto em
+`AppPreferences.kioskSuspendedUntilMillis` (persistido em DataStore, não
+em memória — sobrevive a reabrir a tela ou reiniciar o processo).
+`MaxcarApp` roda um `LaunchedEffect` que tickeia a cada segundo enquanto
+esse prazo existir; ao vencer, zera o prazo e (se a tela de diagnóstico
+estiver aberta) volta ao player sozinho. `lockTaskEligible` passa a
+exigir `!kioskSuspended` além das condições já existentes. Duração
+configurável por dispositivo
+(`devices.maintenance_timeout_seconds`, 60–1800s, painel → card "Kiosk e
+manutenção") ou pelo padrão do app (`RemoteConfigEntity.
+DEFAULT_MAINTENANCE_TIMEOUT_SECONDS = 300`) quando não configurada.
+`enable_kiosk`/`reenter_kiosk` (idênticos) zeram o prazo imediatamente.
+
+Validado fisicamente: PIN correto abriu o diagnóstico mostrando
+"Modo quiosque temporariamente suspenso. Retorno automático em Ns..." com
+a contagem regressiva decrescendo em tempo real (298s → 274s → 253s →
+234s ao longo de ~64s reais).
 
 ## Auto-start e Foreground Service
 

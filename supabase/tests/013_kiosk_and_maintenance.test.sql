@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
+select plan(16);
 
 grant usage on schema extensions to authenticated;
 grant execute on all functions in schema extensions to authenticated;
@@ -38,17 +38,17 @@ select set_config('request.jwt.claim.sub', 'd1000000-0000-4000-8000-000000000001
 select throws_ok(
   $$select public.set_device_maintenance_pin('d1000000-0000-4000-8000-000000000010', '12')$$,
   '22023',
-  'PIN must be 4 to 8 digits.',
-  'a PIN shorter than 4 digits is rejected'
+  'PIN must be exactly 6 digits.',
+  'a PIN shorter than 6 digits is rejected'
 );
 select throws_ok(
-  $$select public.set_device_maintenance_pin('d1000000-0000-4000-8000-000000000010', 'abcd')$$,
+  $$select public.set_device_maintenance_pin('d1000000-0000-4000-8000-000000000010', 'abcdef')$$,
   '22023',
-  'PIN must be 4 to 8 digits.',
+  'PIN must be exactly 6 digits.',
   'a non-numeric PIN is rejected'
 );
 select throws_ok(
-  $$select public.set_device_maintenance_pin('00000000-0000-4000-8000-000000000000', '1234')$$,
+  $$select public.set_device_maintenance_pin('00000000-0000-4000-8000-000000000000', '123456')$$,
   '22023',
   'Device not found.',
   'a PIN cannot target an unknown device'
@@ -66,11 +66,15 @@ select isnt(
 select is(
   (select count(*)::integer from public.devices
    where id = 'd1000000-0000-4000-8000-000000000010'
-     and maintenance_pin_hash = encode(
-       digest('135790' || maintenance_pin_salt, 'sha256'), 'hex'
-     )),
+     and maintenance_pin_hash_version = 2
+     and crypt('135790', maintenance_pin_hash) = maintenance_pin_hash),
   1,
-  'the stored hash matches sha256(pin || salt) — reproducible offline on the device'
+  'the stored hash is bcrypt (version 2) and matches the PIN — reproducible offline on the device'
+);
+select is(
+  (select maintenance_pin_salt from public.devices where id = 'd1000000-0000-4000-8000-000000000010'),
+  null,
+  'a v2 (bcrypt) PIN leaves maintenance_pin_salt unused — bcrypt is self-contained'
 );
 select is(
   (select count(*)::integer from public.audit_events
@@ -97,10 +101,10 @@ select is(
   (select maintenance_pin_hash from public.devices where id = 'd1000000-0000-4000-8000-000000000010'),
   'get_device_config delivers the current maintenance PIN hash'
 );
-select isnt(
-  (select maintenance_pin_salt from public.get_device_config(:'tok')),
-  null,
-  'get_device_config delivers the current maintenance PIN salt'
+select is(
+  (select maintenance_pin_hash_version from public.get_device_config(:'tok')),
+  2,
+  'get_device_config delivers the current maintenance PIN hash version'
 );
 
 -- Heartbeat: kiosk_level is persisted and constrained to the known set.

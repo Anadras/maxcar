@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         GeofenceEventEntity::class,
         MediaQuarantineEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -60,6 +60,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** MAX-013: adds `remote_config.maintenancePinHashVersion` (bcrypt
+         * PIN hardening — see [RemoteConfigEntity]). A device on the field
+         * has already been enrolled and may already have a legacy v1 PIN
+         * cached locally in `remote_config`; that row, and every other
+         * table, must survive this update untouched — only the new column
+         * is added, defaulting to 1 (legacy) until the next successful
+         * config fetch reports the real value.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `remote_config` ADD COLUMN `maintenancePinHashVersion` INTEGER NOT NULL DEFAULT 1",
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -67,7 +83,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "maxcar.db",
                 )
-                    .addMigrations(MIGRATION_8_9)
+                    .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
                     // Only reached for a jump this app has never shipped a
                     // real migration for (i.e. from before version 8) —
                     // see MIGRATION_8_9's own doc for why this pilot no

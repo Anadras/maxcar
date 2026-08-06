@@ -23,6 +23,12 @@ data class RemoteConfigEntity(
     // rather than falling back to "no PIN required".
     val maintenancePinHash: String? = null,
     val maintenancePinSalt: String? = null,
+    // MAX-013: version 1 = legacy sha256(pin||salt) (weak against offline
+    // brute force, kept only so an already-set v1 PIN keeps validating
+    // until an admin rotates it); version 2 = bcrypt, cost 12,
+    // self-contained (maintenancePinSalt unused for v2 — bcrypt embeds
+    // its own salt in the hash string). See PinValidator.
+    val maintenancePinHashVersion: Int = 1,
     // MAX-011: how long a temporary kiosk exit (PIN-gated diagnostics entry
     // or a remote disable_kiosk_temporarily command) lasts before Lock Task
     // automatically re-engages — see AppPreferences.kioskSuspendedUntilMillis.

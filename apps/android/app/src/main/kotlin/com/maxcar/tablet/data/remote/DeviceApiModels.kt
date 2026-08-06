@@ -180,6 +180,7 @@ data class ConfigResponse(
     val configVersion: Int,
     val maintenancePinHash: String? = null,
     val maintenancePinSalt: String? = null,
+    val maintenancePinHashVersion: Int? = null,
     val maintenanceTimeoutSeconds: Int? = null,
 )
 
@@ -271,3 +272,11 @@ data class AcknowledgeCommandRequest(
 
 @Serializable
 data class AcknowledgeCommandResponse(val acknowledged: Boolean = false)
+
+// --- MAX-013: online remote temporary maintenance code ---
+
+@Serializable
+data class VerifyMaintenanceCodeRequest(val code: String)
+
+@Serializable
+data class VerifyMaintenanceCodeResponse(val verified: Boolean = false)

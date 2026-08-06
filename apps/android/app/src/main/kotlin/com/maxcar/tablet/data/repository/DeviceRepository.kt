@@ -48,6 +48,14 @@ interface DeviceIdentityProvider {
     suspend fun handleUnauthorizedDeviceKey()
 }
 
+/** What [com.maxcar.tablet.kiosk.MaintenanceAccessController] needs from
+ * [DeviceRepository] — narrow on purpose, same reasoning as
+ * [DeviceIdentityProvider]: a test double for maintenance-access logic
+ * shouldn't need to stand up this whole class. */
+interface MaintenanceTempCodeVerifier {
+    suspend fun verifyMaintenanceTempCode(code: String): Boolean
+}
+
 /**
  * The single place that knows how enrollment, the device's cryptographic
  * identity, the heartbeat queue and remote config relate to each other. UI
@@ -73,7 +81,7 @@ class DeviceRepository(
     private val remoteConfigDao: RemoteConfigDao,
     private val pendingEventDao: PendingEventDao,
     private val playbackEventDao: PlaybackEventDao,
-) : DeviceIdentityProvider {
+) : DeviceIdentityProvider, MaintenanceTempCodeVerifier {
     val isEnrolled: Flow<Boolean> = appPreferences.isEnrolled
     val deviceState: Flow<DeviceStateEntity?> = deviceStateDao.observe()
     val remoteConfig: Flow<RemoteConfigEntity?> = remoteConfigDao.observe()
@@ -444,6 +452,7 @@ class DeviceRepository(
                 updatedAt = System.currentTimeMillis(),
                 maintenancePinHash = response.maintenancePinHash,
                 maintenancePinSalt = response.maintenancePinSalt,
+                maintenancePinHashVersion = response.maintenancePinHashVersion ?: 1,
                 maintenanceTimeoutSeconds = response.maintenanceTimeoutSeconds
                     ?: RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS,
             )
@@ -463,6 +472,19 @@ class DeviceRepository(
     suspend fun currentHeartbeatIntervalSeconds(): Long =
         (remoteConfigDao.get() ?: RemoteConfigEntity.defaults())
             .heartbeatIntervalSeconds.toLong()
+
+    /** MAX-013: best-effort online check of a remote temporary maintenance
+     * code — never throws, a network/credential problem is indistinguishable
+     * from "the code path just isn't available right now" to the caller
+     * (see MaintenanceAccessController, which only ever treats a `true`
+     * result as meaningful; anything else falls back to the permanent
+     * PIN's own local result). */
+    override suspend fun verifyMaintenanceTempCode(code: String): Boolean {
+        val keyId = resolveKeyId("verifyMaintenanceTempCode") ?: return false
+        return runCatching {
+            withContext(Dispatchers.IO) { apiClient.verifyMaintenanceCode(keyId, code) }
+        }.getOrNull()?.verified ?: false
+    }
 
     /** The one place that decides which key_id to sign a request with.
      * Prefers the locally paired key_id when the Keystore key that

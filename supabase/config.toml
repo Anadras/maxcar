@@ -425,6 +425,9 @@ verify_jwt = false
 [functions.device-geofence-events]
 verify_jwt = false
 
+[functions.device-verify-maintenance-code]
+verify_jwt = false
+
 [functions.device-commands]
 verify_jwt = false
 

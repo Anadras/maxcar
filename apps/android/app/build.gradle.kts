@@ -142,6 +142,12 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.2.1")
 
+    // MAX-013: offline verification of the maintenance PIN's bcrypt hash
+    // (see kiosk/PinValidator.kt) — pure-Java, zero transitive
+    // dependencies, actively maintained. Not a general-purpose crypto
+    // dependency: used for exactly this one hash comparison.
+    implementation("at.favre.lib:bcrypt:0.10.2")
+
     implementation("androidx.security:security-crypto:1.1.0")
 
     implementation("androidx.startup:startup-runtime:1.2.0")

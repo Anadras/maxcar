@@ -102,6 +102,7 @@ class AppContainer(context: Context) {
     val maintenanceAccessController = MaintenanceAccessController(
         remoteConfigDao = database.remoteConfigDao(),
         appPreferences = appPreferences,
+        tempCodeVerifier = deviceRepository,
     )
 
     val syncCoordinator = SyncCoordinator(

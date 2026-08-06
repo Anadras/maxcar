@@ -1,5 +1,6 @@
 package com.maxcar.tablet.ui.player
 
+import android.os.SystemClock
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
@@ -21,7 +22,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import com.maxcar.tablet.kiosk.MaintenanceAccessController
 import com.maxcar.tablet.kiosk.UnlockResult
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 /**
  * The only path into diagnostics/maintenance mode (MAX-010): the hidden
@@ -46,11 +46,11 @@ fun MaintenancePinDialog(
         title = { Text("Acesso técnico") },
         text = {
             Column {
-                Text("Digite o PIN de manutenção do dispositivo.")
+                Text("Digite o PIN de manutenção do dispositivo (6 dígitos).")
                 OutlinedTextField(
                     value = pin,
                     onValueChange = { value ->
-                        if (value.length <= 8 && value.all(Char::isDigit)) pin = value
+                        if (value.length <= 6 && value.all(Char::isDigit)) pin = value
                     },
                     modifier = Modifier.padding(top = 12.dp),
                     visualTransformation = PasswordVisualTransformation(),
@@ -68,7 +68,7 @@ fun MaintenancePinDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = pin.isNotEmpty() && !checking,
+                enabled = pin.length == 6 && !checking,
                 onClick = {
                     checking = true
                     scope.launch {
@@ -78,8 +78,16 @@ fun MaintenancePinDialog(
                                 message = "PIN incorreto. ${result.remainingAttempts} tentativa(s) restante(s)."
                             }
                             is UnlockResult.LockedOut -> {
-                                val until = Instant.ofEpochMilli(result.untilMillis)
-                                message = "Bloqueado por tentativas incorretas. Tente novamente após $until."
+                                // result.untilMillis is elapsedRealtime-based
+                                // (monotonic), never a wall-clock instant —
+                                // show a countdown duration, never a clock time.
+                                val remainingSeconds =
+                                    ((result.untilMillis - SystemClock.elapsedRealtime()) / 1000)
+                                        .coerceAtLeast(0)
+                                val minutes = remainingSeconds / 60
+                                val seconds = remainingSeconds % 60
+                                message = "Bloqueado por tentativas incorretas. " +
+                                    "Tente novamente em ${minutes}min ${seconds}s."
                             }
                             UnlockResult.NoPinConfigured -> {
                                 message = "PIN não configurado para este dispositivo. Contate o administrador."

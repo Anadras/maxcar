@@ -15,11 +15,19 @@ import java.io.File
  * entity except [MediaQuarantineEntity]) — used only to generate a
  * realistic v8 database file for [AppDatabaseMigrationTest], since Room's
  * own schema generation is the only reliable way to get an exact match
- * without hand-transcribing seven tables' worth of column definitions. */
+ * without hand-transcribing seven tables' worth of column definitions.
+ *
+ * Uses [RemoteConfigEntityV9Fixture], not the live [RemoteConfigEntity],
+ * for the same reason [AppDatabaseV9Fixture] does below: `remote_config`'s
+ * shape at v8 and v9 is identical (only `media_quarantine` was added
+ * between them), but the live entity has since evolved to v10's shape —
+ * pointing this fixture at it would silently bake the not-yet-migrated
+ * `maintenancePinHashVersion` column into what's supposed to be a pure v8
+ * snapshot. */
 @Database(
     entities = [
         DeviceStateEntity::class,
-        RemoteConfigEntity::class,
+        RemoteConfigEntityV9Fixture::class,
         PendingEventEntity::class,
         PlaylistItemEntity::class,
         PlaybackEventEntity::class,
@@ -31,6 +39,51 @@ import java.io.File
 )
 internal abstract class AppDatabaseV8Fixture : RoomDatabase() {
     abstract fun deviceStateDao(): DeviceStateDao
+}
+
+/** The pre-MAX-013 shape of `remote_config` — no `maintenancePinHashVersion`
+ * column — used only to seed a realistic version-9 database file for
+ * [AppDatabaseMigrationTest]'s 9-to-10 case. */
+@androidx.room.Entity(tableName = "remote_config")
+internal data class RemoteConfigEntityV9Fixture(
+    @androidx.room.PrimaryKey val id: Int = 0,
+    val heartbeatIntervalSeconds: Int,
+    val syncIntervalSeconds: Int,
+    val kioskEnabled: Boolean,
+    val loggingLevel: String,
+    val configVersion: Int,
+    val updatedAt: Long,
+    val maintenancePinHash: String? = null,
+    val maintenancePinSalt: String? = null,
+    val maintenanceTimeoutSeconds: Int = 300,
+)
+
+@androidx.room.Dao
+internal interface RemoteConfigV9FixtureDao {
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: RemoteConfigEntityV9Fixture)
+}
+
+/** A byte-for-byte mirror of [AppDatabase] as it existed at version 9 (every
+ * entity through [MediaQuarantineEntity], but the pre-MAX-013 `remote_config`
+ * shape) — same rationale as [AppDatabaseV8Fixture]. */
+@Database(
+    entities = [
+        DeviceStateEntity::class,
+        RemoteConfigEntityV9Fixture::class,
+        PendingEventEntity::class,
+        PlaylistItemEntity::class,
+        PlaybackEventEntity::class,
+        GeoRuleEntity::class,
+        GeofenceEventEntity::class,
+        MediaQuarantineEntity::class,
+    ],
+    version = 9,
+    exportSchema = false,
+)
+internal abstract class AppDatabaseV9Fixture : RoomDatabase() {
+    abstract fun deviceStateDao(): DeviceStateDao
+    abstract fun remoteConfigV9FixtureDao(): RemoteConfigV9FixtureDao
 }
 
 /**
@@ -70,7 +123,7 @@ class AppDatabaseMigrationTest {
         v8.close()
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
-            .addMigrations(AppDatabase.MIGRATION_8_9)
+            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
             .build()
         try {
             runBlocking {
@@ -93,6 +146,54 @@ class AppDatabaseMigrationTest {
                     ),
                 )
                 assertEquals(1, database.mediaQuarantineDao().countActive(System.currentTimeMillis()))
+            }
+        } finally {
+            database.close()
+        }
+
+        dbFile.delete()
+    }
+
+    /**
+     * MAX-013: proves [AppDatabase.MIGRATION_9_10] preserves an already-set
+     * legacy PIN hash — a device on the field that already has one cached
+     * must not have it silently reset by this update, and must correctly
+     * default the new hash-version column to 1 (legacy) so
+     * [com.maxcar.tablet.kiosk.PinValidator] keeps validating it exactly as
+     * before, until the next config fetch reports v2.
+     */
+    @Test
+    fun `migrating from version 9 preserves the cached PIN hash and defaults its version to legacy`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbFile = File.createTempFile("migration-test-${System.nanoTime()}", ".db")
+        dbFile.delete()
+
+        val v9 = Room.databaseBuilder(context, AppDatabaseV9Fixture::class.java, dbFile.path).build()
+        runBlocking {
+            v9.remoteConfigV9FixtureDao().upsert(
+                RemoteConfigEntityV9Fixture(
+                    heartbeatIntervalSeconds = 900,
+                    syncIntervalSeconds = 3600,
+                    kioskEnabled = true,
+                    loggingLevel = "info",
+                    configVersion = 5,
+                    updatedAt = 999L,
+                    maintenancePinHash = "existing-legacy-hash",
+                    maintenancePinSalt = "existing-salt",
+                ),
+            )
+        }
+        v9.close()
+
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
+            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
+            .build()
+        try {
+            runBlocking {
+                val preserved = database.remoteConfigDao().get()
+                assertEquals("existing-legacy-hash", preserved?.maintenancePinHash)
+                assertEquals("existing-salt", preserved?.maintenancePinSalt)
+                assertEquals(1, preserved?.maintenancePinHashVersion)
             }
         } finally {
             database.close()

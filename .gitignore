@@ -24,3 +24,7 @@ captures/
 playwright-report/
 test-results/
 blob-report/
+
+# Pilot version rollback APKs — real device builds, not source; kept
+# locally for `adb install -r` recovery, never committed.
+apps/android/rollback/

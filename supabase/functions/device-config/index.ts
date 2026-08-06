@@ -56,6 +56,9 @@ Deno.serve(async (req) => {
     // set_device_maintenance_pin.
     maintenancePinHash: data.maintenance_pin_hash,
     maintenancePinSalt: data.maintenance_pin_salt,
+    // MAX-013: 1 = legacy sha256(pin||salt), 2 = bcrypt (self-contained,
+    // maintenancePinSalt unused) — see kiosk/PinValidator.kt.
+    maintenancePinHashVersion: data.maintenance_pin_hash_version,
     // MAX-011: null lets the tablet fall back to its own built-in default
     // (RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS) rather than
     // the server needing to bake one in for every device row.

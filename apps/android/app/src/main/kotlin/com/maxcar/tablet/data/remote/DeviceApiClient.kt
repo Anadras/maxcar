@@ -118,6 +118,16 @@ class DeviceApiClient(
         json.encodeToString(AcknowledgeCommandRequest(commandId, status, result)),
     ) { json.decodeFromString(AcknowledgeCommandResponse.serializer(), it) }
 
+    /** MAX-013: verifies a remote temporary maintenance code (never the
+     * permanent PIN) — always online, the server is the only source of
+     * truth for whether this specific 6-digit code is still valid. */
+    fun verifyMaintenanceCode(keyId: String, code: String): VerifyMaintenanceCodeResponse =
+        signedPost(
+            "device-verify-maintenance-code",
+            keyId,
+            json.encodeToString(VerifyMaintenanceCodeRequest(code)),
+        ) { json.decodeFromString(VerifyMaintenanceCodeResponse.serializer(), it) }
+
     /** Streams a signed URL straight to disk without ever holding the full
      * file in memory — a video can be tens of megabytes, and this call
      * always runs off the main thread via [com.maxcar.tablet.data.repository.MediaDownloadManager]. */

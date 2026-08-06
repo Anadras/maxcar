@@ -67,6 +67,8 @@ class GeoRulesSyncManager(
                     radiusMeters = rule.radiusMeters,
                     priority = rule.priority,
                     cooldownSeconds = rule.cooldownSeconds,
+                    playbackMode = rule.playbackMode,
+                    maxWaitSeconds = rule.maxWaitSeconds,
                     rulesVersion = response.rulesVersion,
                     updatedAt = now,
                 )
@@ -182,6 +184,8 @@ private fun GeoRuleItem.toPendingEntity(rulesVersion: String, now: Long) =
         radiusMeters = radiusMeters,
         priority = priority,
         cooldownSeconds = cooldownSeconds,
+        playbackMode = playbackMode,
+        maxWaitSeconds = maxWaitSeconds,
         type = type,
         mimeType = mimeType,
         durationSeconds = durationSeconds,

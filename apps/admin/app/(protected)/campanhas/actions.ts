@@ -76,6 +76,8 @@ async function campaignPayload(formData: FormData, formPath: string) {
     daily_end_time: input.dailyEndTime || null,
     priority: input.priority,
     cooldown_seconds: input.cooldownSeconds,
+    playback_mode: input.playbackMode,
+    max_wait_seconds: input.maxWaitSeconds,
     max_daily_impressions: input.maxDailyImpressions,
     active_days: [...new Set(input.activeDays)].sort(),
   };

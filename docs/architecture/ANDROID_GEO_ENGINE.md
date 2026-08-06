@@ -78,14 +78,77 @@ decide qual toca com uma cadeia fixa de comparação — **nunca aleatório**:
 Coberto por `GeoPriorityScorerTest`, incluindo um teste que roda a mesma
 seleção repetidamente para provar que o resultado nunca varia.
 
+### Prioridade também interrompe GEO (MAX-012)
+
+Até este marco, uma GEO já em reprodução nunca podia ser interrompida por
+outra — `PlayerViewModel.onGeoCandidateAvailable` simplesmente ignorava
+qualquer candidato novo enquanto `playingGeoItem != null`. Isso significava
+que uma GEO de prioridade Normal (5) já tocando bloqueava uma Urgente (20)
+que entrasse na janela até a primeira terminar, violando a regra "Urgente
+interrompe Alta interrompe Normal".
+
+Agora a mesma checagem de prioridade usada para decidir se uma GEO
+interrompe uma REGULAR também vale para GEO-sobre-GEO: um candidato só
+interrompe o que já está tocando se sua `priority` for **estritamente
+maior**. Igual ou menor nunca interrompe — nem mesmo a mesma geofence
+reavaliada. Mídia em quarentena (ver
+[ANDROID_PLAYER_WATCHDOG.md](ANDROID_PLAYER_WATCHDOG.md)) nunca é
+oferecida como candidata a interromper nada, GEO ou REGULAR.
+
 ## Cooldown e limite de repetição
 
 - **Cooldown por geofence**: `rule.cooldownSeconds` (override da geofence
   ou padrão da campanha), medido a partir de `lastTriggeredAtMillis` — uma
   geofence em cooldown nunca entra como candidata (`GeoEngine.updateCandidate`).
+- **O cooldown só começa a contar quando o primeiro frame é confirmado**
+  (MAX-012, `PlayerViewModel.markFirstFrameConfirmed` chama
+  `GeoEngine.onGeoPlayed`) — antes deste marco, `onGeoPlayed` era chamado
+  no instante em que a GEO era selecionada, mesmo que ela nunca chegasse a
+  renderizar nada (arquivo travado, watchdog de first-frame). Uma
+  tentativa que nunca foi vista pelo passageiro não deve consumir a janela
+  de repetição — ver a seção 26 do brief MAX-012. Uma GEO que falha *depois*
+  do primeiro frame (ex.: stall no meio) já contou como exibida e respeita
+  o cooldown normalmente.
 - **No máximo 1 GEO consecutiva**: não é uma flag separada — é uma
   consequência estrutural de onde o candidato é oferecido. Ver
   [ANDROID_PLAYER.md](ANDROID_PLAYER.md#geo).
+
+## Modo de exibição (MAX-011)
+
+Antes deste marco, uma campanha GEO **só** podia ser oferecida entre dois
+itens REGULAR (nunca interrompendo). Isso continua sendo o comportamento
+padrão (`AFTER_CURRENT`), mas agora é uma escolha explícita, não a única
+opção:
+
+| `playbackMode` (`GeoPlaybackMode`) | Efeito                                                                                   |
+| ----------------------------------- | ----------------------------------------------------------------------------------------- |
+| `AFTER_CURRENT`                    | Comportamento original — só oferecido no próximo boundary de item.                       |
+| `IMMEDIATE`                        | `PlayerViewModel.onGeoCandidateAvailable` corta o item REGULAR em até ~2s da detecção.    |
+| `MAX_WAIT`                         | Espera o item atual terminar, até `rule.maxWaitSeconds` (1–30s); se vencer antes, corta como `IMMEDIATE`. |
+
+Resolvido server-side em `get_device_geo_rules` com o mesmo padrão
+`coalesce(override, padrão)` de `priority`/`cooldownSeconds`:
+`campaign_geofences.playback_mode_override`/`max_wait_seconds_override`
+sobre `campaigns.playback_mode`/`max_wait_seconds`. Campanhas existentes
+antes deste marco foram migradas para `after_current` — nunca uma mudança
+de comportamento silenciosa.
+
+**Interrupção nunca resume o item cortado** — `PlayerViewModel.
+interruptForGeo()` grava esse item como `status = 'interrupted'`
+(`impression_status`, já existia no enum) e nunca decrementa `index`, então
+`advance()` sempre avança para o **próximo** item REGULAR quando a GEO
+termina, nunca de volta ao que foi cortado. `IMMEDIATE`/`MAX_WAIT` nunca
+interrompem uma GEO já tocando (`playingGeoItem != null` é checado antes
+de qualquer coisa em `onGeoCandidateAvailable`) nem quando a grade está
+vazia.
+
+Painel: `campaign-form.tsx` define o padrão da campanha ("Modo de exibição
+padrão"); `geofence-form.tsx` expõe o override por geofence como "Quando
+exibir ao entrar na área?", junto com "Prioridade do anúncio GEO"
+(Normal/Alta/Urgente = 5/10/20, mesma coluna `priority`/`priority_override`
+de sempre, só um vocabulário GEO-específico na UI) e "Tempo para permitir
+nova exibição" (presets em minutos sobre a mesma
+`cooldown_override_seconds`).
 
 ## Minimização de dados (LGPD)
 

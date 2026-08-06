@@ -28,6 +28,14 @@ data class GeoRuleEntity(
     val radiusMeters: Int,
     val priority: Int,
     val cooldownSeconds: Int,
+    // MAX-011: when this campaign should take over from whatever's
+    // currently playing on entering its geofence — see
+    // com.maxcar.tablet.geo.GeoPlaybackMode. Stored as the server's raw
+    // string so an app build older than a future new mode still falls back
+    // safely (GeoPlaybackMode.from parses unknown values as AFTER_CURRENT,
+    // today's existing behavior) instead of crashing on deserialization.
+    val playbackMode: String = "AFTER_CURRENT",
+    val maxWaitSeconds: Int = 5,
     val type: String,
     val mimeType: String,
     val durationSeconds: Double,

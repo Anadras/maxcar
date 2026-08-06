@@ -59,6 +59,8 @@ const validCampaign = {
   dailyEndTime: '22:00',
   priority: 70,
   cooldownSeconds: 900,
+  playbackMode: 'immediate',
+  maxWaitSeconds: 5,
   maxDailyImpressions: 100,
   activeDays: [1, 2, 3, 4, 5],
 };
@@ -113,6 +115,8 @@ describe('geofence validation', () => {
       radiusMeters: 1000,
       priorityOverride: null,
       cooldownOverrideSeconds: null,
+      playbackModeOverride: null,
+      maxWaitSecondsOverride: null,
       active: true,
     };
     expect(geofenceSchema.safeParse(base).success).toBe(true);

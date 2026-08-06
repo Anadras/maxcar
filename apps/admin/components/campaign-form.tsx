@@ -193,6 +193,37 @@ export function CampaignForm({
                 />
               </label>
               <label>
+                Modo de exibição padrão (campanhas por proximidade)
+                <select
+                  name="playbackMode"
+                  defaultValue={campaign?.playback_mode ?? 'immediate'}
+                >
+                  <option value="immediate">
+                    Imediatamente — interrompe o anúncio atual
+                  </option>
+                  <option value="after_current">
+                    Depois do anúncio atual
+                  </option>
+                  <option value="max_wait">Esperar um tempo máximo</option>
+                </select>
+                <small>
+                  Só se aplica a campanhas por proximidade; pode ser ajustado
+                  por geofence na aba de geofences.
+                </small>
+              </label>
+              <label>
+                Tempo máximo de espera (segundos, se &ldquo;Esperar um tempo
+                máximo&rdquo;)
+                <input
+                  name="maxWaitSeconds"
+                  type="number"
+                  min="1"
+                  max="30"
+                  defaultValue={campaign?.max_wait_seconds ?? 5}
+                  required
+                />
+              </label>
+              <label>
                 Limite diário (opcional)
                 <input
                   name="maxDailyImpressions"

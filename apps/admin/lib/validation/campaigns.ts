@@ -27,6 +27,8 @@ export const campaignSchema = z
     dailyEndTime: z.string().optional(),
     priority: z.coerce.number().int().min(0).max(100),
     cooldownSeconds: z.coerce.number().int().min(0).max(86400),
+    playbackMode: z.enum(['immediate', 'after_current', 'max_wait']),
+    maxWaitSeconds: z.coerce.number().int().min(1).max(30),
     maxDailyImpressions: optionalPositiveInteger,
     activeDays: z
       .array(z.coerce.number().int().min(0).max(6))
@@ -94,6 +96,8 @@ export function parseCampaignForm(formData: FormData) {
     dailyEndTime: formData.get('dailyEndTime'),
     priority: formData.get('priority'),
     cooldownSeconds: formData.get('cooldownSeconds'),
+    playbackMode: formData.get('playbackMode'),
+    maxWaitSeconds: formData.get('maxWaitSeconds'),
     maxDailyImpressions: formData.get('maxDailyImpressions'),
     activeDays: formData.getAll('activeDays'),
   });

@@ -89,7 +89,12 @@ export async function listGeoCampaignOptions() {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('campaign_admin_view')
-    .select('id, name, advertiser_id, advertiser_name, status')
+    // priority/cooldown_seconds/playback_mode/max_wait_seconds: shown as
+    // the "Usar a campanha (...)" hint next to each geofence override in
+    // GeofenceForm — never read/written here beyond that display.
+    .select(
+      'id, name, advertiser_id, advertiser_name, status, priority, cooldown_seconds, playback_mode, max_wait_seconds',
+    )
     .eq('campaign_type', 'geo')
     .order('name');
   if (error) throw error;

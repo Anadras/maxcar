@@ -77,6 +77,8 @@ async function geofencePayload(formData: FormData, path: string) {
     radius_meters: input.radiusMeters,
     priority_override: input.priorityOverride,
     cooldown_override_seconds: input.cooldownOverrideSeconds,
+    playback_mode_override: input.playbackModeOverride,
+    max_wait_seconds_override: input.maxWaitSecondsOverride,
     active: input.active,
   };
 }
@@ -109,6 +111,8 @@ export async function updateGeofence(id: string, formData: FormData) {
       radius_meters: payload.radius_meters,
       priority_override: payload.priority_override,
       cooldown_override_seconds: payload.cooldown_override_seconds,
+      playback_mode_override: payload.playback_mode_override,
+      max_wait_seconds_override: payload.max_wait_seconds_override,
       active: payload.active,
     })
     .eq('id', id)

@@ -4,8 +4,8 @@ import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import { priorityLabel } from '@/lib/campaigns';
 import { listGeofences } from '@/lib/data/geofences';
+import { GEO_PRIORITY_LABEL } from '@/lib/geo-playback-labels';
 
 export default async function GeofencesPage({
   searchParams,
@@ -71,8 +71,9 @@ export default async function GeofencesPage({
                     <td>{geo.radius_meters?.toLocaleString('pt-BR')} m</td>
                     <td>
                       {geo.priority_override === null
-                        ? 'Da campanha'
-                        : `${priorityLabel(geo.priority_override ?? 50)} · ${geo.priority_override}`}
+                        ? `Da campanha${geo.campaign_priority != null ? ` (${GEO_PRIORITY_LABEL[geo.campaign_priority] ?? geo.campaign_priority})` : ''}`
+                        : (GEO_PRIORITY_LABEL[geo.priority_override] ??
+                          geo.priority_override)}
                     </td>
                     <td>
                       <StatusBadge value={geo.active ? 'Ativa' : 'Inativa'} />

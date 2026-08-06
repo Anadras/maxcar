@@ -15,12 +15,17 @@ import {
   setDeviceActive,
   unlinkDeviceVehicle,
 } from '../lifecycle-actions';
-import { setDeviceMaintenancePin, setDeviceMaintenanceTimeout } from '../pin-actions';
+import {
+  generateDeviceMaintenanceTempCode,
+  setDeviceMaintenancePin,
+  setDeviceMaintenanceTimeout,
+} from '../pin-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
 import { DeviceKeyIdentityPanel } from '@/components/device-key-identity-panel';
 import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
+import { MaintenanceTempCodeForm } from '@/components/maintenance-temp-code-form';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
@@ -140,7 +145,10 @@ function playbackDiagnosis(device: {
         : 'O tablet ainda não recebeu sua primeira programação.',
     };
   }
-  if (device.player_state === 'stalled' || device.player_state === 'recovering') {
+  if (
+    device.player_state === 'stalled' ||
+    device.player_state === 'recovering'
+  ) {
     return {
       tone: 'attention',
       title: 'O player está recuperando de uma falha de mídia',
@@ -467,10 +475,10 @@ export default async function DeviceDetailPage({
                       <>
                         {' '}
                         <span className="section-hint">
-                          Eventos de geofence registrados no tablet e ainda
-                          não confirmados pelo servidor. Um número que só
-                          cresce indica que o tablet não está conseguindo
-                          sincronizar — envie uma sincronização abaixo.
+                          Eventos de geofence registrados no tablet e ainda não
+                          confirmados pelo servidor. Um número que só cresce
+                          indica que o tablet não está conseguindo sincronizar —
+                          envie uma sincronização abaixo.
                         </span>
                         {canManage && (
                           <form
@@ -582,12 +590,13 @@ export default async function DeviceDetailPage({
               className="heartbeat-form"
             >
               <label>
-                Novo PIN (4 a 8 dígitos)
+                Novo PIN (exatamente 6 dígitos)
                 <input
                   name="pin"
                   type="password"
                   inputMode="numeric"
-                  pattern="[0-9]{4,8}"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
                   autoComplete="off"
                   required
                 />
@@ -598,7 +607,8 @@ export default async function DeviceDetailPage({
                   name="confirmPin"
                   type="password"
                   inputMode="numeric"
-                  pattern="[0-9]{4,8}"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
                   autoComplete="off"
                   required
                 />
@@ -607,6 +617,11 @@ export default async function DeviceDetailPage({
                 {device.maintenancePinConfigured ? 'Trocar PIN' : 'Definir PIN'}
               </button>
             </form>
+          )}
+          {auth?.profile.role === 'super_admin' && (
+            <MaintenanceTempCodeForm
+              generateAction={generateDeviceMaintenanceTempCode.bind(null, id)}
+            />
           )}
         </SectionCard>
       </details>
@@ -707,18 +722,14 @@ export default async function DeviceDetailPage({
                         name="commandType"
                         value={commandType}
                       />
-                      <button
-                        className="button button-secondary"
-                        type="submit"
-                      >
+                      <button className="button button-secondary" type="submit">
                         {COMMAND_LABEL[commandType]}
                       </button>
                     </form>
                   ),
                 )}
               </div>
-              {commands.current.length === 0 &&
-              commands.recent.length === 0 ? (
+              {commands.current.length === 0 && commands.recent.length === 0 ? (
                 <p className="section-empty">Nenhum comando enviado ainda.</p>
               ) : (
                 <>
@@ -730,9 +741,7 @@ export default async function DeviceDetailPage({
                   )}
                   {commands.recent.length > 0 && (
                     <>
-                      <h3 className="section-subheading">
-                        Últimos concluídos
-                      </h3>
+                      <h3 className="section-subheading">Últimos concluídos</h3>
                       <CommandTable commands={commands.recent} />
                     </>
                   )}
@@ -857,9 +866,7 @@ function CommandTable({ commands }: { commands: DeviceCommandRow[] }) {
               <td>{COMMAND_LABEL[command.command_type]}</td>
               <td>
                 <StatusBadge
-                  value={
-                    COMMAND_STATUS_LABEL[command.status] ?? command.status
-                  }
+                  value={COMMAND_STATUS_LABEL[command.status] ?? command.status}
                 />
               </td>
               <td>{formatDateTime(command.created_at)}</td>

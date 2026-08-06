@@ -104,7 +104,9 @@ export default async function CampaignDetailPage({
       ? deviceAssignmentResult.value
       : { unrestricted: true, devices: [] };
   const deliveryStatus =
-    deliveryStatusResult.status === 'fulfilled' ? deliveryStatusResult.value : [];
+    deliveryStatusResult.status === 'fulfilled'
+      ? deliveryStatusResult.value
+      : [];
   const unavailableSections = [
     creativesResult.status === 'rejected' ? 'arquivos' : null,
     geofencesResult.status === 'rejected' ? 'local de ativação' : null,
@@ -136,6 +138,12 @@ export default async function CampaignDetailPage({
     dailyEndTime: campaign.daily_end_time,
     activeDays: campaign.active_days ?? [],
     activeCreativeCount: creatives.filter((item) => item.active).length,
+    activeReadyCreativeCount: creatives.filter(
+      (item) =>
+        item.active &&
+        (item.processing_status === 'ready' ||
+          item.processed_storage_path !== null),
+    ).length,
     activeGeofenceCount: geofences.filter((item) => item.active).length,
   };
   const readiness = campaignReadinessIssues(readinessInput);
@@ -205,9 +213,18 @@ export default async function CampaignDetailPage({
           <li className="done">
             <span>✓</span> Campanha criada
           </li>
-          <li className={creatives.some((item) => item.active) ? 'done' : ''}>
-            <span>{creatives.some((item) => item.active) ? '✓' : '2'}</span>
-            Arquivo enviado
+          <li
+            className={
+              readinessInput.activeReadyCreativeCount > 0 ? 'done' : ''
+            }
+          >
+            <span>
+              {readinessInput.activeReadyCreativeCount > 0 ? '✓' : '2'}
+            </span>
+            {creatives.some((item) => item.active) &&
+            readinessInput.activeReadyCreativeCount === 0
+              ? 'Arquivo enviado (processando…)'
+              : 'Arquivo enviado'}
           </li>
           {campaign.campaign_type === 'geo' && (
             <li className={geofences.some((item) => item.active) ? 'done' : ''}>

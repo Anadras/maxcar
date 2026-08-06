@@ -41,6 +41,12 @@ export default async function EditCampaignPage({
     dailyEndTime: campaign.daily_end_time,
     activeDays: campaign.active_days ?? [],
     activeCreativeCount: creatives.filter((item) => item.active).length,
+    activeReadyCreativeCount: creatives.filter(
+      (item) =>
+        item.active &&
+        (item.processing_status === 'ready' ||
+          item.processed_storage_path !== null),
+    ).length,
     activeGeofenceCount: geofences.filter((item) => item.active).length,
   });
   return (

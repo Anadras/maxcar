@@ -135,7 +135,12 @@ export async function publishCampaignAndSync(campaignId: string) {
   }
 
   const supabase = await createClient();
-  const [campaignResult, creativesResult, geofencesResult] = await Promise.all([
+  const [
+    campaignResult,
+    creativesResult,
+    readyCreativesResult,
+    geofencesResult,
+  ] = await Promise.all([
     supabase
       .from('campaigns')
       .select(
@@ -149,6 +154,12 @@ export async function publishCampaignAndSync(campaignId: string) {
       .eq('campaign_id', campaignId)
       .eq('active', true),
     supabase
+      .from('campaign_creatives')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('active', true)
+      .or('processing_status.eq.ready,processed_storage_path.not.is.null'),
+    supabase
       .from('campaign_geofences')
       .select('id', { count: 'exact', head: true })
       .eq('campaign_id', campaignId)
@@ -158,6 +169,7 @@ export async function publishCampaignAndSync(campaignId: string) {
   if (
     campaignResult.error ||
     creativesResult.error ||
+    readyCreativesResult.error ||
     geofencesResult.error ||
     !campaign
   ) {
@@ -174,6 +186,7 @@ export async function publishCampaignAndSync(campaignId: string) {
     dailyEndTime: campaign.daily_end_time,
     activeDays: campaign.active_days ?? [],
     activeCreativeCount: creativesResult.count ?? 0,
+    activeReadyCreativeCount: readyCreativesResult.count ?? 0,
     activeGeofenceCount: geofencesResult.count ?? 0,
   });
   if (issues.length > 0) {

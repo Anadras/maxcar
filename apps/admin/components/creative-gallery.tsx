@@ -6,6 +6,33 @@ type Creative = Database['public']['Tables']['campaign_creatives']['Row'] & {
   signedUrl: string | null;
 };
 
+const PROCESSING_STATUS_LABELS: Record<
+  Creative['processing_status'],
+  { label: string; tone: 'success' | 'warning' | 'danger' }
+> = {
+  uploaded: { label: 'Enviado', tone: 'warning' },
+  queued: { label: 'Na fila', tone: 'warning' },
+  processing: { label: 'Processando', tone: 'warning' },
+  probing: { label: 'Analisando', tone: 'warning' },
+  transcoding: { label: 'Convertendo', tone: 'warning' },
+  validating_output: { label: 'Validando', tone: 'warning' },
+  ready: { label: 'Pronto', tone: 'success' },
+  incompatible: { label: 'Incompatível', tone: 'danger' },
+  failed: { label: 'Falhou', tone: 'danger' },
+};
+
+function ProcessingStatusBadge({ creative }: { creative: Creative }) {
+  const status = PROCESSING_STATUS_LABELS[creative.processing_status];
+  return (
+    <span
+      className={`badge badge-${status.tone}`}
+      title={creative.processing_error ?? undefined}
+    >
+      {status.label}
+    </span>
+  );
+}
+
 export function CreativeGallery({
   creatives,
   canWrite,
@@ -49,6 +76,7 @@ export function CreativeGallery({
             <header>
               <strong>{creative.name}</strong>
               <StatusBadge value={creative.active ? 'Ativo' : 'Inativo'} />
+              <ProcessingStatusBadge creative={creative} />
             </header>
             <dl>
               <div>

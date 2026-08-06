@@ -90,6 +90,12 @@ export async function prepareCreativeUpload(
       file_size_bytes: metadata.data.fileSizeBytes,
       checksum: metadata.data.checksum,
       active: false,
+      // The processing_status column defaults to 'ready' so pre-pipeline
+      // rows keep working untouched (see 20260822090000_media_processing_
+      // pipeline.sql) — but that default must never apply to a NEW
+      // upload, or the manifest would serve this raw original the
+      // instant it's activated, before the pipeline ever sees it.
+      processing_status: 'uploaded',
     });
   if (metadataError) {
     console.error('Creative metadata insert failed', {
@@ -140,6 +146,26 @@ export async function finalizeCreativeUpload(
     return {
       ok: false as const,
       error: 'O arquivo chegou, mas não pôde ser ativado.',
+    };
+  }
+  // Enters the media pipeline (uploaded -> queued -> ... -> ready). Until
+  // a worker picks this up and reports back, the campaign this creative
+  // belongs to cannot become structurally ready on this creative alone
+  // (private.campaign_is_structurally_ready) and the manifest/GEO rules
+  // will never serve its original file to a tablet.
+  const { error: enqueueError } = await supabase.rpc(
+    'enqueue_media_processing_job',
+    { p_creative_id: creativeId },
+  );
+  if (enqueueError) {
+    console.error('Media processing enqueue failed', {
+      code: enqueueError.code,
+      message: enqueueError.message,
+    });
+    return {
+      ok: false as const,
+      error:
+        'O arquivo foi ativado, mas não pôde ser enviado para processamento.',
     };
   }
   revalidatePath(`/campanhas/${campaignId}`);

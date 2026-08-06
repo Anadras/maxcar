@@ -33,6 +33,14 @@ export interface CampaignReadinessInput {
   dailyEndTime: string | null;
   activeDays: readonly number[];
   activeCreativeCount: number;
+  // Of the active creatives, how many have cleared the media processing
+  // pipeline at least once (processing_status = 'ready' or a processed
+  // derivative already on file) — mirrors the DB gate in
+  // private.campaign_is_structurally_ready (see
+  // 20260822090000_media_processing_pipeline.sql). A creative can be
+  // active but still queued/processing, which is a distinct, more
+  // specific state than "no active creative at all".
+  activeReadyCreativeCount: number;
   activeGeofenceCount: number;
 }
 
@@ -42,6 +50,7 @@ export type CampaignReadinessIssue =
   | 'invalid-daily-window'
   | 'invalid-active-days'
   | 'missing-creative'
+  | 'creative-not-processed'
   | 'missing-geofence';
 
 export function campaignReadinessIssues(
@@ -74,7 +83,11 @@ export function campaignReadinessIssues(
   ) {
     issues.push('invalid-active-days');
   }
-  if (campaign.activeCreativeCount < 1) issues.push('missing-creative');
+  if (campaign.activeCreativeCount < 1) {
+    issues.push('missing-creative');
+  } else if (campaign.activeReadyCreativeCount < 1) {
+    issues.push('creative-not-processed');
+  }
   if (campaign.campaignType === 'geo' && campaign.activeGeofenceCount < 1) {
     issues.push('missing-geofence');
   }
@@ -90,6 +103,7 @@ export function isCampaignScheduleValid(
   return !campaignReadinessIssues({
     campaignType: 'regular',
     activeCreativeCount: 1,
+    activeReadyCreativeCount: 1,
     activeGeofenceCount: 0,
     ...campaign,
   }).some((issue) =>

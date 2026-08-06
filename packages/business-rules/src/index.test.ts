@@ -111,6 +111,7 @@ const readyRegular = {
   dailyEndTime: '22:00',
   activeDays: [1, 2, 3, 4, 5],
   activeCreativeCount: 1,
+  activeReadyCreativeCount: 1,
   activeGeofenceCount: 0,
 };
 
@@ -124,8 +125,19 @@ describe('campaign readiness', () => {
       campaignReadinessIssues({
         ...readyRegular,
         activeCreativeCount: 0,
+        activeReadyCreativeCount: 0,
       }),
     ).toContain('missing-creative');
+  });
+
+  it('flags a campaign whose active creative has not cleared the media pipeline yet, distinctly from having none at all', () => {
+    const issues = campaignReadinessIssues({
+      ...readyRegular,
+      activeCreativeCount: 1,
+      activeReadyCreativeCount: 0,
+    });
+    expect(issues).toContain('creative-not-processed');
+    expect(issues).not.toContain('missing-creative');
   });
 
   it('requires a geofence only for GEO campaigns', () => {

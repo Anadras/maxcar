@@ -10,6 +10,8 @@ export const CAMPAIGN_READINESS_ISSUE_LABELS: Record<
   'invalid-daily-window': 'Corrija a janela diária.',
   'invalid-active-days': 'Selecione dias válidos.',
   'missing-creative': 'Adicione um criativo ativo.',
+  'creative-not-processed':
+    'O arquivo ativo ainda está sendo processado. Aguarde a conclusão antes de publicar.',
   'missing-geofence': 'Adicione uma geofence ativa.',
 };
 

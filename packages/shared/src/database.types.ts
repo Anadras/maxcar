@@ -280,6 +280,10 @@ export type Database = {
           created_at: string
           establishment_id: string
           id: string
+          max_wait_seconds_override: number | null
+          playback_mode_override:
+            | Database["public"]["Enums"]["geo_playback_mode"]
+            | null
           priority_override: number | null
           radius_meters: number
           updated_at: string
@@ -291,6 +295,10 @@ export type Database = {
           created_at?: string
           establishment_id: string
           id?: string
+          max_wait_seconds_override?: number | null
+          playback_mode_override?:
+            | Database["public"]["Enums"]["geo_playback_mode"]
+            | null
           priority_override?: number | null
           radius_meters: number
           updated_at?: string
@@ -302,6 +310,10 @@ export type Database = {
           created_at?: string
           establishment_id?: string
           id?: string
+          max_wait_seconds_override?: number | null
+          playback_mode_override?:
+            | Database["public"]["Enums"]["geo_playback_mode"]
+            | null
           priority_override?: number | null
           radius_meters?: number
           updated_at?: string
@@ -356,7 +368,9 @@ export type Database = {
           ends_at: string | null
           id: string
           max_daily_impressions: number | null
+          max_wait_seconds: number
           name: string
+          playback_mode: Database["public"]["Enums"]["geo_playback_mode"]
           priority: number
           starts_at: string | null
           status: Database["public"]["Enums"]["campaign_status"]
@@ -373,7 +387,9 @@ export type Database = {
           ends_at?: string | null
           id?: string
           max_daily_impressions?: number | null
+          max_wait_seconds?: number
           name: string
+          playback_mode?: Database["public"]["Enums"]["geo_playback_mode"]
           priority?: number
           starts_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -390,7 +406,9 @@ export type Database = {
           ends_at?: string | null
           id?: string
           max_daily_impressions?: number | null
+          max_wait_seconds?: number
           name?: string
+          playback_mode?: Database["public"]["Enums"]["geo_playback_mode"]
           priority?: number
           starts_at?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -697,6 +715,7 @@ export type Database = {
           operational_status: string | null
           pending_event_count: number | null
           player_state: string | null
+          quarantined_media_count: number | null
           recorded_at: string
           storage_free_bytes: number | null
         }
@@ -725,6 +744,7 @@ export type Database = {
           operational_status?: string | null
           pending_event_count?: number | null
           player_state?: string | null
+          quarantined_media_count?: number | null
           recorded_at: string
           storage_free_bytes?: number | null
         }
@@ -753,6 +773,7 @@ export type Database = {
           operational_status?: string | null
           pending_event_count?: number | null
           player_state?: string | null
+          quarantined_media_count?: number | null
           recorded_at?: string
           storage_free_bytes?: number | null
         }
@@ -969,6 +990,7 @@ export type Database = {
           last_sync_at: string | null
           maintenance_pin_hash: string | null
           maintenance_pin_salt: string | null
+          maintenance_timeout_seconds: number | null
           status: Database["public"]["Enums"]["device_status"]
           updated_at: string
           vehicle_id: string | null
@@ -983,6 +1005,7 @@ export type Database = {
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
           maintenance_pin_salt?: string | null
+          maintenance_timeout_seconds?: number | null
           status?: Database["public"]["Enums"]["device_status"]
           updated_at?: string
           vehicle_id?: string | null
@@ -997,6 +1020,7 @@ export type Database = {
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
           maintenance_pin_salt?: string | null
+          maintenance_timeout_seconds?: number | null
           status?: Database["public"]["Enums"]["device_status"]
           updated_at?: string
           vehicle_id?: string | null
@@ -1807,7 +1831,9 @@ export type Database = {
           id: string | null
           impression_count: number | null
           max_daily_impressions: number | null
+          max_wait_seconds: number | null
           name: string | null
+          playback_mode: Database["public"]["Enums"]["geo_playback_mode"] | null
           priority: number | null
           starts_at: string | null
           status: Database["public"]["Enums"]["campaign_status"] | null
@@ -1843,8 +1869,14 @@ export type Database = {
           active: boolean | null
           advertiser_id: string | null
           advertiser_name: string | null
+          campaign_cooldown_seconds: number | null
           campaign_id: string | null
+          campaign_max_wait_seconds: number | null
           campaign_name: string | null
+          campaign_playback_mode:
+            | Database["public"]["Enums"]["geo_playback_mode"]
+            | null
+          campaign_priority: number | null
           city: string | null
           cooldown_override_seconds: number | null
           created_at: string | null
@@ -1853,6 +1885,10 @@ export type Database = {
           id: string | null
           latitude: number | null
           longitude: number | null
+          max_wait_seconds_override: number | null
+          playback_mode_override:
+            | Database["public"]["Enums"]["geo_playback_mode"]
+            | null
           priority_override: number | null
           radius_meters: number | null
           state: string | null
@@ -2319,6 +2355,7 @@ export type Database = {
           logging_level: string
           maintenance_pin_hash: string
           maintenance_pin_salt: string
+          maintenance_timeout_seconds: number
           sync_interval_seconds: number
           vehicle_code: string
           vehicle_id: string
@@ -2405,6 +2442,7 @@ export type Database = {
           p_operational_status?: string
           p_pending_event_count?: number
           p_player_state?: string
+          p_quarantined_media_count?: number
           p_storage_free_bytes?: number
           p_token: string
         }
@@ -2493,6 +2531,10 @@ export type Database = {
       }
       set_device_maintenance_pin: {
         Args: { p_device_id: string; p_pin: string }
+        Returns: undefined
+      }
+      set_device_maintenance_timeout: {
+        Args: { p_device_id: string; p_seconds: number }
         Returns: undefined
       }
       set_driver_active: {
@@ -2605,6 +2647,9 @@ export type Database = {
         | "enter_maintenance"
         | "exit_maintenance"
         | "update_config"
+        | "enable_kiosk"
+        | "disable_kiosk_temporarily"
+        | "reenter_kiosk"
       device_status:
         | "provisioning"
         | "online"
@@ -2613,6 +2658,7 @@ export type Database = {
         | "retired"
       driver_session_status: "active" | "completed" | "cancelled"
       driver_status: "pending" | "active" | "inactive" | "suspended"
+      geo_playback_mode: "immediate" | "after_current" | "max_wait"
       geofence_event_type: "enter" | "exit" | "dwell"
       impression_source: "regular" | "geo"
       impression_status: "started" | "completed" | "interrupted" | "failed"
@@ -2783,6 +2829,9 @@ export const Constants = {
         "enter_maintenance",
         "exit_maintenance",
         "update_config",
+        "enable_kiosk",
+        "disable_kiosk_temporarily",
+        "reenter_kiosk",
       ],
       device_status: [
         "provisioning",
@@ -2793,6 +2842,7 @@ export const Constants = {
       ],
       driver_session_status: ["active", "completed", "cancelled"],
       driver_status: ["pending", "active", "inactive", "suspended"],
+      geo_playback_mode: ["immediate", "after_current", "max_wait"],
       geofence_event_type: ["enter", "exit", "dwell"],
       impression_source: ["regular", "geo"],
       impression_status: ["started", "completed", "interrupted", "failed"],

@@ -646,7 +646,10 @@ class PlayerViewModel(
         const val DEFAULT_IMAGE_DURATION_SECONDS = 10.0
         const val FAILURE_BACKOFF_MS = 500L
         const val TAPS_TO_UNLOCK = 5
-        const val TAP_WINDOW_MS = 2000L
+        // MAX-013: 5 taps inside the corner target within 3s — a slower
+        // sequence (a genuinely accidental run of taps, not a deliberate
+        // fast gesture) never opens the PIN dialog.
+        const val TAP_WINDOW_MS = 3000L
 
         // Section 7: first frame must render within this window or the
         // item is treated as stuck, exactly like regular02 never did.

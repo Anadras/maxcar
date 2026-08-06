@@ -8,7 +8,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,17 +76,24 @@ fun PlayerScreen(
             PlayerUiState.Initializing -> Unit
         }
 
-        // A small, invisible tap target in a corner — deliberately not
-        // styled as a button, so it isn't discoverable by a passenger
-        // glancing at the screen.
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .size(64.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { viewModel.onDiagnosticTap { showPinDialog = true } })
-                },
-        )
+        // MAX-013's new gesture: an invisible ~8%-of-screen square in the
+        // top-right corner, inside the safe-drawing area (so it never
+        // overlaps a status/notification cutout even if system bars are
+        // ever transiently visible) — deliberately not styled as a
+        // button, so it isn't discoverable by a passenger glancing at the
+        // screen. Real screen coordinates via BoxWithConstraints, not a
+        // fixed dp size, so the target stays proportionally in the corner
+        // regardless of the tablet's actual resolution.
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(width = maxWidth * 0.08f, height = maxHeight * 0.08f)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { viewModel.onDiagnosticTap { showPinDialog = true } })
+                    },
+            )
+        }
     }
 
     if (showPinDialog) {

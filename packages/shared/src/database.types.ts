@@ -125,40 +125,94 @@ export type Database = {
           active: boolean
           campaign_id: string
           checksum: string
+          compatibility_profile: string | null
           created_at: string
           creative_type: Database["public"]["Enums"]["creative_type"]
           duration_seconds: number
           file_size_bytes: number | null
           id: string
+          media_probe: Json | null
           name: string
+          original_duration_ms: number | null
+          original_sha256: string | null
+          original_size_bytes: number | null
+          original_storage_path: string | null
+          processed_duration_ms: number | null
+          processed_media_probe: Json | null
+          processed_sha256: string | null
+          processed_size_bytes: number | null
+          processed_storage_path: string | null
+          processing_attempts: number
+          processing_error: string | null
+          processing_finished_at: string | null
+          processing_started_at: string | null
+          processing_status: Database["public"]["Enums"]["media_processing_status"]
+          processing_version: number
           storage_path: string
           updated_at: string
+          validated_at: string | null
         }
         Insert: {
           active?: boolean
           campaign_id: string
           checksum: string
+          compatibility_profile?: string | null
           created_at?: string
           creative_type: Database["public"]["Enums"]["creative_type"]
           duration_seconds: number
           file_size_bytes?: number | null
           id?: string
+          media_probe?: Json | null
           name: string
+          original_duration_ms?: number | null
+          original_sha256?: string | null
+          original_size_bytes?: number | null
+          original_storage_path?: string | null
+          processed_duration_ms?: number | null
+          processed_media_probe?: Json | null
+          processed_sha256?: string | null
+          processed_size_bytes?: number | null
+          processed_storage_path?: string | null
+          processing_attempts?: number
+          processing_error?: string | null
+          processing_finished_at?: string | null
+          processing_started_at?: string | null
+          processing_status?: Database["public"]["Enums"]["media_processing_status"]
+          processing_version?: number
           storage_path: string
           updated_at?: string
+          validated_at?: string | null
         }
         Update: {
           active?: boolean
           campaign_id?: string
           checksum?: string
+          compatibility_profile?: string | null
           created_at?: string
           creative_type?: Database["public"]["Enums"]["creative_type"]
           duration_seconds?: number
           file_size_bytes?: number | null
           id?: string
+          media_probe?: Json | null
           name?: string
+          original_duration_ms?: number | null
+          original_sha256?: string | null
+          original_size_bytes?: number | null
+          original_storage_path?: string | null
+          processed_duration_ms?: number | null
+          processed_media_probe?: Json | null
+          processed_sha256?: string | null
+          processed_size_bytes?: number | null
+          processed_storage_path?: string | null
+          processing_attempts?: number
+          processing_error?: string | null
+          processing_finished_at?: string | null
+          processing_started_at?: string | null
+          processing_status?: Database["public"]["Enums"]["media_processing_status"]
+          processing_version?: number
           storage_path?: string
           updated_at?: string
+          validated_at?: string | null
         }
         Relationships: [
           {
@@ -979,6 +1033,82 @@ export type Database = {
           },
         ]
       }
+      device_maintenance_temp_codes: {
+        Row: {
+          code_hash: string
+          created_at: string
+          created_by: string | null
+          device_id: string
+          expires_at: string
+          id: string
+          reason: string | null
+          used_at: string | null
+        }
+        Insert: {
+          code_hash: string
+          created_at?: string
+          created_by?: string | null
+          device_id: string
+          expires_at: string
+          id?: string
+          reason?: string | null
+          used_at?: string | null
+        }
+        Update: {
+          code_hash?: string
+          created_at?: string
+          created_by?: string | null
+          device_id?: string
+          expires_at?: string
+          id?: string
+          reason?: string | null
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_device_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_enrollment_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_key_admin_view"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "device_monitoring_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_maintenance_temp_codes_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_admin_view"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           app_version: string | null
@@ -989,6 +1119,7 @@ export type Database = {
           last_seen_at: string | null
           last_sync_at: string | null
           maintenance_pin_hash: string | null
+          maintenance_pin_hash_version: number
           maintenance_pin_salt: string | null
           maintenance_timeout_seconds: number | null
           status: Database["public"]["Enums"]["device_status"]
@@ -1004,6 +1135,7 @@ export type Database = {
           last_seen_at?: string | null
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
+          maintenance_pin_hash_version?: number
           maintenance_pin_salt?: string | null
           maintenance_timeout_seconds?: number | null
           status?: Database["public"]["Enums"]["device_status"]
@@ -1019,6 +1151,7 @@ export type Database = {
           last_seen_at?: string | null
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
+          maintenance_pin_hash_version?: number
           maintenance_pin_salt?: string | null
           maintenance_timeout_seconds?: number | null
           status?: Database["public"]["Enums"]["device_status"]
@@ -1527,6 +1660,62 @@ export type Database = {
             columns: ["vehicle_id"]
             isOneToOne: false
             referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_processing_jobs: {
+        Row: {
+          attempts: number
+          available_at: string
+          completed_at: string | null
+          created_at: string
+          creative_id: string
+          id: string
+          idempotency_key: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          media_version: number
+          status: Database["public"]["Enums"]["media_processing_status"]
+        }
+        Insert: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          creative_id: string
+          id?: string
+          idempotency_key: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          media_version: number
+          status?: Database["public"]["Enums"]["media_processing_status"]
+        }
+        Update: {
+          attempts?: number
+          available_at?: string
+          completed_at?: string | null
+          created_at?: string
+          creative_id?: string
+          id?: string
+          idempotency_key?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          media_version?: number
+          status?: Database["public"]["Enums"]["media_processing_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_processing_jobs_creative_id_fkey"
+            columns: ["creative_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_creatives"
             referencedColumns: ["id"]
           },
         ]
@@ -2269,6 +2458,16 @@ export type Database = {
         Args: { p_key_id: string; p_nonce: string }
         Returns: boolean
       }
+      claim_next_media_processing_job: {
+        Args: { p_worker_id: string }
+        Returns: {
+          attempts: number
+          creative_id: string
+          job_id: string
+          media_version: number
+          original_storage_path: string
+        }[]
+      }
       complete_device_key_enrollment: {
         Args: { p_enrollment_attempt_id: string }
         Returns: {
@@ -2320,6 +2519,10 @@ export type Database = {
         Args: { p_id: string; p_reason: string }
         Returns: undefined
       }
+      enqueue_media_processing_job: {
+        Args: { p_creative_id: string; p_media_version?: number }
+        Returns: string
+      }
       enroll_device: {
         Args: {
           p_android_version?: string
@@ -2344,6 +2547,10 @@ export type Database = {
           expires_at: string
         }[]
       }
+      generate_device_maintenance_temp_code: {
+        Args: { p_device_id: string; p_reason?: string }
+        Returns: string
+      }
       get_device_config: {
         Args: { p_token: string }
         Returns: {
@@ -2354,6 +2561,7 @@ export type Database = {
           kiosk_enabled: boolean
           logging_level: string
           maintenance_pin_hash: string
+          maintenance_pin_hash_version: number
           maintenance_pin_salt: string
           maintenance_timeout_seconds: number
           sync_interval_seconds: number
@@ -2504,6 +2712,28 @@ export type Database = {
           recorded: boolean
         }[]
       }
+      report_media_processing_progress: {
+        Args: {
+          p_job_id: string
+          p_media_probe?: Json
+          p_status: Database["public"]["Enums"]["media_processing_status"]
+        }
+        Returns: undefined
+      }
+      report_media_processing_result: {
+        Args: {
+          p_compatibility_profile?: string
+          p_error?: string
+          p_job_id: string
+          p_processed_duration_ms?: number
+          p_processed_media_probe?: Json
+          p_processed_sha256?: string
+          p_processed_size_bytes?: number
+          p_processed_storage_path?: string
+          p_status: Database["public"]["Enums"]["media_processing_status"]
+        }
+        Returns: undefined
+      }
       resolve_device_id_from_token: {
         Args: { p_token: string }
         Returns: string
@@ -2652,6 +2882,10 @@ export type Database = {
         Args: { p_full_name: string }
         Returns: undefined
       }
+      verify_device_maintenance_temp_code: {
+        Args: { p_code: string; p_token: string }
+        Returns: boolean
+      }
     }
     Enums: {
       advertiser_status: "active" | "inactive" | "suspended"
@@ -2700,6 +2934,16 @@ export type Database = {
       geofence_event_type: "enter" | "exit" | "dwell"
       impression_source: "regular" | "geo"
       impression_status: "started" | "completed" | "interrupted" | "failed"
+      media_processing_status:
+        | "uploaded"
+        | "queued"
+        | "processing"
+        | "probing"
+        | "transcoding"
+        | "validating_output"
+        | "ready"
+        | "incompatible"
+        | "failed"
       vehicle_status:
         | "active"
         | "offline"
@@ -2884,6 +3128,17 @@ export const Constants = {
       geofence_event_type: ["enter", "exit", "dwell"],
       impression_source: ["regular", "geo"],
       impression_status: ["started", "completed", "interrupted", "failed"],
+      media_processing_status: [
+        "uploaded",
+        "queued",
+        "processing",
+        "probing",
+        "transcoding",
+        "validating_output",
+        "ready",
+        "incompatible",
+        "failed",
+      ],
       vehicle_status: [
         "active",
         "offline",

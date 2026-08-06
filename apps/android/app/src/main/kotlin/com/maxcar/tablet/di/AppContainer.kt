@@ -58,6 +58,7 @@ class AppContainer(context: Context) {
         deviceIdentity = deviceRepository,
         playlistItemDao = database.playlistItemDao(),
         appPreferences = appPreferences,
+        mediaQuarantineDao = database.mediaQuarantineDao(),
     )
 
     // Outlives any single Activity/ViewModel: location updates and the
@@ -93,6 +94,7 @@ class AppContainer(context: Context) {
         mediaDownloadManager = mediaDownloadManager,
         geoRulesSyncManager = geoRulesSyncManager,
         appPreferences = appPreferences,
+        remoteConfigDao = database.remoteConfigDao(),
     )
 
     val kioskLevelDetector = KioskLevelDetector(appContext)

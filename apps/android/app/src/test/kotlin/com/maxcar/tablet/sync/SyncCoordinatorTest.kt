@@ -109,6 +109,7 @@ class SyncCoordinatorTest {
             deviceIdentity = deviceRepository,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
+            mediaQuarantineDao = db.mediaQuarantineDao(),
             minFreeBytes = -1,
         )
         val geoRulesSyncManager = GeoRulesSyncManager(
@@ -136,6 +137,7 @@ class SyncCoordinatorTest {
             mediaDownloadManager = mediaDownloadManager,
             geoRulesSyncManager = geoRulesSyncManager,
             appPreferences = appPreferences,
+            remoteConfigDao = db.remoteConfigDao(),
         )
 
         coordinator = SyncCoordinator(
@@ -225,6 +227,35 @@ class SyncCoordinatorTest {
         }
 
         assertEquals(SyncOutcome.RETRY, coordinator.runCycle())
+    }
+
+    @Test
+    fun `a server-error heartbeat still reaches config-manifest sync, unlike an unauthorized one`() = runTest {
+        // MAX-011 physical finding: a heartbeat 500 (e.g. a stale cached
+        // current_campaign_id the panel deleted) must not block the
+        // manifest sync that's the actual fix for that staleness.
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest) = when (request.path) {
+                "/device-heartbeat" -> MockResponse().setResponseCode(500).setBody("server error")
+                "/device-manifest" -> MockResponse().setBody(emptyManifest)
+                "/device-geo-rules" -> MockResponse().setBody(emptyGeoRules)
+                "/device-config" -> MockResponse().setBody(emptyConfig)
+                "/device-commands" -> MockResponse().setBody("""{"commands":[]}""")
+                else -> MockResponse().setResponseCode(404)
+            }
+        }
+
+        val outcome = coordinator.runCycle()
+
+        // Still a RETRY overall — heartbeat itself never succeeded this
+        // cycle — but priority 4 must have been attempted regardless.
+        assertEquals(SyncOutcome.RETRY, outcome)
+        val paths = (0 until server.requestCount).map { server.takeRequest().path }
+        assertEquals(true, paths.contains("/device-manifest"))
+        assertEquals(true, paths.contains("/device-geo-rules"))
+        assertEquals(true, paths.contains("/device-config"))
+        // Lower-priority steps still correctly skipped this cycle.
+        assertEquals(false, paths.contains("/device-commands"))
     }
 
     @Test

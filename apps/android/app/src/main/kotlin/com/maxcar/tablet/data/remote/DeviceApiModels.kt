@@ -98,6 +98,10 @@ data class HeartbeatRequest(
     val clockSkewSeconds: Int? = null,
     // Kiosk layer actually achieved (MAX-010), same additive rule.
     val kioskLevel: String? = null,
+    // MAX-012: how many synced creatives are currently sitting out a
+    // watchdog-triggered quarantine — same additive rule as every field
+    // above.
+    val quarantinedMediaCount: Int? = null,
 )
 
 @Serializable
@@ -170,6 +174,7 @@ data class ConfigResponse(
     val configVersion: Int,
     val maintenancePinHash: String? = null,
     val maintenancePinSalt: String? = null,
+    val maintenanceTimeoutSeconds: Int? = null,
 )
 
 @Serializable
@@ -191,6 +196,10 @@ data class GeoRuleItem(
     val radiusMeters: Int,
     val priority: Int,
     val cooldownSeconds: Int,
+    // MAX-011: raw wire string ("IMMEDIATE"/"AFTER_CURRENT"/"MAX_WAIT") —
+    // parsed defensively by GeoPlaybackMode.from, never trusted blindly.
+    val playbackMode: String = "AFTER_CURRENT",
+    val maxWaitSeconds: Int = 5,
     val type: String,
     val mimeType: String,
     val durationSeconds: Double,

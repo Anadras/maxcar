@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -14,8 +16,9 @@ import androidx.room.RoomDatabase
         PlaybackEventEntity::class,
         GeoRuleEntity::class,
         GeofenceEventEntity::class,
+        MediaQuarantineEntity::class,
     ],
-    version = 7,
+    version = 9,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,10 +29,36 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun playbackEventDao(): PlaybackEventDao
     abstract fun geoRuleDao(): GeoRuleDao
     abstract fun geofenceEventDao(): GeofenceEventDao
+    abstract fun mediaQuarantineDao(): MediaQuarantineDao
 
     companion object {
         @Volatile
         private var instance: AppDatabase? = null
+
+        /** MAX-012: the first *real* migration this app has ever needed —
+         * every version bump before this one still went through
+         * [fallbackToDestructiveMigration] below, which was an acceptable
+         * tradeoff while the schema was pre-pilot. It no longer is: a
+         * device already enrolled and playing in the field (identity in
+         * [DeviceStateEntity], the current grade in [PlaylistItemEntity])
+         * must never have that wiped by an app update alone — an update
+         * is exactly the kind of thing `adb install -r` does routinely,
+         * and this app's own operating rules forbid treating a routine
+         * update like a factory reset. This migration only *adds* the new
+         * [MediaQuarantineEntity] table; every existing row in every other
+         * table is left untouched.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `media_quarantine` (" +
+                        "`creativeId` TEXT NOT NULL, `sha256` TEXT, " +
+                        "`consecutiveFailures` INTEGER NOT NULL, `lastFailureReason` TEXT, " +
+                        "`lastFailureAtMillis` INTEGER NOT NULL, `quarantinedUntilMillis` INTEGER, " +
+                        "PRIMARY KEY(`creativeId`))",
+                )
+            }
+        }
 
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
@@ -38,13 +67,12 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "maxcar.db",
                 )
-                    // No migration path exists yet for this early-pilot
-                    // schema; a version bump without one would otherwise
-                    // crash on upgrade. Re-syncing the manifest after an
-                    // update is cheap (the device already does it on every
-                    // app open), so wiping local cache on schema change is
-                    // an acceptable, documented tradeoff for now — revisit
-                    // once the schema stabilizes and real migrations matter.
+                    .addMigrations(MIGRATION_8_9)
+                    // Only reached for a jump this app has never shipped a
+                    // real migration for (i.e. from before version 8) —
+                    // see MIGRATION_8_9's own doc for why this pilot no
+                    // longer treats that as an acceptable default going
+                    // forward.
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     // Room defaults to WAL: a write commits into a separate
                     // -wal file first and is only merged into the main .db

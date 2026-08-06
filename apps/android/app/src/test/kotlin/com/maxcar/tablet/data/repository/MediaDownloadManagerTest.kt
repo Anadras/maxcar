@@ -65,6 +65,7 @@ class MediaDownloadManagerTest {
             deviceIdentity = deviceIdentity,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
+            mediaQuarantineDao = db.mediaQuarantineDao(),
             // Robolectric's app-private storage reports ~0 bytes available
             // via StatFs, which would otherwise fail every download before
             // it even starts; -1 guarantees the check passes regardless of
@@ -192,6 +193,7 @@ class MediaDownloadManagerTest {
             deviceIdentity = deviceIdentity,
             playlistItemDao = db.playlistItemDao(),
             appPreferences = appPreferences,
+            mediaQuarantineDao = db.mediaQuarantineDao(),
             // The real production default; Robolectric's app-private
             // storage reports far less than 1 GB available.
         )

@@ -67,6 +67,7 @@ class DeviceCommandExecutorTest {
                 deviceIdentity = deviceIdentity,
                 playlistItemDao = db.playlistItemDao(),
                 appPreferences = appPreferences,
+                mediaQuarantineDao = db.mediaQuarantineDao(),
                 minFreeBytes = -1,
             ),
             geoRulesSyncManager = GeoRulesSyncManager(
@@ -77,6 +78,7 @@ class DeviceCommandExecutorTest {
                 minFreeBytes = -1,
             ),
             appPreferences = appPreferences,
+            remoteConfigDao = db.remoteConfigDao(),
         )
     }
 
@@ -162,5 +164,63 @@ class DeviceCommandExecutorTest {
         executor.pollAndExecute()
 
         assertTrue(acknowledgedBodies.isEmpty())
+    }
+
+    @Test
+    fun `disable_kiosk_temporarily sets a suspend deadline using the configured timeout`() = runTest {
+        db.remoteConfigDao().upsert(
+            com.maxcar.tablet.data.local.RemoteConfigEntity.defaults().copy(maintenanceTimeoutSeconds = 120),
+        )
+        val before = System.currentTimeMillis()
+        server.dispatcher = dispatcherFor(
+            """{"commands":[{"commandId":"cmd-5","commandType":"disable_kiosk_temporarily","createdAt":"2026-01-01T00:00:00Z"}]}""",
+        )
+
+        executor.pollAndExecute()
+
+        val deadline = appPreferences.kioskSuspendedUntilMillis.first()
+        assertTrue(deadline != null && deadline >= before + 120_000L)
+        assertTrue(acknowledgedBodies.single().contains("\"status\":\"completed\""))
+    }
+
+    @Test
+    fun `disable_kiosk_temporarily falls back to the default timeout with no config loaded`() = runTest {
+        val before = System.currentTimeMillis()
+        server.dispatcher = dispatcherFor(
+            """{"commands":[{"commandId":"cmd-6","commandType":"disable_kiosk_temporarily","createdAt":"2026-01-01T00:00:00Z"}]}""",
+        )
+
+        executor.pollAndExecute()
+
+        val deadline = appPreferences.kioskSuspendedUntilMillis.first()
+        assertTrue(
+            deadline != null &&
+                deadline >= before +
+                com.maxcar.tablet.data.local.RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS * 1000L,
+        )
+    }
+
+    @Test
+    fun `reenter_kiosk clears a pending suspend deadline`() = runTest {
+        appPreferences.setKioskSuspendedUntil(System.currentTimeMillis() + 999_999L)
+        server.dispatcher = dispatcherFor(
+            """{"commands":[{"commandId":"cmd-7","commandType":"reenter_kiosk","createdAt":"2026-01-01T00:00:00Z"}]}""",
+        )
+
+        executor.pollAndExecute()
+
+        assertEquals(null, appPreferences.kioskSuspendedUntilMillis.first())
+    }
+
+    @Test
+    fun `enable_kiosk also clears a pending suspend deadline`() = runTest {
+        appPreferences.setKioskSuspendedUntil(System.currentTimeMillis() + 999_999L)
+        server.dispatcher = dispatcherFor(
+            """{"commands":[{"commandId":"cmd-8","commandType":"enable_kiosk","createdAt":"2026-01-01T00:00:00Z"}]}""",
+        )
+
+        executor.pollAndExecute()
+
+        assertEquals(null, appPreferences.kioskSuspendedUntilMillis.first())
     }
 }

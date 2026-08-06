@@ -46,6 +46,9 @@ interface HeartbeatBody {
   clockSkewSeconds?: number;
   // Kiosk layer actually achieved, optional and additive (MAX-010).
   kioskLevel?: string;
+  // How many synced creatives are currently quarantined by the player's
+  // own watchdog, optional and additive (MAX-012).
+  quarantinedMediaCount?: number;
 }
 
 Deno.serve(async (req) => {
@@ -104,6 +107,7 @@ Deno.serve(async (req) => {
       p_pending_event_count: body.pendingEventCount ?? null,
       p_clock_skew_seconds: body.clockSkewSeconds ?? null,
       p_kiosk_level: body.kioskLevel ?? null,
+      p_quarantined_media_count: body.quarantinedMediaCount ?? null,
     })
     .single();
 

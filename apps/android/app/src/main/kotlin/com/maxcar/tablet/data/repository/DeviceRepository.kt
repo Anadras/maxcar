@@ -214,6 +214,7 @@ class DeviceRepository(
         operationalStatus: String? = null,
         pendingEventCount: Int? = null,
         kioskLevel: String? = null,
+        quarantinedMediaCount: Int? = null,
     ): Result<Unit> {
         val sentAtMillis = System.currentTimeMillis()
         val clockSkewSeconds = appPreferences.clockSkewSnapshot()
@@ -248,6 +249,7 @@ class DeviceRepository(
                         pendingEventCount = pendingEventCount,
                         clockSkewSeconds = clockSkewSeconds,
                         kioskLevel = kioskLevel,
+                        quarantinedMediaCount = quarantinedMediaCount,
                     ),
                 )
             }
@@ -434,6 +436,8 @@ class DeviceRepository(
                 updatedAt = System.currentTimeMillis(),
                 maintenancePinHash = response.maintenancePinHash,
                 maintenancePinSalt = response.maintenancePinSalt,
+                maintenanceTimeoutSeconds = response.maintenanceTimeoutSeconds
+                    ?: RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS,
             )
             remoteConfigDao.upsert(config)
             config

@@ -3,6 +3,7 @@ package com.maxcar.tablet.data.repository
 import android.content.Context
 import android.os.StatFs
 import com.maxcar.tablet.data.local.AppPreferences
+import com.maxcar.tablet.data.local.MediaQuarantineDao
 import com.maxcar.tablet.data.local.PlaylistItemDao
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
@@ -29,6 +30,7 @@ class MediaDownloadManager(
     private val deviceIdentity: DeviceIdentityProvider,
     private val playlistItemDao: PlaylistItemDao,
     private val appPreferences: AppPreferences,
+    private val mediaQuarantineDao: MediaQuarantineDao,
     // Overridable so tests can exercise the low-storage path without
     // needing a real device with a (nearly) full disk; production code
     // always uses the default.
@@ -42,7 +44,9 @@ class MediaDownloadManager(
      * order, further filtered to what the local clock says is currently
      * valid (MAX-009 item 46) — never PENDING/DOWNLOADING/FAILED/OBSOLETE
      * rows, and never an item whose starts_at/ends_at the tablet's own
-     * clock has moved past.
+     * clock has moved past, and never a creative MAX-012's watchdog has
+     * quarantined after repeated failures (section 11/13: a bad file must
+     * never be able to block the rest of the grade).
      *
      * That local-clock filter is skipped entirely when the last known
      * clock skew is severe (`SEVERE_CLOCK_SKEW_SECONDS`): a tablet whose
@@ -51,12 +55,24 @@ class MediaDownloadManager(
      * because of a bad clock. A small/unknown skew is trusted; see
      * [AppPreferences.clockSkewSeconds] for how it's measured. */
     val readyPlaylist: Flow<List<PlaylistItemEntity>> =
-        combine(playlistItemDao.observeReady(), appPreferences.clockSkewSeconds) { items, skewSeconds ->
+        combine(
+            playlistItemDao.observeReady(),
+            appPreferences.clockSkewSeconds,
+            mediaQuarantineDao.observeAll(),
+        ) { items, skewSeconds, quarantined ->
             val clockIsTrustworthy = skewSeconds == null || abs(skewSeconds) < SEVERE_CLOCK_SKEW_SECONDS
-            if (!clockIsTrustworthy) return@combine items
             val now = System.currentTimeMillis()
-            items.filter { it.isCurrentlyValid(now) }
+            val quarantinedIds = quarantined.filter { it.isActive(now) }.map { it.creativeId }.toSet()
+            items
+                .filter { clockIsTrustworthy.not() || it.isCurrentlyValid(now) }
+                .filter { it.creativeId !in quarantinedIds }
         }
+
+    /** How many of the currently-synced creatives are sitting out a
+     * quarantine window right now — surfaced on the heartbeat (MAX-012
+     * section 14) so the panel can tell "nothing to play because nothing
+     * synced yet" apart from "several files are actually broken". */
+    suspend fun quarantinedMediaCount(): Int = mediaQuarantineDao.countActive(System.currentTimeMillis())
 
     /** A small, non-sensitive explanation of why the player has nothing
      * to show. This is intentionally derived from local Room state: it is
@@ -84,6 +100,12 @@ class MediaDownloadManager(
         val incoming = manifest.playlist.associateBy { it.creativeId }
         val existing = playlistItemDao.getAll().associateBy { it.creativeId }
         val now = System.currentTimeMillis()
+
+        // MAX-012 item 11: a creative that comes back from the manifest
+        // with a different hash than what's quarantined is a genuinely
+        // different file — a re-upload that fixed the problem must never
+        // stay blocked by the old failure count.
+        for (item in manifest.playlist) mediaQuarantineDao.clearIfHashChanged(item.creativeId, item.sha256)
 
         val toUpsert = manifest.playlist.map { item ->
             existing[item.creativeId]

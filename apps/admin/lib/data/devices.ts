@@ -37,7 +37,7 @@ async function getDevicesWithLatestHeartbeats() {
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds, kiosk_level',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds, kiosk_level, quarantined_media_count',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -81,6 +81,7 @@ async function getDevicesWithLatestHeartbeats() {
       pending_event_count: heartbeat?.pending_event_count ?? null,
       clock_skew_seconds: heartbeat?.clock_skew_seconds ?? null,
       kiosk_level: heartbeat?.kiosk_level ?? null,
+      quarantined_media_count: heartbeat?.quarantined_media_count ?? null,
       manifest_synced_at: heartbeat?.manifest_version
         ? (heartbeat?.recorded_at ?? null)
         : null,
@@ -133,10 +134,11 @@ export async function getDevice(id: string) {
         .limit(20),
       // Only ever a boolean reaches the rest of the app — the hash/salt
       // themselves are never selected outside set_device_maintenance_pin's
-      // own RPC boundary.
+      // own RPC boundary. maintenance_timeout_seconds isn't secret (unlike
+      // the PIN hash) so it's fine to read and echo back in the form.
       supabase
         .from('devices')
-        .select('maintenance_pin_hash')
+        .select('maintenance_pin_hash, maintenance_timeout_seconds')
         .eq('id', id)
         .maybeSingle(),
     ]);
@@ -144,6 +146,7 @@ export async function getDevice(id: string) {
   const device = devices.find((item) => item.id === id);
   if (!device) return null;
   const maintenancePinConfigured = pinRow?.maintenance_pin_hash != null;
+  const maintenanceTimeoutSeconds = pinRow?.maintenance_timeout_seconds ?? null;
 
   let currentCampaignName: string | null = null;
   let currentCreativeName: string | null = null;
@@ -181,6 +184,7 @@ export async function getDevice(id: string) {
     currentCreativeName,
     lastGeoCampaignName,
     maintenancePinConfigured,
+    maintenanceTimeoutSeconds,
   };
 }
 

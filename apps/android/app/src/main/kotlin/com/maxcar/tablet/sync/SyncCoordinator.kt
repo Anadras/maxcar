@@ -1,6 +1,7 @@
 package com.maxcar.tablet.sync
 
 import com.maxcar.tablet.data.local.AppPreferences
+import com.maxcar.tablet.data.local.PlaybackState
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.GeoRepository
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
@@ -41,6 +42,14 @@ enum class SyncOutcome { SUCCESS, UNAUTHORIZED, RETRY }
  * 5. new media download (folded into step 4's sync() calls)
  * 6. cache cleanup (folded into step 4/5's atomic swap)
  * 7. remote commands (poll + execute + acknowledge)
+ *
+ * A heartbeat failure only skips priority 3/7 (pending events, remote
+ * commands) — priority 4/5/6 (config/manifest/GEO sync) still run even
+ * when heartbeat itself failed for a non-auth, non-network reason, since
+ * that's the one thing that can clear a stale local reference (e.g. a
+ * "currently playing" campaign_id the panel deleted) that would otherwise
+ * make every future heartbeat keep failing the same way forever (MAX-011,
+ * found via physical validation on TESTE01).
  */
 class SyncCoordinator(
     private val deviceRepository: DeviceRepository,
@@ -134,7 +143,25 @@ class SyncCoordinator(
             kioskLevel = kioskLevelDetector.currentLevel(
                 immersiveActive = playerStatus.state in IMMERSIVE_PLAYER_STATES,
             ).toWireValue(),
+            quarantinedMediaCount = mediaDownloadManager.quarantinedMediaCount(),
         )
+        // MAX-011 physical finding (TESTE01, 2026-08-05): a heartbeat can
+        // fail with a genuine server error for a reason only a *fresh
+        // manifest* can fix — e.g. the campaign a device has cached as
+        // "currently playing" gets deleted from the panel while it's still
+        // reporting that campaign_id, and every retry of that same stale
+        // id keeps violating device_heartbeats' FK. The old code returned
+        // RETRY immediately on any non-network, non-auth heartbeat
+        // failure, which never reached priority 4 (config/manifest sync)
+        // — the exact step that would replace the stale id and let the
+        // device self-heal. A device_time skew, a mid-flight campaign
+        // delete, or any other transient 5xx must never be able to
+        // permanently wedge the sync cycle this way, so heartbeat failing
+        // for a reason that isn't auth/network no longer short-circuits
+        // config/manifest/GEO sync — only the lower-priority pending-event
+        // flush and remote-command steps, which can simply wait for a
+        // cycle where heartbeat actually succeeds.
+        var heartbeatFailed = false
         heartbeatResult.onFailure { error ->
             // Only a server-confirmed 401 means UNAUTHORIZED. A merely
             // unreadable local credential (CredentialUnavailable) is
@@ -143,32 +170,39 @@ class SyncCoordinator(
             // the tablet's enrollment state (see
             // DeviceRepository.markCredentialMissingIfEnrolled).
             if (error is DeviceApiError.Unauthorized) return SyncOutcome.UNAUTHORIZED
-            // Any other heartbeat failure (offline, timeout, server error)
-            // means the rest of this cycle's network calls would fail the
-            // same way — nothing left to usefully attempt this cycle.
-            return if (error is DeviceApiError.NetworkUnavailable) SyncOutcome.SUCCESS else SyncOutcome.RETRY
+            // A genuinely offline device would fail every other call the
+            // same way too — nothing left to usefully attempt.
+            if (error is DeviceApiError.NetworkUnavailable) return SyncOutcome.SUCCESS
+            heartbeatFailed = true
         }
 
-        // Priority 3: pending events, oldest first, regardless of source.
-        deviceRepository.flushPendingEvents()
-        deviceRepository.flushPlaybackEvents()
-        geoRepository.flushGeofenceEvents()
+        if (!heartbeatFailed) {
+            // Priority 3: pending events, oldest first, regardless of source.
+            deviceRepository.flushPendingEvents()
+            deviceRepository.flushPlaybackEvents()
+            geoRepository.flushGeofenceEvents()
+        }
 
         // Priority 4/5/6: config, REGULAR manifest + media, GEO rules +
         // media — each call is itself version/hash-aware and performs its
         // own atomic cache cleanup; see MediaDownloadManager/GeoRulesSyncManager.
+        // Always attempted, even after a non-network heartbeat failure —
+        // see the comment above.
         deviceRepository.refreshConfig()
         val regularResult = mediaDownloadManager.sync()
         val geoResult = geoRulesSyncManager.sync()
 
-        // Priority 7: remote commands.
-        commandExecutor.pollAndExecute()
+        if (!heartbeatFailed) {
+            // Priority 7: remote commands.
+            commandExecutor.pollAndExecute()
+        }
 
         val syncErrors = listOfNotNull(
             regularResult.exceptionOrNull(),
             geoResult.exceptionOrNull(),
         )
         return when {
+            heartbeatFailed -> SyncOutcome.RETRY
             syncErrors.any { it is DeviceApiError.Unauthorized } -> SyncOutcome.UNAUTHORIZED
             syncErrors.isEmpty() -> SyncOutcome.SUCCESS
             syncErrors.all { it is DeviceApiError.NetworkUnavailable } -> SyncOutcome.SUCCESS
@@ -176,20 +210,33 @@ class SyncCoordinator(
         }
     }
 
+    /** MAX-012 section 14: never collapse the richer [PlayerViewModel]
+     * state vocabulary back down to a bare "playing" here — a stalled or
+     * recovering player must keep surfacing as something other than
+     * ordinary "playing" all the way out to the heartbeat/panel, or the
+     * whole point of the watchdog's telemetry is lost at the last step. */
     private fun operationalStatusFor(
         playerState: String?,
         telemetry: DeviceTelemetry,
         diagnosticsOpen: Boolean,
     ): String = when {
         diagnosticsOpen -> "maintenance"
-        playerState == "empty" -> "no_content"
-        playerState == "playing" && telemetry.networkType == "offline" -> "offline_playing"
-        playerState == "playing" -> "playing"
+        playerState == PlaybackState.NO_READY_MEDIA -> "no_content"
+        playerState == PlaybackState.MEDIA_ERROR -> "media_error"
+        playerState == PlaybackState.STALLED || playerState == PlaybackState.RECOVERING -> "recovering"
+        playerState == PlaybackState.PLAYING_CONFIRMED && telemetry.networkType == "offline" -> "offline_playing"
+        playerState == PlaybackState.PLAYING_CONFIRMED -> "playing"
         else -> "ready"
     }
 
     private companion object {
-        val IMMERSIVE_PLAYER_STATES = setOf("playing")
+        val IMMERSIVE_PLAYER_STATES = setOf(
+            PlaybackState.PREPARING,
+            PlaybackState.BUFFERING,
+            PlaybackState.PLAYING_CONFIRMED,
+            PlaybackState.STALLED,
+            PlaybackState.RECOVERING,
+        )
         // Generous relative to OkHttp's own per-call timeouts (10s connect
         // + 20s read + 15s write, and a cycle makes several such calls
         // sequentially) but still far below the 30s foreground tick

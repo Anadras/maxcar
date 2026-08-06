@@ -15,7 +15,7 @@ import {
   setDeviceActive,
   unlinkDeviceVehicle,
 } from '../lifecycle-actions';
-import { setDeviceMaintenancePin } from '../pin-actions';
+import { setDeviceMaintenancePin, setDeviceMaintenanceTimeout } from '../pin-actions';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DeviceEnrollmentPanel } from '@/components/device-enrollment-panel';
 import { DeviceKeyIdentityPanel } from '@/components/device-key-identity-panel';
@@ -57,8 +57,25 @@ const OPERATIONAL_STATUS_LABEL: Record<string, string> = {
   syncing: 'Sincronizando',
   downloading: 'Baixando mídia',
   no_content: 'Sem conteúdo',
+  // MAX-012: the watchdog surfaces these two distinctly instead of the
+  // tablet just silently looking "stuck" — see playbackDiagnosis below.
+  recovering: 'Recuperando de uma falha de mídia',
+  media_error: 'Erro de mídia',
   error: 'Erro',
   maintenance: 'Manutenção',
+};
+
+// MAX-012 item 14: the raw player_state the Android app now reports is a
+// richer vocabulary than the old "playing"/"empty" pair (see
+// docs/architecture/ANDROID_PLAYER_WATCHDOG.md) — never shown unlabeled.
+const PLAYER_STATE_LABEL: Record<string, string> = {
+  preparing: 'Preparando',
+  buffering: 'Carregando (buffering)',
+  playing_confirmed: 'Reproduzindo (frame confirmado)',
+  stalled: 'Travado — watchdog detectou',
+  recovering: 'Recuperando',
+  media_error: 'Erro de mídia',
+  no_ready_media: 'Sem mídia pronta',
 };
 
 const COMMAND_LABEL: Record<DeviceCommandType, string> = {
@@ -68,6 +85,9 @@ const COMMAND_LABEL: Record<DeviceCommandType, string> = {
   enter_maintenance: 'Entrar em manutenção',
   exit_maintenance: 'Sair da manutenção',
   update_config: 'Atualizar configuração',
+  enable_kiosk: 'Ativar quiosque',
+  disable_kiosk_temporarily: 'Suspender quiosque temporariamente',
+  reenter_kiosk: 'Retomar quiosque agora',
 };
 
 const COMMAND_STATUS_LABEL: Record<string, string> = {
@@ -90,12 +110,18 @@ const KIOSK_LEVEL_LABEL: Record<string, string> = {
   device_owner: 'Device Owner (bloqueio profissional)',
 };
 
+// MAX-012 item 14: reads the player's own richer state instead of
+// collapsing everything down to "not exactly 'playing'" — that old check
+// couldn't tell a genuinely broken tablet apart from one mid-buffer for a
+// second, and never told the operator when the watchdog itself was already
+// handling a bad file (never "success", but never a false alarm either).
 function playbackDiagnosis(device: {
   connection_status: string;
   player_state: string | null;
   media_ready_count: number | null;
   manifest_version: string | null;
   last_error: string | null;
+  quarantined_media_count: number | null;
 }) {
   if (device.connection_status === 'offline') {
     return {
@@ -103,14 +129,6 @@ function playbackDiagnosis(device: {
       title: 'Tablet sem contato com o painel',
       message:
         'A programação que já estiver salva continua funcionando, mas novas campanhas não chegam até a conexão voltar.',
-    };
-  }
-  if (device.last_error) {
-    return {
-      tone: 'danger',
-      title: 'O tablet encontrou um erro ao preparar a mídia',
-      message:
-        'Envie uma nova sincronização. Se o problema continuar, confira o arquivo da campanha.',
     };
   }
   if ((device.media_ready_count ?? 0) === 0) {
@@ -122,11 +140,42 @@ function playbackDiagnosis(device: {
         : 'O tablet ainda não recebeu sua primeira programação.',
     };
   }
-  if (device.player_state !== 'playing') {
+  if (device.player_state === 'stalled' || device.player_state === 'recovering') {
+    return {
+      tone: 'attention',
+      title: 'O player está recuperando de uma falha de mídia',
+      message:
+        'O watchdog do tablet detectou uma trava e está avançando sozinho para o próximo conteúdo válido — normalmente resolve em segundos, sem precisar de ação aqui.',
+    };
+  }
+  if (device.player_state === 'media_error' || device.last_error) {
+    return {
+      tone: 'danger',
+      title: 'O tablet encontrou um erro ao preparar a mídia',
+      message:
+        'Envie uma nova sincronização. Se o problema continuar, confira o arquivo da campanha.',
+    };
+  }
+  if (device.player_state === 'no_ready_media') {
+    return {
+      tone: 'attention',
+      title: 'Conteúdo pronto no tablet, mas nada elegível para tocar agora',
+      message:
+        'Pode ser fora do horário/dia programado, ou toda a mídia disponível está em quarentena — veja "Mídias em quarentena" abaixo.',
+    };
+  }
+  if (device.player_state !== 'playing_confirmed') {
     return {
       tone: 'attention',
       title: 'Conteúdo pronto, mas o player não está reproduzindo',
       message: 'Sincronize e reinicie o player usando as ações abaixo.',
+    };
+  }
+  if ((device.quarantined_media_count ?? 0) > 0) {
+    return {
+      tone: 'attention',
+      title: 'Reproduzindo, mas com mídia em quarentena',
+      message: `${device.quarantined_media_count} mídia(s) foram desativadas automaticamente após falhar repetidamente — o restante da grade continua normalmente.`,
     };
   }
   return {
@@ -337,7 +386,12 @@ export default async function DeviceDetailPage({
               <dt>Estado</dt>
               <dd>
                 {device.player_state ? (
-                  <StatusBadge value={device.player_state} />
+                  <StatusBadge
+                    value={
+                      PLAYER_STATE_LABEL[device.player_state] ??
+                      device.player_state
+                    }
+                  />
                 ) : (
                   'Sem telemetria de player ainda'
                 )}
@@ -349,6 +403,14 @@ export default async function DeviceDetailPage({
                 {device.media_ready_count === null
                   ? 'Não informado'
                   : device.media_ready_count}
+              </dd>
+            </div>
+            <div>
+              <dt>Mídias em quarentena</dt>
+              <dd>
+                {device.quarantined_media_count === null
+                  ? 'Não informado'
+                  : device.quarantined_media_count}
               </dd>
             </div>
             <div>
@@ -483,7 +545,37 @@ export default async function DeviceDetailPage({
                 />
               </dd>
             </div>
+            <div>
+              <dt>Tempo de manutenção antes de retomar o quiosque</dt>
+              <dd>
+                {device.maintenanceTimeoutSeconds != null
+                  ? `${Math.round(device.maintenanceTimeoutSeconds / 60)} min`
+                  : 'Padrão do app (5 min)'}
+              </dd>
+            </div>
           </dl>
+          {canManage && (
+            <form
+              action={setDeviceMaintenanceTimeout.bind(null, id)}
+              className="heartbeat-form"
+            >
+              <label>
+                Tempo até retomar o quiosque (60 a 1800 segundos)
+                <input
+                  name="maintenanceTimeoutSeconds"
+                  type="number"
+                  min={60}
+                  max={1800}
+                  step={30}
+                  defaultValue={device.maintenanceTimeoutSeconds ?? ''}
+                  placeholder="300 (padrão)"
+                />
+              </label>
+              <button className="button button-secondary" type="submit">
+                Salvar tempo de manutenção
+              </button>
+            </form>
+          )}
           {auth?.profile.role === 'super_admin' && (
             <form
               action={setDeviceMaintenancePin.bind(null, id)}

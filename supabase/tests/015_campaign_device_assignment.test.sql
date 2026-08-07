@@ -47,19 +47,21 @@ insert into public.campaigns (
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values
   (
     'e1000000-0000-4000-8000-000000000040', 'e1000000-0000-4000-8000-000000000030',
     'Restrita Creative', 'image',
     'advertisers/e1000000-0000-4000-8000-000000000010/campaigns/e1000000-0000-4000-8000-000000000030/e1000000-0000-4000-8000-000000000040.jpg',
-    10, 400000, repeat('a', 64)
+    10, 400000, repeat('a', 64), 'ready',
+    'media-processed/e1000000-0000-4000-8000-000000000040/output.jpg'
   ),
   (
     'e1000000-0000-4000-8000-000000000041', 'e1000000-0000-4000-8000-000000000031',
     'Sem Restrição Creative', 'image',
     'advertisers/e1000000-0000-4000-8000-000000000010/campaigns/e1000000-0000-4000-8000-000000000031/e1000000-0000-4000-8000-000000000041.jpg',
-    10, 400000, repeat('b', 64)
+    10, 400000, repeat('b', 64), 'ready',
+    'media-processed/e1000000-0000-4000-8000-000000000041/output.jpg'
   );
 
 update public.campaigns set status = 'active' where id in (

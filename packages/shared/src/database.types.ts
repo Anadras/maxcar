@@ -2670,6 +2670,10 @@ export type Database = {
         }
         Returns: string
       }
+      reclaim_stale_media_processing_jobs: {
+        Args: { p_stale_after_seconds?: number }
+        Returns: number
+      }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -2803,6 +2807,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      reprocess_creative: { Args: { p_creative_id: string }; Returns: string }
       resolve_device_id_from_token: {
         Args: { p_token: string }
         Returns: string

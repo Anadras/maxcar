@@ -51,12 +51,13 @@ insert into public.campaigns (
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values (
   'f1000000-0000-4000-8000-000000000040', 'f1000000-0000-4000-8000-000000000030',
   'Geo Bloco D Creative', 'image',
   'advertisers/f1000000-0000-4000-8000-000000000010/campaigns/f1000000-0000-4000-8000-000000000030/f1000000-0000-4000-8000-000000000040.jpg',
-  10, 400000, repeat('a', 64)
+  10, 400000, repeat('a', 64), 'ready',
+  'media-processed/f1000000-0000-4000-8000-000000000040/output.jpg'
 );
 
 insert into public.campaign_geofences (

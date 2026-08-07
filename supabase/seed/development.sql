@@ -115,12 +115,17 @@ insert into public.campaigns (
   )
 on conflict (id) do nothing;
 
+-- processed_storage_path deliberately set equal to storage_path — this is
+-- throwaway local-dev demo data (never seeded onto real staging), so
+-- there's no real transcoded derivative to point at; it only needs to
+-- satisfy the "a ready creative must have a processed derivative on file"
+-- trigger the same way a genuine pipeline run would.
 insert into public.campaign_creatives (
-  id, campaign_id, name, creative_type, storage_path, duration_seconds, file_size_bytes, checksum, active
+  id, campaign_id, name, creative_type, storage_path, duration_seconds, file_size_bytes, checksum, active, processing_status, processed_storage_path
 ) values
-  ('70000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'Institucional 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000001/campaigns/60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.mp4', 15, 12000000, repeat('a', 64), true),
-  ('70000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'Oferta Pizzaria 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000002/campaigns/60000000-0000-4000-8000-000000000002/70000000-0000-4000-8000-000000000002.mp4', 15, 11000000, repeat('b', 64), true),
-  ('70000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 'Plano Prime — Demo', 'image', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp', 10, 900000, repeat('c', 64), true)
+  ('70000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 'Institucional 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000001/campaigns/60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.mp4', 15, 12000000, repeat('a', 64), true, 'ready', 'advertisers/10000000-0000-4000-8000-000000000001/campaigns/60000000-0000-4000-8000-000000000001/70000000-0000-4000-8000-000000000001.mp4'),
+  ('70000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 'Oferta Pizzaria 15s — Demo', 'video', 'advertisers/10000000-0000-4000-8000-000000000002/campaigns/60000000-0000-4000-8000-000000000002/70000000-0000-4000-8000-000000000002.mp4', 15, 11000000, repeat('b', 64), true, 'ready', 'advertisers/10000000-0000-4000-8000-000000000002/campaigns/60000000-0000-4000-8000-000000000002/70000000-0000-4000-8000-000000000002.mp4'),
+  ('70000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 'Plano Prime — Demo', 'image', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp', 10, 900000, repeat('c', 64), true, 'ready', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp')
 on conflict (id) do nothing;
 
 insert into public.campaign_geofences (

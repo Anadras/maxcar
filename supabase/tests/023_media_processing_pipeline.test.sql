@@ -24,13 +24,19 @@ insert into public.campaign_creatives (id, campaign_id, name, creative_type, sto
   'advertisers/23000000-0000-4000-8000-000000000030/campaigns/23000000-0000-4000-8000-000000000040/original.mp4'
 );
 
--- An existing (pre-migration-shaped) creative defaults to ready — never
--- silently blocks a campaign that was already live.
+-- MAX-017: the TESTE01 incident (reg03/regular04 served their raw,
+-- untranscoded original and never rendered a first frame on real
+-- hardware) traced back to this exact default. A new creative must now
+-- explicitly earn 'ready' — see 027_media_pipeline_safe_default.test.sql
+-- for the trigger that also rejects an INSERT claiming 'ready' outright
+-- without a processed derivative, and for proof a genuinely legacy row
+-- (inserted with processing_status='ready' explicitly, the one-time
+-- backfill shape) still works.
 select is(
   (select processing_status::text from public.campaign_creatives
    where id = '23000000-0000-4000-8000-000000000050'),
-  'ready',
-  'a newly-inserted creative defaults to ready (backward compatible with pre-pipeline rows)'
+  'uploaded',
+  'a newly-inserted creative starts life uploaded, never silently ready'
 );
 
 set local role authenticated;

@@ -108,21 +108,23 @@ select throws_ok(
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values
   (
     '44000000-0000-4000-8000-000000000001',
     '34000000-0000-4000-8000-000000000001',
     'Regular Creative', 'image',
     'advertisers/14000000-0000-4000-8000-000000000001/campaigns/34000000-0000-4000-8000-000000000001/44000000-0000-4000-8000-000000000001.jpg',
-    10, 1000, repeat('a', 64)
+    10, 1000, repeat('a', 64), 'ready',
+    'media-processed/44000000-0000-4000-8000-000000000001/output.jpg'
   ),
   (
     '44000000-0000-4000-8000-000000000002',
     '34000000-0000-4000-8000-000000000002',
     'GEO Creative', 'image',
     'advertisers/14000000-0000-4000-8000-000000000001/campaigns/34000000-0000-4000-8000-000000000002/44000000-0000-4000-8000-000000000002.jpg',
-    10, 1000, repeat('b', 64)
+    10, 1000, repeat('b', 64), 'ready',
+    'media-processed/44000000-0000-4000-8000-000000000002/output.jpg'
   );
 
 select lives_ok(

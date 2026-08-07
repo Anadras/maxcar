@@ -57,25 +57,28 @@ insert into public.campaigns (
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values
   (
     'b1000000-0000-4000-8000-000000000040', 'b1000000-0000-4000-8000-000000000030',
     'Geo Ready Creative', 'image',
     'advertisers/b1000000-0000-4000-8000-000000000001/campaigns/b1000000-0000-4000-8000-000000000030/b1000000-0000-4000-8000-000000000040.jpg',
-    10, 400000, repeat('d', 64)
+    10, 400000, repeat('d', 64), 'ready',
+    'media-processed/b1000000-0000-4000-8000-000000000040/output.jpg'
   ),
   (
     'b1000000-0000-4000-8000-000000000042', 'b1000000-0000-4000-8000-000000000032',
     'Geo Inactive Establishment Creative', 'image',
     'advertisers/b1000000-0000-4000-8000-000000000001/campaigns/b1000000-0000-4000-8000-000000000032/b1000000-0000-4000-8000-000000000042.jpg',
-    10, 400000, repeat('e', 64)
+    10, 400000, repeat('e', 64), 'ready',
+    'media-processed/b1000000-0000-4000-8000-000000000042/output.jpg'
   ),
   (
     'b1000000-0000-4000-8000-000000000043', 'b1000000-0000-4000-8000-000000000033',
     'Regular Control Creative', 'image',
     'advertisers/b1000000-0000-4000-8000-000000000001/campaigns/b1000000-0000-4000-8000-000000000033/b1000000-0000-4000-8000-000000000043.jpg',
-    10, 400000, repeat('f', 64)
+    10, 400000, repeat('f', 64), 'ready',
+    'media-processed/b1000000-0000-4000-8000-000000000043/output.jpg'
   );
 
 insert into public.campaign_geofences (

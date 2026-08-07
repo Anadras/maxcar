@@ -53,19 +53,21 @@ insert into public.campaigns (
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values
   (
     '19000000-0000-4000-8000-000000000040', '19000000-0000-4000-8000-000000000030',
     'Default Playback Creative', 'image',
     'advertisers/19000000-0000-4000-8000-000000000001/campaigns/19000000-0000-4000-8000-000000000030/19000000-0000-4000-8000-000000000040.jpg',
-    10, 400000, repeat('a', 64)
+    10, 400000, repeat('a', 64), 'ready',
+    'media-processed/19000000-0000-4000-8000-000000000040/output.jpg'
   ),
   (
     '19000000-0000-4000-8000-000000000041', '19000000-0000-4000-8000-000000000031',
     'Max Wait Creative', 'image',
     'advertisers/19000000-0000-4000-8000-000000000001/campaigns/19000000-0000-4000-8000-000000000031/19000000-0000-4000-8000-000000000041.jpg',
-    10, 400000, repeat('b', 64)
+    10, 400000, repeat('b', 64), 'ready',
+    'media-processed/19000000-0000-4000-8000-000000000041/output.jpg'
   );
 
 -- Geofence A overrides the campaign default to immediate/10s; geofence B

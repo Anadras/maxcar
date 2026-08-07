@@ -52,28 +52,31 @@ insert into public.campaigns (
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,
-  duration_seconds, file_size_bytes, checksum
+  duration_seconds, file_size_bytes, checksum, processing_status, processed_storage_path
 ) values
   (
     '93000000-0000-4000-8000-000000000001',
     '92000000-0000-4000-8000-000000000001',
     'Ready Creative', 'video',
     'advertisers/91000000-0000-4000-8000-000000000001/campaigns/92000000-0000-4000-8000-000000000001/93000000-0000-4000-8000-000000000001.mp4',
-    15, 2000000, repeat('a', 64)
+    15, 2000000, repeat('a', 64), 'ready',
+    'media-processed/93000000-0000-4000-8000-000000000001/output.mp4'
   ),
   (
     '93000000-0000-4000-8000-000000000002',
     '92000000-0000-4000-8000-000000000002',
     'Default Grade Creative', 'image',
     'advertisers/91000000-0000-4000-8000-000000000001/campaigns/92000000-0000-4000-8000-000000000002/93000000-0000-4000-8000-000000000002.jpg',
-    10, 500000, repeat('b', 64)
+    10, 500000, repeat('b', 64), 'ready',
+    'media-processed/93000000-0000-4000-8000-000000000002/output.jpg'
   ),
   (
     '93000000-0000-4000-8000-000000000003',
     '92000000-0000-4000-8000-000000000004',
     'Geo Creative', 'image',
     'advertisers/91000000-0000-4000-8000-000000000001/campaigns/92000000-0000-4000-8000-000000000004/93000000-0000-4000-8000-000000000003.jpg',
-    10, 500000, repeat('c', 64)
+    10, 500000, repeat('c', 64), 'ready',
+    'media-processed/93000000-0000-4000-8000-000000000003/output.jpg'
   );
 
 select lives_ok(

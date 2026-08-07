@@ -5,7 +5,30 @@ import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listGeofences } from '@/lib/data/geofences';
-import { GEO_PRIORITY_LABEL } from '@/lib/geo-playback-labels';
+import {
+  GEO_PRIORITY_LABEL,
+  PLAYBACK_MODE_LABEL,
+  formatCooldownMinutes,
+} from '@/lib/geo-playback-labels';
+import { createClient } from '@/lib/supabase/server';
+
+async function activationsToday(geofenceIds: string[]) {
+  if (geofenceIds.length === 0) return new Map<string, number>();
+  const supabase = await createClient();
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+  const { data } = await supabase
+    .from('geofence_events')
+    .select('campaign_geofence_id')
+    .in('campaign_geofence_id', geofenceIds)
+    .eq('event_type', 'enter')
+    .gte('occurred_at', startOfDay.toISOString());
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    counts.set(row.campaign_geofence_id, (counts.get(row.campaign_geofence_id) ?? 0) + 1);
+  }
+  return counts;
+}
 
 export default async function GeofencesPage({
   searchParams,
@@ -18,6 +41,9 @@ export default async function GeofencesPage({
     getAuthContext(),
   ]);
   const canWrite = Boolean(auth && canWriteCommercialData(auth.profile.role));
+  const activations = await activationsToday(
+    geofences.map((geo) => geo.id).filter((id): id is string => Boolean(id)),
+  );
   return (
     <div className="page">
       <FlashMessage success={params.success} error={params.error} />
@@ -53,13 +79,19 @@ export default async function GeofencesPage({
                   <th>Cliente</th>
                   <th>Estabelecimento</th>
                   <th>Raio</th>
+                  <th>Modo</th>
                   <th>Prioridade</th>
+                  <th>Nova exibição</th>
+                  <th>Ativações hoje</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {geofences.map((geo) => (
+                {geofences.map((geo) => {
+                  const playbackMode = geo.playback_mode_override ?? geo.campaign_playback_mode;
+                  const cooldownSeconds = geo.cooldown_override_seconds ?? geo.campaign_cooldown_seconds;
+                  return (
                   <tr key={geo.id ?? ''}>
                     <td>
                       <strong>{geo.campaign_name}</strong>
@@ -69,12 +101,15 @@ export default async function GeofencesPage({
                       {geo.establishment_name} · {geo.city}/{geo.state}
                     </td>
                     <td>{geo.radius_meters?.toLocaleString('pt-BR')} m</td>
+                    <td>{playbackMode ? (PLAYBACK_MODE_LABEL[playbackMode] ?? playbackMode) : '—'}</td>
                     <td>
                       {geo.priority_override === null
                         ? `Da campanha${geo.campaign_priority != null ? ` (${GEO_PRIORITY_LABEL[geo.campaign_priority] ?? geo.campaign_priority})` : ''}`
                         : (GEO_PRIORITY_LABEL[geo.priority_override] ??
                           geo.priority_override)}
                     </td>
+                    <td>{cooldownSeconds != null ? formatCooldownMinutes(cooldownSeconds) : '—'}</td>
+                    <td>{activations.get(geo.id ?? '') ?? 0}</td>
                     <td>
                       <StatusBadge value={geo.active ? 'Ativa' : 'Inativa'} />
                     </td>
@@ -84,7 +119,8 @@ export default async function GeofencesPage({
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

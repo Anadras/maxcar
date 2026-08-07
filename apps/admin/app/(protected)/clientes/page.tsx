@@ -13,10 +13,15 @@ const STATUS_LABEL = {
 export default async function ClientsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; success?: string; error?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    status?: string;
+    success?: string;
+    error?: string;
+  }>;
 }) {
   const params = await searchParams;
-  const clients = await listAdvertisers(params.q);
+  const clients = await listAdvertisers(params.q, params.status);
   return (
     <div className="page">
       <FlashMessage success={params.success} error={params.error} />
@@ -41,6 +46,16 @@ export default async function ClientsPage({
               aria-label="Buscar clientes"
             />
           </label>
+          <select
+            name="status"
+            defaultValue={params.status ?? ''}
+            aria-label="Filtrar por status"
+          >
+            <option value="">Todos os status</option>
+            <option value="active">Ativo</option>
+            <option value="inactive">Inativo (inclui dados de teste)</option>
+            <option value="suspended">Suspenso</option>
+          </select>
           <button className="button button-secondary" type="submit">
             Buscar
           </button>
@@ -66,7 +81,8 @@ export default async function ClientsPage({
                 <tr>
                   <th>Cliente</th>
                   <th>Unidades</th>
-                  <th>Campanhas</th>
+                  <th>Campanhas ativas</th>
+                  <th>Total de campanhas</th>
                   <th>Status</th>
                   <th>Ações</th>
                 </tr>
@@ -78,6 +94,7 @@ export default async function ClientsPage({
                       <strong>{client.trade_name}</strong>
                     </td>
                     <td>{client.establishment_count}</td>
+                    <td>{client.active_campaign_count}</td>
                     <td>{client.campaign_count}</td>
                     <td>
                       <StatusBadge value={STATUS_LABEL[client.status]} />

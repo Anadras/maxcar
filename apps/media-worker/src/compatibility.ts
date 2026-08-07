@@ -11,6 +11,26 @@ export const IMAGE_COMPATIBILITY_PROFILE = 'maxcar-tablet-jpeg-v1';
 
 export type MediaKind = 'video' | 'image';
 
+// What `-profile:v main` (see ffmpeg.ts's transcodeVideo) actually reports
+// back via ffprobe. ffmpeg can silently fall back to a different profile
+// than requested for some inputs (e.g. a source with 4:2:2/4:4:4 chroma
+// that libx264 can't express as Main) — checking this here catches that
+// class of drift between "what we told ffmpeg to produce" and "what it
+// actually produced" before it ever reaches the tablet.
+const ACCEPTED_H264_PROFILES = new Set(['Main', 'Constrained Baseline', 'Baseline']);
+
+const MIN_FPS = 1;
+const MAX_FPS = 60;
+
+function parseFrameRate(rFrameRate: string | undefined): number | null {
+  if (!rFrameRate) return null;
+  const [numerator, denominator] = rFrameRate.split('/').map(Number);
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return null;
+  }
+  return numerator / denominator;
+}
+
 const VIDEO_EXTENSIONS = new Set(['mp4', 'webm']);
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
 
@@ -48,6 +68,22 @@ export function evaluateVideoOutput(probe: FfprobeResult): CompatibilityResult {
     return {
       ok: false,
       reason: `Output pixel format is ${video.pix_fmt ?? 'unknown'}, expected yuv420p.`,
+    };
+  }
+  if (video.profile && !ACCEPTED_H264_PROFILES.has(video.profile)) {
+    return {
+      ok: false,
+      reason: `Output H.264 profile is ${video.profile}, expected Main or (Constrained) Baseline.`,
+    };
+  }
+  if (!video.width || !video.height || video.width <= 0 || video.height <= 0) {
+    return { ok: false, reason: 'Output video has no measurable resolution.' };
+  }
+  const fps = parseFrameRate(video.r_frame_rate);
+  if (fps === null || fps < MIN_FPS || fps > MAX_FPS) {
+    return {
+      ok: false,
+      reason: `Output frame rate is ${video.r_frame_rate ?? 'unknown'}, expected between ${MIN_FPS} and ${MAX_FPS} fps.`,
     };
   }
   const audioStreams = probe.streams.filter((s) => s.codec_type === 'audio');

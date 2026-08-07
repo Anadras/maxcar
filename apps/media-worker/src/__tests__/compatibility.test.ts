@@ -33,7 +33,11 @@ function videoProbe(
       {
         codec_type: 'video',
         codec_name: 'h264',
+        profile: 'Main',
         pix_fmt: 'yuv420p',
+        width: 1280,
+        height: 720,
+        r_frame_rate: '30/1',
         ...overrides,
       },
       { codec_type: 'audio', codec_name: 'aac' },
@@ -54,6 +58,16 @@ describe('evaluateVideoOutput', () => {
 
   it('rejects a non-h264 video codec', () => {
     const result = evaluateVideoOutput(videoProbe({ codec_name: 'vp9' }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/h264/);
+  });
+
+  // Named explicitly per MAX-017's test list — same rejection path as any
+  // other non-h264 codec, but H.265/HEVC is common enough as an upload
+  // (many phones default to it) to deserve its own named case rather than
+  // only being implied by the generic vp9 test above.
+  it('rejects an h265/hevc video codec (this is what the transcode step exists to prevent shipping)', () => {
+    const result = evaluateVideoOutput(videoProbe({ codec_name: 'hevc' }));
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/h264/);
   });
@@ -82,6 +96,38 @@ describe('evaluateVideoOutput', () => {
     const probe = videoProbe();
     probe.format.duration = undefined;
     expect(evaluateVideoOutput(probe).ok).toBe(false);
+  });
+
+  it('rejects an H.264 profile outside Main/Baseline (e.g. High, which some decoders on the pilot hardware stall on)', () => {
+    const result = evaluateVideoOutput(videoProbe({ profile: 'High' }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/profile/i);
+  });
+
+  it('accepts Constrained Baseline as well as Main', () => {
+    expect(evaluateVideoOutput(videoProbe({ profile: 'Constrained Baseline' })).ok).toBe(true);
+  });
+
+  it('rejects a video output with no measurable resolution', () => {
+    const result = evaluateVideoOutput(videoProbe({ width: 0, height: 0 }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/resolution/i);
+  });
+
+  it('rejects a frame rate ffmpeg could not determine', () => {
+    const result = evaluateVideoOutput(videoProbe({ r_frame_rate: '0/0' }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/frame rate/i);
+  });
+
+  it('rejects an unreasonably high frame rate', () => {
+    const result = evaluateVideoOutput(videoProbe({ r_frame_rate: '240/1' }));
+    expect(result.ok).toBe(false);
+    expect(result.reason).toMatch(/frame rate/i);
+  });
+
+  it('accepts a non-integer fractional frame rate (e.g. 29.97)', () => {
+    expect(evaluateVideoOutput(videoProbe({ r_frame_rate: '30000/1001' })).ok).toBe(true);
   });
 });
 

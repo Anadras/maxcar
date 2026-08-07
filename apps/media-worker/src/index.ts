@@ -44,6 +44,21 @@ async function main(): Promise<void> {
 
   while (!shuttingDown) {
     health.lastClaimAttemptAt = new Date();
+    try {
+      const reclaimed = await client.reclaimStaleJobs(config.staleJobTimeoutSeconds);
+      if (reclaimed > 0) {
+        console.warn(`[${config.workerId}] reclaimed ${reclaimed} stale job(s)`);
+      }
+    } catch (err) {
+      // Never fatal — a reclaim failure just means a stale job (if any)
+      // waits one more poll cycle; it does not block this worker from
+      // claiming fresh work.
+      console.error(
+        `[${config.workerId}] stale job reclaim failed:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
     let job;
     try {
       job = await client.claimNextJob(config.workerId);

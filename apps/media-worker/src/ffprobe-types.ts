@@ -3,9 +3,13 @@
 export interface FfprobeStream {
   codec_type: 'video' | 'audio' | 'subtitle' | 'data' | string;
   codec_name?: string;
+  profile?: string;
   pix_fmt?: string;
   width?: number;
   height?: number;
+  // ffprobe reports this as a fraction string, e.g. "30/1" or "30000/1001",
+  // never a plain number.
+  r_frame_rate?: string;
 }
 
 export interface FfprobeFormat {

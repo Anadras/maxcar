@@ -29,6 +29,7 @@ export interface TerminalResultDetails {
 // (a fake implementing this interface) without a live Supabase project.
 export interface PipelineClient {
   claimNextJob(workerId: string): Promise<ClaimedJob | null>;
+  reclaimStaleJobs(staleAfterSeconds: number): Promise<number>;
   reportProgress(
     jobId: string,
     status: IntermediateStatus,
@@ -80,6 +81,22 @@ export class SupabasePipelineClient implements PipelineClient {
       attempts: row.attempts,
       originalStoragePath: row.original_storage_path,
     };
+  }
+
+  // MAX-017: before every claim attempt, sweep any job this (or another)
+  // worker abandoned mid-processing — a crash, an OOM kill, a lost DB
+  // connection — so it doesn't sit in 'processing' forever with no path
+  // back to the queue. See reclaim_stale_media_processing_jobs.
+  async reclaimStaleJobs(staleAfterSeconds: number): Promise<number> {
+    const { data, error } = await this.client.rpc(
+      'reclaim_stale_media_processing_jobs',
+      { p_stale_after_seconds: staleAfterSeconds },
+    );
+    if (error)
+      throw new Error(
+        `reclaim_stale_media_processing_jobs failed: ${error.message}`,
+      );
+    return data ?? 0;
   }
 
   async reportProgress(

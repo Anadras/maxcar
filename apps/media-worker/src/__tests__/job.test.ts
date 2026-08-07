@@ -24,7 +24,15 @@ function goodVideoProbe(): FfprobeResult {
   return {
     format: { duration: '10.0' },
     streams: [
-      { codec_type: 'video', codec_name: 'h264', pix_fmt: 'yuv420p' },
+      {
+        codec_type: 'video',
+        codec_name: 'h264',
+        profile: 'Main',
+        pix_fmt: 'yuv420p',
+        width: 1280,
+        height: 720,
+        r_frame_rate: '30/1',
+      },
       { codec_type: 'audio', codec_name: 'aac' },
     ],
   };
@@ -149,6 +157,27 @@ describe('processClaimedJob', () => {
     expect(client.resultCalls).toHaveLength(1);
     expect(client.resultCalls[0].status).toBe('failed');
     expect(client.resultCalls[0].details.error).toMatch(/ffmpeg killed/);
+    expect(client.uploaded).toHaveLength(0);
+  });
+
+  it('reports failed (transient) when the input file is corrupted and ffprobe cannot read it', async () => {
+    const client = new FakeClient();
+    const ffmpeg: FfmpegOps = {
+      probe: vi
+        .fn()
+        .mockRejectedValue(
+          new Error('ffprobe: Invalid data found when processing input'),
+        ),
+      transcodeVideo: vi.fn(),
+      transcodeImage: vi.fn(),
+    };
+
+    await processClaimedJob(makeJob(), client, ffmpeg, 45 * 1024 * 1024);
+
+    expect(client.resultCalls).toHaveLength(1);
+    expect(client.resultCalls[0].status).toBe('failed');
+    expect(client.resultCalls[0].details.error).toMatch(/Invalid data/);
+    expect(ffmpeg.transcodeVideo).not.toHaveBeenCalled();
     expect(client.uploaded).toHaveLength(0);
   });
 

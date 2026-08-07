@@ -29,6 +29,13 @@ export interface WorkerConfig {
   jobTimeoutMs: number;
   maxOutputBytes: number;
   healthPort: number;
+  // How long a job can sit in 'processing' with no report before
+  // reclaim_stale_media_processing_jobs treats it as abandoned. Deliberately
+  // well above jobTimeoutMs (which only bounds a single ffmpeg/ffprobe
+  // call, not the whole download->transcode->upload round trip) so a
+  // merely-slow job is never reclaimed out from under a worker that's
+  // still actively working it.
+  staleJobTimeoutSeconds: number;
 }
 
 // Loaded lazily (not at import time) so unit tests that never touch env
@@ -50,5 +57,6 @@ export function loadConfig(): WorkerConfig {
     // leaves headroom rather than racing the exact ceiling.
     maxOutputBytes: intEnv('MEDIA_WORKER_MAX_OUTPUT_BYTES', 45 * 1024 * 1024),
     healthPort: intEnv('MEDIA_WORKER_HEALTH_PORT', 8080),
+    staleJobTimeoutSeconds: intEnv('MEDIA_WORKER_STALE_JOB_TIMEOUT_SECONDS', 900),
   };
 }

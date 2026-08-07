@@ -68,6 +68,12 @@ const operationsNav: NavItem[] = [
     icon: '●',
     roles: ['super_admin', 'admin', 'operations'],
   },
+  {
+    label: 'Mídia',
+    href: '/midia',
+    icon: '▧',
+    roles: ['super_admin', 'admin', 'operations', 'commercial'],
+  },
   { label: 'Relatórios', href: '/relatorios', icon: '▥' },
   {
     label: 'Auditoria',

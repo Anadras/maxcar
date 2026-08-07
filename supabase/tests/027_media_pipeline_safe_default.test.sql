@@ -2,7 +2,7 @@ begin;
 
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(26);
 
 grant usage on schema extensions to authenticated;
 grant execute on all functions in schema extensions to authenticated;
@@ -170,6 +170,37 @@ select is(
   'a job locked moments ago (a real, live worker) is left alone'
 );
 
+-- MAX-018 regression #3: a stale (superseded) job that's also gone silent
+-- must not resurrect itself onto its creative when reclaimed — same
+-- staleness gap as report_media_processing_result, just reached via the
+-- reclaim sweep instead of a worker report. Creative 000030 is at
+-- processing_version 3 by now (bumped twice in section 3 above); this
+-- job claims to be version 1, exactly the zombie shape that would
+-- otherwise stamp 'failed' over a creative that has genuinely moved on.
+update public.campaign_creatives set processing_status = 'ready' where id = '27000000-0000-4000-8000-000000000030';
+insert into public.media_processing_jobs (id, creative_id, media_version, status, attempts, max_attempts, locked_at, locked_by, idempotency_key)
+values (
+  '27000000-0000-4000-8000-000000000043', '27000000-0000-4000-8000-000000000030', 1, 'processing', 0, 3,
+  now() - interval '20 minutes', 'ghost-worker', 'reclaim-stale-version'
+);
+select public.reclaim_stale_media_processing_jobs(600) as reclaimed_stale_count \gset
+select is(:'reclaimed_stale_count'::integer, 1, 'reclaim also picks up the stale-version job');
+select is(
+  (select status::text from public.media_processing_jobs where id = '27000000-0000-4000-8000-000000000043'),
+  'failed',
+  'a reclaimed job whose media_version no longer matches the creative closes out as failed regardless of attempts remaining'
+);
+select is(
+  (select last_error from public.media_processing_jobs where id = '27000000-0000-4000-8000-000000000043'),
+  'Superseded by a newer reprocess before this job completed.',
+  'the stale reclaimed job records why it was closed out'
+);
+select is(
+  (select processing_status::text from public.campaign_creatives where id = '27000000-0000-4000-8000-000000000030'),
+  'ready',
+  'reclaiming a stale-version job never touches the creative it no longer owns'
+);
+
 -- ==================================================================
 -- 5. report_media_processing_result retry backoff: a transient failure
 --    with attempts remaining re-queues; exhausting max_attempts is
@@ -227,6 +258,65 @@ select throws_ok(
   '23514',
   'Campaign is not structurally ready for activation.',
   'a campaign whose only active creative is incompatible cannot be published'
+);
+
+-- ==================================================================
+-- 7. MAX-018 regression: reprocess_creative must succeed on an ACTIVE
+--    campaign's sole creative even when it has NEVER been successfully
+--    processed before (processed_storage_path is null) — exactly the
+--    reg03/regular04 shape from the TESTE01 incident. Before
+--    20260827090000, enqueue_media_processing_job flipping
+--    processing_status to 'queued' tripped
+--    campaign_creatives_preserve_active_readiness, rolling the whole
+--    call back with 23514.
+-- ==================================================================
+insert into public.campaigns (
+  id, advertiser_id, name, campaign_type, status, starts_at, ends_at,
+  daily_start_time, daily_end_time, active_days
+) values (
+  '27000000-0000-4000-8000-000000000022', '27000000-0000-4000-8000-000000000010', 'Legacy Active Regular', 'regular', 'draft',
+  now() - interval '1 day', now() + interval '30 days', '00:00', '23:59', array[0,1,2,3,4,5,6]::smallint[]
+);
+insert into public.campaign_creatives (
+  id, campaign_id, name, creative_type, storage_path, duration_seconds, checksum
+) values (
+  '27000000-0000-4000-8000-000000000080', '27000000-0000-4000-8000-000000000022', 'Legacy Regular Creative', 'video',
+  'advertisers/27000000-0000-4000-8000-000000000010/campaigns/27000000-0000-4000-8000-000000000022/legacy-regular.mp4',
+  10, repeat('h', 64)
+);
+update public.campaign_creatives
+set processing_status = 'ready'
+where id = '27000000-0000-4000-8000-000000000080';
+update public.campaigns set status = 'active'
+where id = '27000000-0000-4000-8000-000000000022';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '27000000-0000-4000-8000-000000000001', true);
+select lives_ok(
+  $$select public.reprocess_creative('27000000-0000-4000-8000-000000000080')$$,
+  'reprocessing the sole never-before-processed creative of an already-active campaign succeeds'
+);
+select is(
+  (select processing_status::text from public.campaign_creatives where id = '27000000-0000-4000-8000-000000000080'),
+  'queued',
+  'the creative moves to queued while its active campaign stays active'
+);
+reset role;
+select is(
+  (select status::text from public.campaigns where id = '27000000-0000-4000-8000-000000000022'),
+  'active',
+  'the campaign itself was not forced out of active by the reprocess'
+);
+
+-- A creative that has exhausted the pipeline into a terminal failure
+-- still correctly blocks its active campaign from staying structurally
+-- ready — the fix only tolerates in-flight states, not terminal ones.
+select throws_ok(
+  $$update public.campaign_creatives set processing_status = 'incompatible'
+    where id = '27000000-0000-4000-8000-000000000080'$$,
+  '23514',
+  'An active campaign cannot lose its required structure.',
+  'a creative that turns incompatible still cannot keep its active campaign structurally ready'
 );
 
 select * from finish();

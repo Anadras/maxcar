@@ -1,6 +1,8 @@
+import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { CAMPAIGN_TYPE_LABELS } from '@/lib/campaigns';
+import { getCampaign } from '@/lib/data/campaigns';
 import { getReportData, resolveReportRange } from '@/lib/data/reports';
 import { formatDateTime } from '@/lib/fleet';
 
@@ -26,22 +28,37 @@ export default async function ReportsPage({
     period?: string;
     from?: string;
     to?: string;
+    campaign?: string;
   }>;
 }) {
   const params = await searchParams;
   const range = resolveReportRange(params.period, params.from, params.to);
-  const { kpis, campaignRows } = await getReportData(range);
+  const [{ kpis, campaignRows }, filteredCampaign] = await Promise.all([
+    getReportData(range, params.campaign),
+    params.campaign ? getCampaign(params.campaign) : Promise.resolve(null),
+  ]);
 
   const periodLink = (period: string) =>
-    `/relatorios?period=${period}`;
+    `/relatorios?period=${period}${params.campaign ? `&campaign=${params.campaign}` : ''}`;
 
   return (
     <div className="page">
       <PageHeader
         eyebrow="ANALYTICS E PERFORMANCE"
         title="Relatórios"
-        description="Reproduções e desempenho por campanha, a partir dos eventos que os tablets já confirmaram."
+        description={
+          filteredCampaign
+            ? `Reproduções de "${filteredCampaign.name}", a partir dos eventos que os tablets já confirmaram.`
+            : 'Reproduções e desempenho por campanha, a partir dos eventos que os tablets já confirmaram.'
+        }
       />
+      {params.campaign && (
+        <p className="back-link-row">
+          <Link href="/relatorios" className="section-link">
+            ← Ver todas as campanhas
+          </Link>
+        </p>
+      )}
       <SectionCard className="report-toolbar">
         <div className="filter-pills">
           {(['today', '7d', '30d'] as const).map((period) => (

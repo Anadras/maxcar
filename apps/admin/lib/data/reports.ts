@@ -29,15 +29,17 @@ export interface ReportCampaignRow {
  * already counts (see campanhas/page.tsx's "Reproduções" column). No
  * separate/duplicated event pipeline, no mocked figures: if this table is
  * empty for the selected period, the KPIs and table are honestly zero. */
-export async function getReportData(range: ReportRange) {
+export async function getReportData(range: ReportRange, campaignId?: string) {
   const supabase = await createClient();
-  const { data: impressions, error } = await supabase
+  let query = supabase
     .from('impressions')
     .select(
       'campaign_id, device_id, source, duration_ms, started_at, campaigns(name, campaign_type, advertiser_id, advertisers(trade_name))',
     )
     .gte('started_at', range.from)
     .lt('started_at', range.to);
+  if (campaignId) query = query.eq('campaign_id', campaignId);
+  const { data: impressions, error } = await query;
   if (error) throw error;
 
   const rows = impressions ?? [];

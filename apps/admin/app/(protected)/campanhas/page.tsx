@@ -2,17 +2,14 @@ import type { CampaignStatus, DatabaseCampaignType } from '@maxcar/shared';
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
-import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { PageHeader, SectionCard } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
-import {
-  CAMPAIGN_STATUS_LABELS,
-  CAMPAIGN_TYPE_LABELS,
-  formatCampaignPeriod,
-} from '@/lib/campaigns';
+import { CAMPAIGN_STATUS_LABELS } from '@/lib/campaigns';
 import { listAdvertisers } from '@/lib/data/advertisers';
 import { getCampaignMetrics, listCampaigns } from '@/lib/data/campaigns';
 import { CampaignTabs } from './campaign-tabs';
+import { CampaignTable } from './campaign-table';
 
 export default async function CampaignsPage({
   searchParams,
@@ -131,76 +128,19 @@ export default async function CampaignsPage({
             }
           />
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Campanha</th>
-                  <th>Cliente</th>
-                  <th>Tipo</th>
-                  <th>Status</th>
-                  <th>Período</th>
-                  <th>Preparação</th>
-                  <th>Dispositivos</th>
-                  <th>Reproduções</th>
-                  <th>Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((campaign) =>
-                  campaign.id && campaign.campaign_type && campaign.status ? (
-                    <tr key={campaign.id}>
-                      <td>
-                        <strong>{campaign.name}</strong>
-                      </td>
-                      <td>{campaign.advertiser_name ?? 'Acesso restrito'}</td>
-                      <td>
-                        <StatusBadge
-                          value={CAMPAIGN_TYPE_LABELS[campaign.campaign_type]}
-                        />
-                      </td>
-                      <td>
-                        <StatusBadge
-                          value={CAMPAIGN_STATUS_LABELS[campaign.status]}
-                        />
-                      </td>
-                      <td>
-                        {formatCampaignPeriod(
-                          campaign.starts_at,
-                          campaign.ends_at,
-                        )}
-                      </td>
-                      <td>
-                        {(campaign.creative_count ?? 0) < 1
-                          ? 'Falta enviar o arquivo'
-                          : campaign.campaign_type === 'geo' &&
-                              (campaign.geofence_count ?? 0) < 1
-                            ? 'Falta definir o local'
-                            : campaign.status === 'active'
-                              ? 'No ar'
-                              : 'Pronta para publicar'}
-                      </td>
-                      <td>
-                        {campaign.assigned_device_count > 0
-                          ? `${campaign.assigned_device_count} selecionado(s)`
-                          : 'Todos os ativos'}
-                      </td>
-                      <td>
-                        {(campaign.impression_count ?? 0).toLocaleString(
-                          'pt-BR',
-                        )}
-                      </td>
-                      <td>
-                        <Link href={`/campanhas/${campaign.id}`}>
-                          Continuar →
-                        </Link>
-                      </td>
-                    </tr>
-                  ) : null,
-                )}
-              </tbody>
-            </table>
-          </div>
+          <CampaignTable
+            campaigns={campaigns.filter(
+              (
+                campaign,
+              ): campaign is typeof campaign & {
+                id: string;
+                campaign_type: 'regular' | 'geo';
+                status: 'draft' | 'scheduled' | 'active' | 'paused' | 'ended';
+              } =>
+                Boolean(campaign.id && campaign.campaign_type && campaign.status),
+            )}
+            canWrite={canWrite}
+          />
         )}
       </SectionCard>
     </div>

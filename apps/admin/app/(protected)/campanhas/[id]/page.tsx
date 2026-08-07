@@ -374,6 +374,7 @@ export default async function CampaignDetailPage({
       )}
       {campaign.campaign_type === 'geo' && (
         <SectionCard
+          id="geofences"
           title="Local de ativação"
           subtitle="Escolha o estabelecimento e a distância em que o anúncio deve entrar na fila."
           action={
@@ -442,6 +443,7 @@ export default async function CampaignDetailPage({
       )}
       {canManageGrid && (
         <SectionCard
+          id="dispositivos"
           title="Dispositivos desta campanha"
           subtitle={
             campaign.campaign_type === 'geo'

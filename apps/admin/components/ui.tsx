@@ -154,15 +154,17 @@ export function SectionCard({
   children,
   className = '',
   action,
+  id,
 }: {
   title?: string;
   subtitle?: string;
   children: ReactNode;
   className?: string;
   action?: ReactNode;
+  id?: string;
 }) {
   return (
-    <section className={`section-card ${className}`}>
+    <section id={id} className={`section-card ${className}`}>
       {(title || action) && (
         <header className="section-heading">
           <div>

@@ -3767,6 +3767,80 @@ tbody tr:hover,
    badge/table/card system stay exactly as they were.
    ================================================================== */
 
+.table-group-row td {
+  padding: 8px 16px;
+  color: var(--muted-2);
+  background: rgba(5, 15, 26, 0.5);
+  font-size: 8.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid var(--border);
+}
+.row-muted td {
+  opacity: 0.6;
+}
+
+.row-menu-cell {
+  width: 1%;
+  text-align: right;
+}
+.row-menu {
+  position: relative;
+  display: inline-block;
+}
+.row-menu-trigger {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+.row-menu-trigger:hover,
+.row-menu-trigger[aria-expanded='true'] {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+.row-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 15;
+  min-width: 180px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  border: 1px solid var(--border-bright);
+  background: var(--panel-2);
+  box-shadow: var(--shadow);
+}
+.row-menu-list a {
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: #c7d6e5;
+  text-decoration: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.row-menu-list a:hover {
+  background: rgba(38, 125, 255, 0.12);
+  color: var(--text);
+}
+
+.back-link-row {
+  margin: 0 0 14px;
+}
+.back-link-row .section-link {
+  margin: 0;
+}
+
 .page-tabs {
   display: flex;
   gap: 4px;

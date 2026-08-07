@@ -11,11 +11,42 @@ import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listDevices } from '@/lib/data/devices';
 import { listVehicles } from '@/lib/data/vehicles';
+import { createClient } from '@/lib/supabase/server';
 import {
   CONNECTION_LABEL,
   PLAYER_STATE_LABEL,
   formatRelativeTime,
 } from '@/lib/fleet';
+
+async function resolvePlayingLabels(
+  devices: Awaited<ReturnType<typeof listDevices>>,
+) {
+  const campaignIds = Array.from(
+    new Set(
+      devices
+        .map((device) => device.current_campaign_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  if (campaignIds.length === 0) return new Map<string, string>();
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('campaigns')
+    .select('id, name')
+    .in('id', campaignIds);
+  return new Map((data ?? []).map((row) => [row.id, row.name]));
+}
+
+function playingLabel(
+  device: Awaited<ReturnType<typeof listDevices>>[number],
+  campaignNames: Map<string, string>,
+) {
+  if (device.player_state === 'no_ready_media') return 'Fallback';
+  if (!device.current_campaign_id) return '—';
+  const name = campaignNames.get(device.current_campaign_id) ?? device.current_campaign_id;
+  if (device.current_campaign_id === device.last_geo_campaign_id) return `GEO: ${name}`;
+  return name;
+}
 
 const LOW_BATTERY_THRESHOLD = 20;
 
@@ -50,6 +81,14 @@ export default async function DevicesPage({
     getAuthContext(),
   ]);
   const canWrite = !!auth && canManageFleet(auth.profile.role);
+  const campaignNames = await resolvePlayingLabels(devices);
+
+  const needsAttentionCount = allDevices.filter(
+    (d) =>
+      d.connection_status === 'attention' ||
+      d.connection_status === 'offline' ||
+      d.player_state === 'no_ready_media',
+  ).length;
 
   const attention = [
     {
@@ -115,31 +154,35 @@ export default async function DevicesPage({
           ) : undefined
         }
       />
-      <SectionCard
-        title="O que precisa de atenção agora"
-        subtitle={
-          attention.length === 0
-            ? 'Nenhum ponto crítico identificado.'
-            : undefined
-        }
-        className="attention-card"
-      >
-        {attention.length === 0 ? (
-          <p className="section-empty">
-            Toda a frota monitorada está saudável no momento.
-          </p>
-        ) : (
-          <ul className="attention-list">
-            {attention.map((item) => (
-              <li key={item.key}>
-                <Link href={item.href}>
-                  <strong>{item.count}</strong> {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
+      {needsAttentionCount === 0 ? (
+        <div className="attention-strip attention-strip-ok">
+          ✓ Toda a frota monitorada está saudável no momento.
+        </div>
+      ) : (
+        <Link href="/dispositivos?connection=attention" className="attention-strip">
+          ⚠ <strong>{needsAttentionCount}</strong> dispositivo(s) precisam de
+          atenção agora
+        </Link>
+      )}
+      {attention.length > 0 && (
+        <details className="onboarding-banner" style={{ marginBottom: 14 }}>
+          <summary>
+            Detalhamento por tipo
+            <small>{attention.length} categoria(s)</small>
+          </summary>
+          <div className="onboarding-banner-body">
+            <ul className="attention-list">
+              {attention.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>
+                    <strong>{item.count}</strong> {item.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
+      )}
       <SectionCard>
         <form className="fleet-filters fleet-filters-wide">
           <label className="search-box">
@@ -202,6 +245,7 @@ export default async function DevicesPage({
                   <th>Veículo</th>
                   <th>Motorista</th>
                   <th>Conexão</th>
+                  <th>Reproduzindo</th>
                   <th>Estado do player</th>
                   <th>Bateria</th>
                   <th>Rede / GPS</th>
@@ -226,6 +270,7 @@ export default async function DevicesPage({
                       />
                       {device.archived_at && <StatusBadge value="Arquivado" />}
                     </td>
+                    <td>{playingLabel(device, campaignNames)}</td>
                     <td>
                       {device.player_state ? (
                         <PlayerStateBadge

@@ -36,7 +36,7 @@ export default function SettingsPage() {
         </SectionCard>
         <SectionCard
           title="Operação do player"
-          subtitle="Padrões definidos para o futuro aplicativo Android"
+          subtitle="Padrões operacionais do aplicativo Android do piloto"
         >
           <div className="settings-list">
             <div>

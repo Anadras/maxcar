@@ -45,7 +45,7 @@ export async function createDriver(formData: FormData) {
       messageUrl('/motoristas/novo', 'error', friendlyDatabaseError(error)),
     );
   revalidatePath('/motoristas');
-  redirect(messageUrl(`/motoristas/${data.id}`, 'success', 'Piloto criado.'));
+  redirect(messageUrl(`/motoristas/${data.id}`, 'success', 'Motorista criado.'));
 }
 
 export async function updateDriver(id: string, formData: FormData) {
@@ -84,5 +84,5 @@ export async function updateDriver(id: string, formData: FormData) {
     );
   revalidatePath('/motoristas');
   revalidatePath('/veiculos');
-  redirect(messageUrl(`/motoristas/${id}`, 'success', 'Piloto atualizado.'));
+  redirect(messageUrl(`/motoristas/${id}`, 'success', 'Motorista atualizado.'));
 }

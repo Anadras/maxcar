@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
@@ -22,6 +23,12 @@ export default async function ClientsPage({
 }) {
   const params = await searchParams;
   const clients = await listAdvertisers(params.q, params.status);
+  // Visually separate active clients from inactive/suspended ones (often
+  // pilot test data, e.g. "Recovery Test") rather than interleaving them
+  // alphabetically — no archiving, just ordering + a dimmed row style.
+  const activeClients = clients.filter((client) => client.status === 'active');
+  const otherClients = clients.filter((client) => client.status !== 'active');
+  const orderedClients = params.status ? clients : [...activeClients, ...otherClients];
   return (
     <div className="page">
       <FlashMessage success={params.success} error={params.error} />
@@ -88,21 +95,35 @@ export default async function ClientsPage({
                 </tr>
               </thead>
               <tbody>
-                {clients.map((client) => (
-                  <tr key={client.id}>
-                    <td>
-                      <strong>{client.trade_name}</strong>
-                    </td>
-                    <td>{client.establishment_count}</td>
-                    <td>{client.active_campaign_count}</td>
-                    <td>{client.campaign_count}</td>
-                    <td>
-                      <StatusBadge value={STATUS_LABEL[client.status]} />
-                    </td>
-                    <td>
-                      <Link href={`/clientes/${client.id}`}>Abrir</Link>
-                    </td>
-                  </tr>
+                {orderedClients.map((client, index) => (
+                  <Fragment key={client.id}>
+                    {!params.status &&
+                      index === activeClients.length &&
+                      otherClients.length > 0 && (
+                        <tr className="table-group-row" key="inactive-divider">
+                          <td colSpan={6}>
+                            Inativos e suspensos ({otherClients.length})
+                          </td>
+                        </tr>
+                      )}
+                    <tr
+                      key={client.id}
+                      className={client.status !== 'active' ? 'row-muted' : undefined}
+                    >
+                      <td>
+                        <strong>{client.trade_name}</strong>
+                      </td>
+                      <td>{client.establishment_count}</td>
+                      <td>{client.active_campaign_count}</td>
+                      <td>{client.campaign_count}</td>
+                      <td>
+                        <StatusBadge value={STATUS_LABEL[client.status]} />
+                      </td>
+                      <td>
+                        <Link href={`/clientes/${client.id}`}>Abrir</Link>
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

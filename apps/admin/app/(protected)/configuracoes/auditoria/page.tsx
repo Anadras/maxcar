@@ -4,25 +4,7 @@ import { EmptyState } from '@/components/empty-state';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { getAuthContext } from '@/lib/auth/context';
 import { listAuditActors, listAuditEvents } from '@/lib/data/audit-events';
-
-const ENTITY_LABELS: Record<string, string> = {
-  advertiser: 'Cliente',
-  establishment: 'Unidade',
-  campaign: 'Campanha',
-  driver: 'Piloto',
-  vehicle: 'Veículo',
-  device: 'Tablet',
-};
-
-const ACTION_LABELS: Record<string, string> = {
-  archive: 'Arquivamento',
-  restore: 'Restauração',
-  deactivate: 'Desativação',
-  reactivate: 'Reativação',
-  unlink: 'Desvínculo',
-  delete: 'Exclusão',
-  set_maintenance_pin: 'PIN de manutenção alterado',
-};
+import { AUDIT_ACTION_LABELS, AUDIT_ENTITY_LABELS } from '@/lib/audit-labels';
 
 export default async function AuditPage({
   searchParams,
@@ -77,7 +59,7 @@ export default async function AuditPage({
             aria-label="Filtrar por tipo"
           >
             <option value="">Todos os tipos</option>
-            {Object.entries(ENTITY_LABELS).map(([value, label]) => (
+            {Object.entries(AUDIT_ENTITY_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -89,7 +71,7 @@ export default async function AuditPage({
             aria-label="Filtrar por ação"
           >
             <option value="">Todas as ações</option>
-            {Object.entries(ACTION_LABELS).map(([value, label]) => (
+            {Object.entries(AUDIT_ACTION_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -138,13 +120,13 @@ export default async function AuditPage({
                         timeStyle: 'short',
                       }).format(new Date(event.created_at))}
                     </td>
-                    <td>
+                    <td title={event.action}>
                       <StatusBadge
-                        value={ACTION_LABELS[event.action] ?? event.action}
+                        value={AUDIT_ACTION_LABELS[event.action] ?? event.action}
                       />
                     </td>
                     <td>
-                      {ENTITY_LABELS[event.entity_type] ?? event.entity_type}
+                      {AUDIT_ENTITY_LABELS[event.entity_type] ?? event.entity_type}
                     </td>
                     <td>
                       <strong>{event.entity_label}</strong>

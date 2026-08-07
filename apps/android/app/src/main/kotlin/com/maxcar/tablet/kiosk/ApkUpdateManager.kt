@@ -52,6 +52,7 @@ class RealPackageInstallerGateway(private val context: Context) : PackageInstall
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
                 }
+                allowDowngrade()
             }
             val sessionId = installer.createSession(params)
             val session = installer.openSession(sessionId)
@@ -74,6 +75,32 @@ class RealPackageInstallerGateway(private val context: Context) : PackageInstall
                     it.commit(pendingIntent.intentSender)
                 }
             }
+        }
+    }
+
+    /** [PackageInstaller.SessionParams.setRequestDowngrade] is `@SystemApi`,
+     * not part of the public SDK, so it isn't resolvable at compile time —
+     * called via reflection instead, the standard approach Device Owner /
+     * MDM apps use for exactly this. Without it, [PackageInstaller] rejects
+     * any install with a lower versionCode than what's currently running
+     * (`INSTALL_FAILED_VERSION_DOWNGRADE`) — which [ApkRollback]'s restore
+     * of the previous, backed-up APK always is. Physically discovered on
+     * TESTE01: the rollback drill's install silently failed and retried
+     * under WorkManager backoff forever without this. Safe to call
+     * unconditionally: the only two callers of this gateway are
+     * [ApkUpdateManager.checkAndApply], which already refuses anything <=
+     * the currently running versionCode before ever reaching install(), and
+     * [ApkRollback], whose "new" APK is always this device's own
+     * sha256-verified backup, not attacker-controlled input. Failing
+     * silently (reflection unsupported on some future OS version) just
+     * reproduces today's downgrade-rejected behavior — no worse than before
+     * this existed.
+     */
+    private fun PackageInstaller.SessionParams.allowDowngrade() {
+        runCatching {
+            PackageInstaller.SessionParams::class.java
+                .getMethod("setRequestDowngrade", Boolean::class.javaPrimitiveType)
+                .invoke(this, true)
         }
     }
 }

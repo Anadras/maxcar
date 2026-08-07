@@ -73,6 +73,7 @@ fun PlayerScreen(
                 }
             }
             PlayerUiState.Empty -> NoContentScreen(preparationStatus)
+            is PlayerUiState.Fallback -> LocalFallbackScreen()
             PlayerUiState.Initializing -> Unit
         }
 
@@ -137,6 +138,23 @@ private fun NoContentScreen(status: MediaPreparationStatus) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "MAXCAR\n\n${status.passengerTitle}\n${status.passengerMessage}",
+            color = Color(0xFFEAF1FB),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/** MAX-014: shown while [PlayerViewModel]'s continuous-recovery loop is
+ * polling for playable content — entirely local (no network call, no
+ * dependency on any previously-downloaded creative, since a broken
+ * creative is exactly what can put the player here). Deliberately never
+ * says "erro" to a passenger glancing at the screen; this is a normal,
+ * self-healing state, not a fault report. */
+@Composable
+private fun LocalFallbackScreen() {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(
+            text = "MAXCAR",
             color = Color(0xFFEAF1FB),
             textAlign = TextAlign.Center,
         )

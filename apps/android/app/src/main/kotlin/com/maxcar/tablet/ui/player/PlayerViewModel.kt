@@ -58,6 +58,10 @@ class PlayerViewModel(
     private val geoEngine: GeoEngine,
     private val restartSignal: SharedFlow<Unit>,
     private val mediaQuarantineDao: MediaQuarantineDao,
+    // Overridable so tests can exercise the continuous-recovery loop
+    // without waiting on the real interval — production code always uses
+    // the default (see [Factory], which never passes this explicitly).
+    private val recoveryRetryIntervalMs: Long = RECOVERY_RETRY_INTERVAL_MS,
 ) : ViewModel() {
 
     // Muted by default (item 48): advertising inside a private vehicle
@@ -118,6 +122,11 @@ class PlayerViewModel(
 
     private var tapCount = 0
     private var lastTapAt = 0L
+
+    // MAX-014: the continuous-recovery loop started once every item in the
+    // grade has failed in the same cycle — see [enterFallback]. Null
+    // whenever the player isn't currently stuck.
+    private var recoveryJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -294,6 +303,8 @@ class PlayerViewModel(
      * the general "start clean" primitive a future maintenance-mode exit
      * (MAX-010) can reuse. */
     private fun restart() {
+        recoveryJob?.cancel()
+        recoveryJob = null
         cancelWatchdogs()
         playingGeoItem = null
         pendingGeoCooldownStart = null
@@ -364,6 +375,12 @@ class PlayerViewModel(
     }
 
     private fun playItem(item: PlaylistItemEntity, positionInQueue: Int, queueSize: Int) {
+        // MAX-014: any real play attempt means we're no longer stuck —
+        // auto-exits the continuous-recovery loop (see [enterFallback])
+        // exactly as reliably as entering it, no separate "am I recovered
+        // now" check needed.
+        recoveryJob?.cancel()
+        recoveryJob = null
         cancelWatchdogs()
         playToken++
         val token = playToken
@@ -588,8 +605,7 @@ class PlayerViewModel(
 
     private fun advance() {
         if (consecutiveFailures >= queue.size && queue.isNotEmpty()) {
-            _uiState.value = PlayerUiState.Empty
-            reportStatus(PlaybackState.NO_READY_MEDIA, null, null, "all_items_failed")
+            enterFallback("all_items_failed")
             return
         }
         index++
@@ -601,11 +617,55 @@ class PlayerViewModel(
                 consecutiveFailures = 0
             }
             if (queue.isEmpty()) {
-                _uiState.value = PlayerUiState.Empty
-                reportStatus(PlaybackState.NO_READY_MEDIA, null, null, "empty_playlist")
+                enterFallback("empty_playlist")
                 return
             }
         }
+        playCurrent()
+    }
+
+    /**
+     * MAX-014: replaces the old permanent give-up — a real pilot incident
+     * (TESTE01, 2026-08-06) showed a small grade where every item failed
+     * at least once tripping [advance]'s old "give up" branch and leaving
+     * the tablet dark with no way back except a remote restart_player
+     * command or a manual `adb`/app restart. Neither a quarantine window
+     * elapsing nor a fresh manifest syncing in the background writes
+     * anything Room would treat as "changed" for an *already-failed* item,
+     * so nothing would ever have woken the old code back up on its own.
+     *
+     * This starts (if not already running) a timer that keeps re-checking
+     * [MediaDownloadManager.currentlyReadyItems] — a fresh, time-aware
+     * query, not the cached [queue] — until something is playable again,
+     * then resumes automatically. [PlayerUiState.Fallback] is shown
+     * locally the whole time: no network dependency, no reliance on any
+     * previously-downloaded (and possibly exactly what's broken) creative.
+     */
+    private fun enterFallback(reason: String) {
+        _uiState.value = PlayerUiState.Fallback(reason)
+        reportStatus(PlaybackState.NO_READY_MEDIA, null, null, reason)
+        if (recoveryJob?.isActive == true) return
+        recoveryJob = viewModelScope.launch {
+            while (true) {
+                delay(recoveryRetryIntervalMs)
+                attemptRecovery()
+            }
+        }
+    }
+
+    /** One recovery poll: if anything is genuinely playable right now,
+     * adopt it as the new grade and resume — [playItem] (called via
+     * [playCurrent]) cancels this same loop the moment it runs, so a
+     * successful recovery is also always the last iteration. Finding
+     * nothing is not an error, just "still waiting" — the loop simply
+     * continues to its next scheduled check. */
+    private suspend fun attemptRecovery() {
+        val candidates = mediaDownloadManager.currentlyReadyItems()
+        if (candidates.isEmpty()) return
+        pendingQueue = null
+        queue = candidates
+        index = 0
+        consecutiveFailures = 0
         playCurrent()
     }
 
@@ -619,6 +679,7 @@ class PlayerViewModel(
     }
 
     override fun onCleared() {
+        recoveryJob?.cancel()
         cancelWatchdogs()
         exoPlayer.release()
         super.onCleared()
@@ -663,6 +724,13 @@ class PlayerViewModel(
         // ever raising an error — declared duration plus a short grace
         // window for normal EOS handling latency.
         const val DURATION_GRACE_MS = 5_000L
+
+        // MAX-014: how often the continuous-recovery loop re-checks for
+        // playable content once the whole grade has failed. Frequent
+        // enough that a quarantine expiring or a fresh sync arriving is
+        // noticed promptly; infrequent enough not to matter for battery/
+        // CPU on a kiosk tablet sitting dark anyway.
+        const val RECOVERY_RETRY_INTERVAL_MS = 30_000L
     }
 }
 

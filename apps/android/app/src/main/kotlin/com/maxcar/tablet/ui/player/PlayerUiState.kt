@@ -13,9 +13,18 @@ sealed class PlayerUiState {
     /** Room hasn't reported its first snapshot yet. */
     data object Initializing : PlayerUiState()
 
-    /** No READY item exists — nothing has synced yet, everything failed,
-     * or the grade is genuinely empty. */
+    /** Nothing has ever synced, or the grade is genuinely empty — there is
+     * no content to be "recovering" from. */
     data object Empty : PlayerUiState()
+
+    /** MAX-014: every item in the grade just failed in the same cycle
+     * (consecutiveFailures reached queue size) — content exists but none
+     * of it is currently playable. Distinct from [Empty] so the operator
+     * and the on-screen fallback can say "recovering", not "waiting for a
+     * first sync" — and so [PlayerViewModel]'s continuous-recovery loop
+     * knows to keep polling instead of just sitting idle forever the way
+     * the original queue-exhaustion bug did. */
+    data class Fallback(val reason: String) : PlayerUiState()
 
     data class Playing(
         val item: PlaylistItemEntity,

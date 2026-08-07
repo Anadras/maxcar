@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.StatFs
 import com.maxcar.tablet.data.local.AppPreferences
 import com.maxcar.tablet.data.local.MediaQuarantineDao
+import com.maxcar.tablet.data.local.MediaQuarantineEntity
 import com.maxcar.tablet.data.local.PlaylistItemDao
 import com.maxcar.tablet.data.local.PlaylistItemEntity
 import com.maxcar.tablet.data.remote.DeviceApiClient
@@ -59,14 +60,35 @@ class MediaDownloadManager(
             playlistItemDao.observeReady(),
             appPreferences.clockSkewSeconds,
             mediaQuarantineDao.observeAll(),
-        ) { items, skewSeconds, quarantined ->
-            val clockIsTrustworthy = skewSeconds == null || abs(skewSeconds) < SEVERE_CLOCK_SKEW_SECONDS
-            val now = System.currentTimeMillis()
-            val quarantinedIds = quarantined.filter { it.isActive(now) }.map { it.creativeId }.toSet()
-            items
-                .filter { clockIsTrustworthy.not() || it.isCurrentlyValid(now) }
-                .filter { it.creativeId !in quarantinedIds }
-        }
+        ) { items, skewSeconds, quarantined -> filterReady(items, skewSeconds, quarantined) }
+
+    private fun filterReady(
+        items: List<PlaylistItemEntity>,
+        skewSeconds: Int?,
+        quarantined: List<MediaQuarantineEntity>,
+    ): List<PlaylistItemEntity> {
+        val clockIsTrustworthy = skewSeconds == null || abs(skewSeconds) < SEVERE_CLOCK_SKEW_SECONDS
+        val now = System.currentTimeMillis()
+        val quarantinedIds = quarantined.filter { it.isActive(now) }.map { it.creativeId }.toSet()
+        return items
+            .filter { clockIsTrustworthy.not() || it.isCurrentlyValid(now) }
+            .filter { it.creativeId !in quarantinedIds }
+    }
+
+    /** One-shot, time-fresh re-evaluation of what's playable right now —
+     * unlike [readyPlaylist] (a hot Flow that only re-emits when the
+     * underlying Room tables actually change), this is safe to call from a
+     * polling loop that needs to notice a purely time-based change, like a
+     * quarantine window elapsing or a campaign's daily window opening,
+     * neither of which writes to any table on its own. Used by
+     * [com.maxcar.tablet.ui.player.PlayerViewModel]'s continuous-recovery
+     * loop after every item in the grade has failed. */
+    suspend fun currentlyReadyItems(): List<PlaylistItemEntity> {
+        val items = playlistItemDao.getReadyOnce()
+        val skewSeconds = appPreferences.clockSkewSnapshot()
+        val quarantined = mediaQuarantineDao.getAllOnce()
+        return filterReady(items, skewSeconds, quarantined)
+    }
 
     /** How many of the currently-synced creatives are sitting out a
      * quarantine window right now — surfaced on the heartbeat (MAX-012

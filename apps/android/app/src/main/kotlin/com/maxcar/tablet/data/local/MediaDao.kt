@@ -22,6 +22,16 @@ interface PlaylistItemDao {
     )
     fun observeReady(): Flow<List<PlaylistItemEntity>>
 
+    /** One-shot equivalent of [observeReady] — for a caller that needs a
+     * fresh read right now (the recovery loop in PlayerViewModel) rather
+     * than waiting on the next Room write to this table, which a purely
+     * time-based change (a campaign's daily window opening, a quarantine
+     * expiring) never triggers on its own. */
+    @Query(
+        "SELECT * FROM playlist_items WHERE downloadStatus = '${PlaylistItemEntity.STATUS_READY}' ORDER BY position ASC",
+    )
+    suspend fun getReadyOnce(): List<PlaylistItemEntity>
+
     @Query("SELECT * FROM playlist_items ORDER BY position ASC")
     suspend fun getAll(): List<PlaylistItemEntity>
 

@@ -20,6 +20,12 @@ interface MediaQuarantineDao {
     @Query("SELECT * FROM media_quarantine")
     fun observeAll(): Flow<List<MediaQuarantineEntity>>
 
+    /** One-shot equivalent of [observeAll] — see
+     * [PlaylistItemDao.getReadyOnce] for why a purely time-based recheck
+     * needs this instead of the reactive Flow. */
+    @Query("SELECT * FROM media_quarantine")
+    suspend fun getAllOnce(): List<MediaQuarantineEntity>
+
     @Query("SELECT COUNT(*) FROM media_quarantine WHERE quarantinedUntilMillis IS NOT NULL AND quarantinedUntilMillis > :nowMillis")
     suspend fun countActive(nowMillis: Long): Int
 

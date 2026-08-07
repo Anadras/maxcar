@@ -170,6 +170,7 @@ class SyncCoordinatorTest {
             kioskLevelDetector = KioskLevelDetector(context),
             telemetryProvider = { DeviceTelemetry(batteryLevel = 90, networkType = "wifi", storageFreeBytes = 5_000_000_000L) },
             apkUpdateManager = apkUpdateManager,
+            remoteConfigDao = db.remoteConfigDao(),
         )
     }
 

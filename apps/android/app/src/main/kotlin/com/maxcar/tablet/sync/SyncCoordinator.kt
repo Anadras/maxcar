@@ -2,6 +2,7 @@ package com.maxcar.tablet.sync
 
 import com.maxcar.tablet.data.local.AppPreferences
 import com.maxcar.tablet.data.local.PlaybackState
+import com.maxcar.tablet.data.local.RemoteConfigDao
 import com.maxcar.tablet.data.repository.DeviceRepository
 import com.maxcar.tablet.data.repository.GeoRepository
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
@@ -67,6 +68,10 @@ class SyncCoordinator(
     private val kioskLevelDetector: KioskLevelDetector,
     private val telemetryProvider: () -> DeviceTelemetry,
     private val apkUpdateManager: ApkUpdateManager,
+    // MAX-019: read only to explain an already-independently-detected
+    // kiosk state (see KioskLevelDetector's class doc) — never anything
+    // this coordinator decides or acts on.
+    private val remoteConfigDao: RemoteConfigDao,
 ) {
     // MAX-011 Bloco B added a second, short-interval trigger
     // (ForegroundSyncLoop's 30s ticker + its ConnectivityManager callback)
@@ -123,6 +128,21 @@ class SyncCoordinator(
         val geoStatus = geoEngine.status.value
         val pendingCount = deviceRepository.pendingEventCount() + geoRepository.pendingEventCount()
 
+        // MAX-019: the same "does the player have a queued item it's
+        // actively presenting" signal IMMERSIVE_PLAYER_STATES already
+        // captures doubles as this coordinator's best-effort mirror of
+        // MainActivity's hasReadyContent — see KioskLevelDetector's class
+        // doc for why this is explanatory only, never authoritative.
+        val hasReadyContent = playerStatus.state in IMMERSIVE_PLAYER_STATES
+        val kioskSuspendedUntil = appPreferences.kioskSuspendedUntilSnapshot()
+        val kioskSuspended = kioskSuspendedUntil != null && System.currentTimeMillis() < kioskSuspendedUntil
+        val kioskEnabled = remoteConfigDao.get()?.kioskEnabled ?: false
+        val kioskStatus = kioskLevelDetector.currentStatus(
+            hasReadyContent = hasReadyContent,
+            kioskEnabled = kioskEnabled,
+            kioskSuspended = kioskSuspended,
+        )
+
         val heartbeatResult = deviceRepository.sendHeartbeat(
             batteryLevel = telemetry.batteryLevel,
             networkType = telemetry.networkType,
@@ -146,10 +166,9 @@ class SyncCoordinator(
                 playerStatus.state, telemetry, appPreferences.diagnosticsOpenSnapshot(),
             ),
             pendingEventCount = pendingCount,
-            kioskLevel = kioskLevelDetector.currentLevel(
-                immersiveActive = playerStatus.state in IMMERSIVE_PLAYER_STATES,
-            ).toWireValue(),
+            kioskLevel = kioskStatus.level.toWireValue(),
             quarantinedMediaCount = mediaDownloadManager.quarantinedMediaCount(),
+            kioskReason = kioskStatus.reason?.toWireValue(),
         )
         // MAX-011 physical finding (TESTE01, 2026-08-05): a heartbeat can
         // fail with a genuine server error for a reason only a *fresh

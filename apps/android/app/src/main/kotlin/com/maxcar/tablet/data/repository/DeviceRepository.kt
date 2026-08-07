@@ -223,6 +223,7 @@ class DeviceRepository(
         pendingEventCount: Int? = null,
         kioskLevel: String? = null,
         quarantinedMediaCount: Int? = null,
+        kioskReason: String? = null,
     ): Result<Unit> {
         val sentAtMillis = System.currentTimeMillis()
         val clockSkewSeconds = appPreferences.clockSkewSnapshot()
@@ -258,6 +259,7 @@ class DeviceRepository(
                         clockSkewSeconds = clockSkewSeconds,
                         kioskLevel = kioskLevel,
                         quarantinedMediaCount = quarantinedMediaCount,
+                        kioskReason = kioskReason,
                     ),
                 )
             }

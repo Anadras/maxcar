@@ -102,6 +102,9 @@ data class HeartbeatRequest(
     // watchdog-triggered quarantine — same additive rule as every field
     // above.
     val quarantinedMediaCount: Int? = null,
+    // MAX-019: further detail behind kioskLevel = "device_owner_unlocked",
+    // same additive rule as every field above.
+    val kioskReason: String? = null,
 )
 
 @Serializable

@@ -135,5 +135,6 @@ class AppContainer(context: Context) {
         kioskLevelDetector = kioskLevelDetector,
         telemetryProvider = { DeviceTelemetry.collect(appContext) },
         apkUpdateManager = apkUpdateManager,
+        remoteConfigDao = database.remoteConfigDao(),
     )
 }

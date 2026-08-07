@@ -49,6 +49,9 @@ interface HeartbeatBody {
   // How many synced creatives are currently quarantined by the player's
   // own watchdog, optional and additive (MAX-012).
   quarantinedMediaCount?: number;
+  // Further detail behind kioskLevel = 'device_owner_unlocked', optional
+  // and additive (MAX-019).
+  kioskReason?: string;
 }
 
 Deno.serve(async (req) => {
@@ -108,6 +111,7 @@ Deno.serve(async (req) => {
       p_clock_skew_seconds: body.clockSkewSeconds ?? null,
       p_kiosk_level: body.kioskLevel ?? null,
       p_quarantined_media_count: body.quarantinedMediaCount ?? null,
+      p_kiosk_reason: body.kioskReason ?? null,
     })
     .single();
 

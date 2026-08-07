@@ -803,6 +803,7 @@ export type Database = {
           gps_available: boolean
           id: string
           kiosk_level: string | null
+          kiosk_reason: string | null
           last_error: string | null
           last_geo_campaign_id: string | null
           last_geofence_entry_at: string | null
@@ -832,6 +833,7 @@ export type Database = {
           gps_available: boolean
           id?: string
           kiosk_level?: string | null
+          kiosk_reason?: string | null
           last_error?: string | null
           last_geo_campaign_id?: string | null
           last_geofence_entry_at?: string | null
@@ -861,6 +863,7 @@ export type Database = {
           gps_available?: boolean
           id?: string
           kiosk_level?: string | null
+          kiosk_reason?: string | null
           last_error?: string | null
           last_geo_campaign_id?: string | null
           last_geofence_entry_at?: string | null
@@ -1163,6 +1166,7 @@ export type Database = {
           created_at: string
           device_code: string
           id: string
+          last_confirmed_frame_at: string | null
           last_seen_at: string | null
           last_sync_at: string | null
           maintenance_pin_hash: string | null
@@ -1179,6 +1183,7 @@ export type Database = {
           created_at?: string
           device_code: string
           id?: string
+          last_confirmed_frame_at?: string | null
           last_seen_at?: string | null
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
@@ -1195,6 +1200,7 @@ export type Database = {
           created_at?: string
           device_code?: string
           id?: string
+          last_confirmed_frame_at?: string | null
           last_seen_at?: string | null
           last_sync_at?: string | null
           maintenance_pin_hash?: string | null
@@ -2721,6 +2727,7 @@ export type Database = {
           p_device_time?: string
           p_gps_available?: boolean
           p_kiosk_level?: string
+          p_kiosk_reason?: string
           p_last_error?: string
           p_last_geo_campaign_id?: string
           p_last_geofence_entry_at?: string

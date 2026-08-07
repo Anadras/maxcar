@@ -67,6 +67,32 @@ export function StatusBadge({ value }: { value: string }) {
   return <span className={`badge badge-${tone}`}>{value}</span>;
 }
 
+// MAX-014: player_state has its own explicit tone map rather than
+// StatusBadge's substring heuristic — "Sem mídia pronta" would otherwise
+// match StatusBadge's "sem " → danger rule and read as a hard failure,
+// when no_ready_media is actually a self-healing state the tablet's own
+// continuous-recovery loop clears on its own.
+const PLAYER_STATE_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
+  preparing: 'warning',
+  buffering: 'warning',
+  playing_confirmed: 'success',
+  stalled: 'danger',
+  recovering: 'warning',
+  media_error: 'danger',
+  no_ready_media: 'warning',
+};
+
+export function PlayerStateBadge({
+  playerState,
+  label,
+}: {
+  playerState: string;
+  label: string;
+}) {
+  const tone = PLAYER_STATE_TONE[playerState] ?? 'warning';
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
 export function MetricCard({
   label,
   value,

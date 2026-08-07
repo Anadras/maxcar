@@ -1,12 +1,21 @@
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { FlashMessage } from '@/components/flash-message';
-import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import {
+  PageHeader,
+  PlayerStateBadge,
+  SectionCard,
+  StatusBadge,
+} from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listDevices } from '@/lib/data/devices';
 import { listVehicles } from '@/lib/data/vehicles';
-import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
+import {
+  CONNECTION_LABEL,
+  PLAYER_STATE_LABEL,
+  formatRelativeTime,
+} from '@/lib/fleet';
 
 const LOW_BATTERY_THRESHOLD = 20;
 
@@ -18,6 +27,7 @@ export default async function DevicesPage({
     connection?: string;
     link?: string;
     archived?: string;
+    playerState?: string;
     success?: string;
     error?: string;
   }>;
@@ -28,7 +38,13 @@ export default async function DevicesPage({
       ? params.archived
       : 'active';
   const [devices, allDevices, activeVehicles, auth] = await Promise.all([
-    listDevices(params.q, params.connection, params.link, archived),
+    listDevices(
+      params.q,
+      params.connection,
+      params.link,
+      archived,
+      params.playerState,
+    ),
     listDevices(),
     listVehicles('', 'active'),
     getAuthContext(),
@@ -63,6 +79,18 @@ export default async function DevicesPage({
       count: allDevices.filter((d) => d.vehicle_id === null).length,
       label: 'sem veículo vinculado',
       href: '/dispositivos?link=unlinked',
+    },
+    {
+      // MAX-014: a device stuck here isn't broken — its own continuous-
+      // recovery loop keeps retrying every 30s — but it's dark for
+      // passengers right now and worth surfacing distinctly from a
+      // connectivity or battery problem, which is all the buckets above
+      // this one cover.
+      key: 'stuck',
+      count: allDevices.filter((d) => d.player_state === 'no_ready_media')
+        .length,
+      label: 'sem mídia elegível agora (recuperação automática em curso)',
+      href: '/dispositivos?playerState=no_ready_media',
     },
     {
       key: 'vehicle-without-device',
@@ -174,6 +202,7 @@ export default async function DevicesPage({
                   <th>Veículo</th>
                   <th>Motorista</th>
                   <th>Conexão</th>
+                  <th>Estado do player</th>
                   <th>Bateria</th>
                   <th>Rede / GPS</th>
                   <th>Último contato</th>
@@ -196,6 +225,19 @@ export default async function DevicesPage({
                         value={CONNECTION_LABEL[device.connection_status]}
                       />
                       {device.archived_at && <StatusBadge value="Arquivado" />}
+                    </td>
+                    <td>
+                      {device.player_state ? (
+                        <PlayerStateBadge
+                          playerState={device.player_state}
+                          label={
+                            PLAYER_STATE_LABEL[device.player_state] ??
+                            device.player_state
+                          }
+                        />
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td>
                       {device.battery_level === null

@@ -99,6 +99,7 @@ export async function listDevices(
   connection = '',
   link = '',
   archived: 'active' | 'archived' | 'all' = 'active',
+  playerState = '',
 ) {
   const devices = await getDevicesWithLatestHeartbeats();
   const term = search.trim().toLowerCase();
@@ -115,7 +116,8 @@ export async function listDevices(
       (link !== 'linked' || device.vehicle_id !== null) &&
       (link !== 'unlinked' || device.vehicle_id === null) &&
       (archived !== 'active' || device.archived_at === null) &&
-      (archived !== 'archived' || device.archived_at !== null),
+      (archived !== 'archived' || device.archived_at !== null) &&
+      (!playerState || device.player_state === playerState),
   );
 }
 

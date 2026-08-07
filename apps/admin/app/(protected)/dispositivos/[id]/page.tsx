@@ -26,7 +26,12 @@ import { DeviceKeyIdentityPanel } from '@/components/device-key-identity-panel';
 import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { MaintenanceTempCodeForm } from '@/components/maintenance-temp-code-form';
-import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import {
+  PageHeader,
+  PlayerStateBadge,
+  SectionCard,
+  StatusBadge,
+} from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import {
@@ -37,6 +42,7 @@ import {
 } from '@/lib/data/devices';
 import {
   CONNECTION_LABEL,
+  PLAYER_STATE_LABEL,
   formatDateTime,
   formatRelativeTime,
 } from '@/lib/fleet';
@@ -68,19 +74,6 @@ const OPERATIONAL_STATUS_LABEL: Record<string, string> = {
   media_error: 'Erro de mídia',
   error: 'Erro',
   maintenance: 'Manutenção',
-};
-
-// MAX-012 item 14: the raw player_state the Android app now reports is a
-// richer vocabulary than the old "playing"/"empty" pair (see
-// docs/architecture/ANDROID_PLAYER_WATCHDOG.md) — never shown unlabeled.
-const PLAYER_STATE_LABEL: Record<string, string> = {
-  preparing: 'Preparando',
-  buffering: 'Carregando (buffering)',
-  playing_confirmed: 'Reproduzindo (frame confirmado)',
-  stalled: 'Travado — watchdog detectou',
-  recovering: 'Recuperando',
-  media_error: 'Erro de mídia',
-  no_ready_media: 'Sem mídia pronta',
 };
 
 const COMMAND_LABEL: Record<DeviceCommandType, string> = {
@@ -167,9 +160,9 @@ function playbackDiagnosis(device: {
   if (device.player_state === 'no_ready_media') {
     return {
       tone: 'attention',
-      title: 'Conteúdo pronto no tablet, mas nada elegível para tocar agora',
+      title: 'Nada elegível para tocar agora — o tablet está tentando se recuperar sozinho',
       message:
-        'Pode ser fora do horário/dia programado, ou toda a mídia disponível está em quarentena — veja "Mídias em quarentena" abaixo.',
+        'O app tenta automaticamente a cada 30s (uma quarentena expirando, uma nova sincronização, ou o horário/dia programado abrindo). Pode ser fora do horário/dia programado, ou toda a mídia disponível está em quarentena — veja "Mídias em quarentena" abaixo. Se persistir por muito tempo, verifique o conteúdo publicado.',
     };
   }
   if (device.player_state !== 'playing_confirmed') {
@@ -394,8 +387,9 @@ export default async function DeviceDetailPage({
               <dt>Estado</dt>
               <dd>
                 {device.player_state ? (
-                  <StatusBadge
-                    value={
+                  <PlayerStateBadge
+                    playerState={device.player_state}
+                    label={
                       PLAYER_STATE_LABEL[device.player_state] ??
                       device.player_state
                     }

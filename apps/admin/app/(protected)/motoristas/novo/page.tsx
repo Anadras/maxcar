@@ -19,7 +19,7 @@ export default async function NewDriverPage({
       <FlashMessage error={params.error} />
       <PageHeader
         eyebrow="OPERAÇÃO DE FROTA"
-        title="Novo piloto"
+        title="Novo motorista"
         description="Cadastre a pessoa; depois você poderá adicionar veículo e tablet na mesma central."
       />
       <SectionCard>

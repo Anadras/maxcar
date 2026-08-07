@@ -39,12 +39,12 @@ export default async function DriversPage({
       <FlashMessage success={params.success} error={params.error} />
       <PageHeader
         eyebrow="OPERAÇÃO DE FROTA"
-        title="Pilotos"
-        description="Abra um piloto para cuidar do motorista, veículo e tablet em um só lugar."
+        title="Motoristas"
+        description="Abra um motorista para ver veículo e tablet vinculados em um só lugar."
         action={
           canWrite ? (
             <Link className="button button-primary" href="/motoristas/novo">
-              ＋ Novo piloto
+              ＋ Novo motorista
             </Link>
           ) : undefined
         }
@@ -85,11 +85,11 @@ export default async function DriversPage({
         </form>
         {drivers.length === 0 ? (
           <EmptyState
-            title="Nenhum piloto encontrado"
-            description="Ajuste os filtros ou cadastre o primeiro piloto."
+            title="Nenhum motorista encontrado"
+            description="Ajuste os filtros ou cadastre o primeiro motorista."
             action={
               canWrite
-                ? { href: '/motoristas/novo', label: 'Criar piloto' }
+                ? { href: '/motoristas/novo', label: 'Criar motorista' }
                 : undefined
             }
           />
@@ -98,7 +98,7 @@ export default async function DriversPage({
             <table>
               <thead>
                 <tr>
-                  <th>Piloto</th>
+                  <th>Motorista</th>
                   <th>Veículo</th>
                   <th>Tablet</th>
                   <th>Status</th>

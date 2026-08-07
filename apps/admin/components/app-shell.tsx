@@ -16,7 +16,7 @@ interface NavItem {
 
 // Direct, one-click access to every operational module (MAX-011 Bloco E):
 // no module the day-to-day operator needs lives more than one click away,
-// behind a hub concept ("Clientes"/"Pilotos") or a submenu. Establishments
+// behind a hub concept ("Clientes"/"Motoristas") or a submenu. Establishments
 // and geofences remain reachable from inside a client/campaign when that's
 // contextually useful, but also get their own direct entry here — see
 // AGENTS.md and docs/product/PILOT_INFORMATION_ARCHITECTURE.md for why the
@@ -62,6 +62,12 @@ const primaryNav: NavItem[] = [
 ];
 
 const operationsNav: NavItem[] = [
+  {
+    label: 'Ao vivo',
+    href: '/ao-vivo',
+    icon: '●',
+    roles: ['super_admin', 'admin', 'operations'],
+  },
   { label: 'Relatórios', href: '/relatorios', icon: '▥' },
   {
     label: 'Auditoria',

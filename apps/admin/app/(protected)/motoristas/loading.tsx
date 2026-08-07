@@ -1,3 +1,3 @@
 export default function Loading() {
-  return <div className="page loading-state">Carregando pilotos…</div>;
+  return <div className="page loading-state">Carregando motoristas…</div>;
 }

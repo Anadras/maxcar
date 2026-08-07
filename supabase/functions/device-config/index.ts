@@ -16,6 +16,11 @@ import { resolveDeviceApiToken } from '../_shared/device-signature.ts';
 
 const FUNCTION_PATH = '/device-config';
 
+// Same rationale as device-manifest's DOWNLOAD_URL_TTL_SECONDS: long
+// enough to survive a slow download started right after this response,
+// short enough to never be treated as a reusable credential.
+const DOWNLOAD_URL_TTL_SECONDS = 1800;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return preflightResponse();
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -41,6 +46,20 @@ Deno.serve(async (req) => {
 
   if (error) return errorResponse(error);
 
+  // MAX-014: a signed URL, same rule as device-manifest's creative
+  // downloads — the storage path itself is never handed to the device,
+  // only a short-lived signed URL that can't be re-shared as a standing
+  // credential. Undefined for both fields when no release is currently
+  // active for this device's channel (never sent as null vs. omitted
+  // inconsistently — omission itself means "nothing to offer").
+  let latestApkDownloadUrl: string | null = null;
+  if (data.latest_apk_storage_path) {
+    const { data: signed } = await supabase.storage
+      .from('app-releases')
+      .createSignedUrl(data.latest_apk_storage_path, DOWNLOAD_URL_TTL_SECONDS);
+    latestApkDownloadUrl = signed?.signedUrl ?? null;
+  }
+
   return jsonResponse({
     deviceId: data.device_id,
     deviceCode: data.device_code,
@@ -63,5 +82,14 @@ Deno.serve(async (req) => {
     // (RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS) rather than
     // the server needing to bake one in for every device row.
     maintenanceTimeoutSeconds: data.maintenance_timeout_seconds,
+    // MAX-014: present only when an active release exists for this
+    // device's channel — the app compares latestApkVersionCode against
+    // its own BuildConfig.VERSION_CODE and only acts when it's genuinely
+    // newer, never on equal or older.
+    latestApkVersionCode: data.latest_apk_version_code,
+    latestApkVersionName: data.latest_apk_version_name,
+    latestApkSha256: data.latest_apk_sha256,
+    latestApkSizeBytes: data.latest_apk_size_bytes,
+    latestApkDownloadUrl,
   });
 });

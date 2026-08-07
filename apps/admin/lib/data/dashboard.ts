@@ -1,6 +1,15 @@
 import 'server-only';
 import { listDevices } from '@/lib/data/devices';
 import { createClient } from '@/lib/supabase/server';
+import { humanizeAuditAction } from '@/lib/audit-labels';
+
+export interface RecentActivityItem {
+  id: string;
+  kind: 'audit' | 'geo';
+  label: string;
+  detail: string | null;
+  occurredAt: string;
+}
 
 export async function getDashboardCounts() {
   const supabase = await createClient();
@@ -15,6 +24,8 @@ export async function getDashboardCounts() {
     { count: creatives, error: creativesError },
     { count: programmedCampaigns, error: playlistError },
     fleet,
+    { data: recentAudit },
+    { data: recentGeo },
   ] = await Promise.all([
     supabase.from('advertisers').select('*', { count: 'exact', head: true }),
     supabase.from('establishments').select('*', { count: 'exact', head: true }),
@@ -44,6 +55,17 @@ export async function getDashboardCounts() {
       .select('*', { count: 'exact', head: true })
       .eq('active', true),
     listDevices(),
+    supabase
+      .from('audit_events')
+      .select('id, action, entity_type, entity_label, created_at')
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('geofence_events')
+      .select('id, occurred_at, campaign_geofences(campaigns(name), establishments(name))')
+      .eq('event_type', 'enter')
+      .order('occurred_at', { ascending: false })
+      .limit(5),
   ]);
   const error =
     advertisersError ??
@@ -70,7 +92,45 @@ export async function getDashboardCounts() {
     mediaReadyCount: device.media_ready_count,
     operationalStatus: device.operational_status,
     lastError: device.last_error,
+    currentCampaignId: device.current_campaign_id,
   }));
+
+  const playing = monitoredDevices.filter(
+    (device) => device.playerState === 'playing_confirmed',
+  );
+  const fallback = monitoredDevices.filter(
+    (device) => device.playerState === 'no_ready_media',
+  );
+  const attention = monitoredDevices.filter(
+    (device) =>
+      device.connection === 'attention' ||
+      device.playerState === 'stalled' ||
+      device.playerState === 'media_error',
+  );
+
+  const activity: RecentActivityItem[] = [
+    ...(recentAudit ?? []).map((event) => ({
+      id: `audit-${event.id}`,
+      kind: 'audit' as const,
+      label: humanizeAuditAction(event.action),
+      detail: event.entity_label,
+      occurredAt: event.created_at,
+    })),
+    ...(recentGeo ?? []).map((event) => ({
+      id: `geo-${event.id}`,
+      kind: 'geo' as const,
+      label: 'Campanha GEO ativada',
+      detail:
+        event.campaign_geofences?.campaigns?.name &&
+        event.campaign_geofences?.establishments?.name
+          ? `${event.campaign_geofences.campaigns.name} em ${event.campaign_geofences.establishments.name}`
+          : (event.campaign_geofences?.campaigns?.name ?? null),
+      occurredAt: event.occurred_at,
+    })),
+  ]
+    .sort((a, b) => (a.occurredAt < b.occurredAt ? 1 : -1))
+    .slice(0, 6);
+
   return {
     advertisers: advertisers ?? 0,
     establishments: establishments ?? 0,
@@ -93,6 +153,11 @@ export async function getDashboardCounts() {
       offline: monitoredDevices.filter(
         (device) => device.connection === 'offline',
       ).length,
+      playing: playing.length,
+      fallback: fallback.length,
+      needsAttention: attention.length + fallback.length,
     },
+    playingNow: playing.slice(0, 3),
+    recentActivity: activity,
   };
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { MetricCard, PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { CONNECTION_LABEL, formatRelativeTime } from '@/lib/fleet';
+import type { RecentActivityItem } from '@/lib/data/dashboard';
 
 interface DashboardDevice {
   id: string;
@@ -14,6 +15,10 @@ interface DashboardDevice {
   mediaReadyCount: number | null;
   operationalStatus: string | null;
   lastError: string | null;
+}
+
+interface PlayingNowDevice extends DashboardDevice {
+  currentCampaignId: string | null;
 }
 
 interface DashboardCounts {
@@ -28,23 +33,31 @@ interface DashboardCounts {
     online: number;
     attention: number;
     offline: number;
+    playing: number;
+    fallback: number;
+    needsAttention: number;
   };
 }
 
 function tabletSummary(device: DashboardDevice) {
   if (device.connection === 'offline') return 'Sem contato com o painel';
+  if (device.playerState === 'no_ready_media') return 'Fallback local';
   if (device.lastError) return 'Precisa de atenção';
   if ((device.mediaReadyCount ?? 0) === 0) return 'Aguardando conteúdo';
-  if (device.playerState === 'playing') return 'Reproduzindo normalmente';
+  if (device.playerState === 'playing_confirmed') return 'Reproduzindo normalmente';
   return 'Conteúdo pronto';
 }
 
 export function DashboardView({
   counts,
   devices,
+  playingNow,
+  recentActivity,
 }: {
   counts: DashboardCounts;
   devices: DashboardDevice[];
+  playingNow: PlayingNowDevice[];
+  recentActivity: RecentActivityItem[];
 }) {
   const setupSteps = [
     {
@@ -83,20 +96,18 @@ export function DashboardView({
     {
       label: 'Confirmar reprodução',
       detail: 'Ver se o tablet recebeu e começou a tocar',
-      done: devices.some(
-        (device) =>
-          device.playerState === 'playing' && (device.mediaReadyCount ?? 0) > 0,
-      ),
+      done: counts.deviceCounts.playing > 0,
       href: '/dispositivos',
     },
   ];
+  const pendingSteps = setupSteps.filter((step) => !step.done).length;
 
   return (
-    <div className="page simplified-dashboard">
+    <div className="page">
       <PageHeader
         eyebrow="MAXCAR"
         title="Início"
-        description="Publique campanhas e confira os tablets sem precisar entender a parte técnica."
+        description="Resumo operacional da frota e das campanhas em exibição."
         action={
           <Link className="button button-primary" href="/campanhas/nova">
             ＋ Criar campanha
@@ -104,33 +115,46 @@ export function DashboardView({
         }
       />
 
-      <div className="simple-metrics">
-        <Link href="/campanhas?status=active">
-          <span>Campanhas no ar</span>
-          <strong>{counts.activeCampaigns}</strong>
-        </Link>
-        <Link href="/dispositivos">
-          <span>Tablets reproduzindo</span>
-          <strong>
-            {
-              devices.filter((device) => device.playerState === 'playing')
-                .length
-            }
-          </strong>
-        </Link>
-        <Link href="/dispositivos?connection=offline">
-          <span>Precisam de atenção</span>
-          <strong>
-            {counts.deviceCounts.attention + counts.deviceCounts.offline}
-          </strong>
-        </Link>
+      <div className="metric-grid">
+        <MetricCard
+          label="CAMPANHAS ATIVAS"
+          value={String(counts.activeCampaigns)}
+          detail="No ar agora"
+          href="/campanhas?status=active"
+        />
+        <MetricCard
+          label="DISPOSITIVOS ONLINE"
+          value={`${counts.deviceCounts.online + counts.deviceCounts.attention}/${counts.deviceCounts.total}`}
+          detail="Heartbeat recente"
+          tone="green"
+          href="/dispositivos"
+        />
+        <MetricCard
+          label="REPRODUZINDO AGORA"
+          value={String(counts.deviceCounts.playing)}
+          detail="Mídia comercial confirmada"
+          tone="cyan"
+          href="/ao-vivo?filter=playing"
+        />
+        <MetricCard
+          label="PRECISAM DE ATENÇÃO"
+          value={String(counts.deviceCounts.needsAttention)}
+          detail={`${counts.deviceCounts.fallback} em fallback`}
+          tone={counts.deviceCounts.needsAttention > 0 ? 'red' : 'blue'}
+          href="/dispositivos?attention=1"
+        />
       </div>
 
-      <div className="simple-dashboard-grid">
-        <SectionCard
-          title="Como colocar uma campanha no ar"
-          subtitle="Siga esta ordem. O sistema mostra o que já está concluído."
-        >
+      <details className="onboarding-banner" open={pendingSteps > 0}>
+        <summary>
+          Como colocar uma campanha no ar
+          <small>
+            {pendingSteps === 0
+              ? 'Concluído'
+              : `${pendingSteps} etapa(s) pendente(s)`}
+          </small>
+        </summary>
+        <div className="onboarding-banner-body">
           <ol className="setup-checklist">
             {setupSteps.map((step, index) => (
               <li key={step.label} className={step.done ? 'done' : ''}>
@@ -145,33 +169,32 @@ export function DashboardView({
               </li>
             ))}
           </ol>
-        </SectionCard>
+        </div>
+      </details>
 
+      <div className="simple-dashboard-grid">
         <SectionCard
-          title="Tablets"
-          subtitle="Situação real informada pelos aparelhos."
-          action={<Link href="/dispositivos">Ver todos →</Link>}
+          title="Reproduzindo agora"
+          subtitle="Até 3 dispositivos em reprodução confirmada"
+          action={<Link href="/ao-vivo">Ver Ao vivo →</Link>}
         >
-          {devices.length === 0 ? (
+          {playingNow.length === 0 ? (
             <div className="empty-state compact-empty">
-              <span>▣</span>
-              <strong>Nenhum tablet cadastrado</strong>
-              <p>Cadastre o primeiro tablet para começar o piloto.</p>
+              <span aria-hidden="true">▶</span>
+              <strong>Nenhum dispositivo reproduzindo</strong>
+              <p>Assim que um tablet confirmar playback, ele aparece aqui.</p>
             </div>
           ) : (
             <div className="simple-device-list">
-              {devices.slice(0, 5).map((device) => (
+              {playingNow.map((device) => (
                 <Link href={`/dispositivos/${device.id}`} key={device.id}>
-                  <span className={`device-light ${device.connection}`} />
+                  <span className="device-light online" />
                   <div>
                     <strong>{device.code}</strong>
-                    <small>
-                      {device.vehicleCode ?? 'Sem veículo'} ·{' '}
-                      {tabletSummary(device)}
-                    </small>
+                    <small>{device.vehicleCode ?? 'Sem veículo'}</small>
                   </div>
                   <div className="device-list-status">
-                    <StatusBadge value={CONNECTION_LABEL[device.connection]} />
+                    <StatusBadge value="Reproduzindo" />
                     <small>{formatRelativeTime(device.heartbeatAt)}</small>
                   </div>
                 </Link>
@@ -179,7 +202,71 @@ export function DashboardView({
             </div>
           )}
         </SectionCard>
+
+        <SectionCard title="Atividade recente" subtitle="Últimas ações e eventos GEO">
+          {recentActivity.length === 0 ? (
+            <div className="empty-state compact-empty">
+              <span aria-hidden="true">☰</span>
+              <strong>Nenhuma atividade recente</strong>
+              <p>Publicações, ativações GEO e mudanças administrativas aparecerão aqui.</p>
+            </div>
+          ) : (
+            <ul className="activity-list">
+              {recentActivity.map((item) => (
+                <li key={item.id} style={{ listStyle: 'none' }}>
+                  <article>
+                    <span className={`activity-icon ${item.kind === 'geo' ? 'activity-1' : ''}`}>
+                      {item.kind === 'geo' ? '◎' : '☰'}
+                    </span>
+                    <div>
+                      <strong>{item.label}</strong>
+                      {item.detail && (
+                        <p>
+                          <b>{item.detail}</b>
+                        </p>
+                      )}
+                    </div>
+                    <time>{formatRelativeTime(item.occurredAt)}</time>
+                  </article>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
       </div>
+
+      <SectionCard
+        title="Tablets"
+        subtitle="Situação real informada pelos aparelhos."
+        action={<Link href="/dispositivos">Ver todos →</Link>}
+      >
+        {devices.length === 0 ? (
+          <div className="empty-state compact-empty">
+            <span>▣</span>
+            <strong>Nenhum tablet cadastrado</strong>
+            <p>Cadastre o primeiro tablet para começar o piloto.</p>
+          </div>
+        ) : (
+          <div className="simple-device-list">
+            {devices.slice(0, 5).map((device) => (
+              <Link href={`/dispositivos/${device.id}`} key={device.id}>
+                <span className={`device-light ${device.connection}`} />
+                <div>
+                  <strong>{device.code}</strong>
+                  <small>
+                    {device.vehicleCode ?? 'Sem veículo'} ·{' '}
+                    {tabletSummary(device)}
+                  </small>
+                </div>
+                <div className="device-list-status">
+                  <StatusBadge value={CONNECTION_LABEL[device.connection]} />
+                  <small>{formatRelativeTime(device.heartbeatAt)}</small>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

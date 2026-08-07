@@ -3,5 +3,12 @@ import { getDashboardCounts } from '@/lib/data/dashboard';
 
 export default async function DashboardPage() {
   const counts = await getDashboardCounts();
-  return <DashboardView counts={counts} devices={counts.devices} />;
+  return (
+    <DashboardView
+      counts={counts}
+      devices={counts.devices}
+      playingNow={counts.playingNow}
+      recentActivity={counts.recentActivity}
+    />
+  );
 }

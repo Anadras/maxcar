@@ -101,6 +101,41 @@ export async function listGeoCampaignOptions() {
   return data;
 }
 
+/** "Ordem de exibição": the pilot's single global playlist, REGULAR
+ * campaigns only — GEO never enters this queue, it has its own
+ * priority/interruption rules (see docs on campaign_type = 'geo').
+ * Reuses the same playlist_items.position that publishCampaignAndSync
+ * already writes to; this only reads it back in order. */
+export async function listDefaultPlaylistCampaigns() {
+  const supabase = await createClient();
+  const { data: playlist, error: playlistError } = await supabase
+    .from('playlists')
+    .select('id')
+    .is('device_id', null)
+    .eq('active', true)
+    .maybeSingle();
+  if (playlistError) throw playlistError;
+  if (!playlist) return [];
+
+  const { data, error } = await supabase
+    .from('playlist_items')
+    .select('campaign_id, position, campaigns(id, name, status, campaign_type, advertiser_id, advertisers(trade_name))')
+    .eq('playlist_id', playlist.id)
+    .eq('active', true)
+    .order('position');
+  if (error) throw error;
+
+  return (data ?? [])
+    .filter((row) => row.campaigns?.status && row.campaigns.campaign_type === 'regular')
+    .map((row) => ({
+      campaignId: row.campaign_id,
+      position: row.position,
+      name: row.campaigns!.name,
+      status: row.campaigns!.status,
+      advertiserName: row.campaigns!.advertisers?.trade_name ?? null,
+    }));
+}
+
 export async function getCampaignMetrics() {
   const supabase = await createClient();
   const [

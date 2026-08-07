@@ -12,6 +12,7 @@ import {
 } from '@/lib/campaigns';
 import { listAdvertisers } from '@/lib/data/advertisers';
 import { getCampaignMetrics, listCampaigns } from '@/lib/data/campaigns';
+import { CampaignTabs } from './campaign-tabs';
 
 export default async function CampaignsPage({
   searchParams,
@@ -54,6 +55,7 @@ export default async function CampaignsPage({
           ) : undefined
         }
       />
+      <CampaignTabs active="campanhas" />
       <div className="mini-stats">
         <article>
           <span>NO AR AGORA</span>

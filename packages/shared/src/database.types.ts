@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       advertisers: {
@@ -45,6 +50,48 @@ export type Database = {
           status?: Database["public"]["Enums"]["advertiser_status"]
           trade_name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      apk_releases: {
+        Row: {
+          active: boolean
+          channel: string
+          created_at: string
+          created_by: string | null
+          file_size_bytes: number
+          id: string
+          release_notes: string | null
+          sha256: string
+          storage_path: string
+          version_code: number
+          version_name: string
+        }
+        Insert: {
+          active?: boolean
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          file_size_bytes: number
+          id?: string
+          release_notes?: string | null
+          sha256: string
+          storage_path: string
+          version_code: number
+          version_name: string
+        }
+        Update: {
+          active?: boolean
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          file_size_bytes?: number
+          id?: string
+          release_notes?: string | null
+          sha256?: string
+          storage_path?: string
+          version_code?: number
+          version_name?: string
         }
         Relationships: []
       }
@@ -2559,6 +2606,12 @@ export type Database = {
           device_id: string
           heartbeat_interval_seconds: number
           kiosk_enabled: boolean
+          latest_apk_release_id: string
+          latest_apk_sha256: string
+          latest_apk_size_bytes: number
+          latest_apk_storage_path: string
+          latest_apk_version_code: number
+          latest_apk_version_name: string
           logging_level: string
           maintenance_pin_hash: string
           maintenance_pin_hash_version: number
@@ -2605,6 +2658,18 @@ export type Database = {
         }[]
       }
       mint_device_session_token: { Args: { p_key_id: string }; Returns: string }
+      publish_apk_release: {
+        Args: {
+          p_channel?: string
+          p_file_size_bytes: number
+          p_release_notes?: string
+          p_sha256: string
+          p_storage_path: string
+          p_version_code: number
+          p_version_name: string
+        }
+        Returns: string
+      }
       record_device_enrollment_attempt: {
         Args: { p_installation_id: string; p_succeeded: boolean }
         Returns: undefined
@@ -2712,6 +2777,10 @@ export type Database = {
           recorded: boolean
         }[]
       }
+      reorder_default_playlist: {
+        Args: { p_campaign_ids: string[] }
+        Returns: undefined
+      }
       report_media_processing_progress: {
         Args: {
           p_job_id: string
@@ -2788,6 +2857,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_apk_release_active: {
+        Args: { p_active: boolean; p_release_id: string }
+        Returns: undefined
       }
       set_campaign_devices: {
         Args: { p_campaign_id: string; p_device_ids: string[] }
@@ -3149,4 +3222,3 @@ export const Constants = {
     },
   },
 } as const
-

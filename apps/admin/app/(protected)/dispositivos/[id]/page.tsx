@@ -27,6 +27,7 @@ import { FleetLifecycleActions } from '@/components/fleet-lifecycle-actions';
 import { FlashMessage } from '@/components/flash-message';
 import { MaintenanceTempCodeForm } from '@/components/maintenance-temp-code-form';
 import {
+  KioskLevelBadge,
   PageHeader,
   PlayerStateBadge,
   SectionCard,
@@ -105,7 +106,23 @@ const KIOSK_LEVEL_LABEL: Record<string, string> = {
   none: 'Nenhum (tela normal)',
   immersive: 'Imersivo (tela cheia)',
   lock_task: 'Fixação de tela (Lock Task)',
-  device_owner: 'Device Owner (bloqueio profissional)',
+  // Pré-MAX-019: nunca mais emitido por um build atualizado, mas linhas
+  // antigas continuam existindo — ver docs/architecture/ANDROID_KIOSK.md.
+  device_owner: 'Device Owner (detalhe indisponível — build antigo)',
+  device_owner_locked: 'Device Owner — quiosque fixado',
+  device_owner_unlocked: 'Device Owner — quiosque destravado',
+  maintenance_mode: 'Em manutenção (quiosque suspenso)',
+  no_content_mode: 'Sem conteúdo pronto (quiosque suspenso)',
+};
+
+// Só acompanha kiosk_level = device_owner_unlocked — as outras camadas já
+// são autoexplicativas. lock_task_not_engaged é o único valor que merece
+// atenção operacional; kiosk_disabled_remotely é o interruptor de frota
+// (app_remote_config.kiosk_enabled) desligado de propósito.
+const KIOSK_REASON_LABEL: Record<string, string> = {
+  kiosk_disabled_remotely: 'Interruptor de kiosk da frota está desligado',
+  lock_task_not_engaged:
+    'Nenhuma causa conhecida — deveria estar fixado e não está',
 };
 
 // MAX-012 item 14: reads the player's own richer state instead of
@@ -424,15 +441,34 @@ export default async function DeviceDetailPage({
               <dd>{formatRelativeTime(device.manifest_synced_at)}</dd>
             </div>
             <div>
-              <dt>Último criativo reproduzido</dt>
+              <dt>Reprodução atual</dt>
               <dd>{device.currentCreativeName ?? 'Não informado'}</dd>
             </div>
             <div>
               <dt>Campanha atual</dt>
               <dd>{device.currentCampaignName ?? 'Não informado'}</dd>
             </div>
+            {!device.currentCreativeName && device.lastPlayedCreativeName && (
+              <div>
+                <dt>Última mídia reproduzida</dt>
+                <dd>
+                  {device.lastPlayedCreativeName}
+                  {device.lastPlayedAt
+                    ? ` — ${formatRelativeTime(device.lastPlayedAt)}`
+                    : ''}
+                </dd>
+              </div>
+            )}
             <div>
-              <dt>Último erro do player</dt>
+              <dt>Tempo sem reprodução confirmada</dt>
+              <dd>
+                {device.last_confirmed_frame_at
+                  ? formatRelativeTime(device.last_confirmed_frame_at)
+                  : 'Nunca confirmada neste tablet'}
+              </dd>
+            </div>
+            <div>
+              <dt>Motivo do fallback</dt>
               <dd>{device.last_error ?? 'Nenhum'}</dd>
             </div>
           </dl>
@@ -524,8 +560,9 @@ export default async function DeviceDetailPage({
               <dt>Camada de kiosk ativa</dt>
               <dd>
                 {device.kiosk_level ? (
-                  <StatusBadge
-                    value={
+                  <KioskLevelBadge
+                    kioskLevel={device.kiosk_level}
+                    label={
                       KIOSK_LEVEL_LABEL[device.kiosk_level] ??
                       device.kiosk_level
                     }
@@ -535,6 +572,21 @@ export default async function DeviceDetailPage({
                 )}
               </dd>
             </div>
+            {device.kiosk_reason && (
+              <div>
+                <dt>Motivo</dt>
+                <dd>
+                  {KIOSK_REASON_LABEL[device.kiosk_reason] ??
+                    device.kiosk_reason}
+                </dd>
+              </div>
+            )}
+            {device.kioskStatusSince && (
+              <div>
+                <dt>Nesse estado desde</dt>
+                <dd>{formatRelativeTime(device.kioskStatusSince)}</dd>
+              </div>
+            )}
             <div>
               <dt>PIN de manutenção</dt>
               <dd>

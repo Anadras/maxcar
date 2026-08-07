@@ -93,6 +93,35 @@ export function PlayerStateBadge({
   return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
+// MAX-019: same reasoning as PLAYER_STATE_TONE above — StatusBadge's
+// substring heuristic would read "Device Owner — quiosque destravado" as
+// success (matches "ativo"? no — but a label wording change would
+// silently flip the tone with no test catching it). device_owner_locked/
+// lock_task are the only genuinely healthy values; the pre-MAX-019 bare
+// "device_owner" has no reason detail available, so it's neither claimed
+// safe nor flagged dangerous.
+const KIOSK_LEVEL_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
+  device_owner_locked: 'success',
+  lock_task: 'success',
+  device_owner_unlocked: 'danger',
+  maintenance_mode: 'warning',
+  no_content_mode: 'warning',
+  immersive: 'warning',
+  none: 'danger',
+  device_owner: 'warning',
+};
+
+export function KioskLevelBadge({
+  kioskLevel,
+  label,
+}: {
+  kioskLevel: string;
+  label: string;
+}) {
+  const tone = KIOSK_LEVEL_TONE[kioskLevel] ?? 'warning';
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
 export function LiveStatusBadge({ status }: { status: string }) {
   const tone =
     status === 'playing'

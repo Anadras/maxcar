@@ -31,13 +31,13 @@ export async function getDevicesWithLatestHeartbeats() {
       // (maintenance_pin_hash/salt, MAX-010) never accidentally starts
       // flowing through this shared query by default.
       .select(
-        'id, vehicle_id, device_code, status, app_version, last_seen_at, last_sync_at, created_at, updated_at, archived_at, vehicles(internal_code, license_plate, driver_id, drivers(full_name))',
+        'id, vehicle_id, device_code, status, app_version, last_seen_at, last_sync_at, last_confirmed_frame_at, created_at, updated_at, archived_at, vehicles(internal_code, license_plate, driver_id, drivers(full_name))',
       )
       .order('device_code'),
     supabase
       .from('device_heartbeats')
       .select(
-        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds, kiosk_level, quarantined_media_count',
+        'id, device_id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, location, player_state, media_ready_count, manifest_version, current_campaign_id, current_creative_id, last_error, location_accuracy_meters, location_permission_granted, last_location_error, last_geofence_entry_at, last_geo_campaign_id, operational_status, pending_event_count, clock_skew_seconds, kiosk_level, kiosk_reason, quarantined_media_count',
       )
       .order('recorded_at', { ascending: false }),
   ]);
@@ -81,6 +81,7 @@ export async function getDevicesWithLatestHeartbeats() {
       pending_event_count: heartbeat?.pending_event_count ?? null,
       clock_skew_seconds: heartbeat?.clock_skew_seconds ?? null,
       kiosk_level: heartbeat?.kiosk_level ?? null,
+      kiosk_reason: heartbeat?.kiosk_reason ?? null,
       quarantined_media_count: heartbeat?.quarantined_media_count ?? null,
       manifest_synced_at: heartbeat?.manifest_version
         ? (heartbeat?.recorded_at ?? null)
@@ -129,7 +130,7 @@ export async function getDevice(id: string) {
       supabase
         .from('device_heartbeats')
         .select(
-          'id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version',
+          'id, recorded_at, battery_level, network_connected, gps_available, storage_free_bytes, app_version, player_state, operational_status, kiosk_level, kiosk_reason, current_campaign_id, current_creative_id',
         )
         .eq('device_id', id)
         .order('recorded_at', { ascending: false })
@@ -179,12 +180,52 @@ export async function getDevice(id: string) {
     lastGeoCampaignName = geoCampaign?.name ?? null;
   }
 
+  // MAX-019 "última mídia reproduzida": device_heartbeats.current_creative_id
+  // is cleared to null the moment the player falls back (PlayerViewModel.
+  // enterFallback), so the *latest* heartbeat alone can't answer "what was
+  // playing before this" — only the most recent heartbeat in history (within
+  // the same 20-row window already fetched above) that still had one can.
+  // Distinct from currentCreativeName precisely when the device is
+  // currently in a non-playing state.
+  let lastPlayedCreativeName: string | null = null;
+  let lastPlayedAt: string | null = null;
+  if (!device.current_creative_id && heartbeats) {
+    const lastPlayed = heartbeats.find((h) => h.current_creative_id !== null);
+    if (lastPlayed?.current_creative_id) {
+      const { data: creative } = await supabase
+        .from('campaign_creatives')
+        .select('name')
+        .eq('id', lastPlayed.current_creative_id)
+        .maybeSingle();
+      lastPlayedCreativeName = creative?.name ?? null;
+      lastPlayedAt = lastPlayed.recorded_at;
+    }
+  }
+
+  // "Tempo no estado atual": how long the latest kiosk_level has held,
+  // scanning back through the same fetched history for the earliest
+  // consecutive heartbeat still reporting that same value — bounded by the
+  // 20-row window above, an approximation good enough for an operational
+  // glance, not a full audit trail.
+  let kioskStatusSince: string | null = null;
+  if (heartbeats && heartbeats.length > 0) {
+    const latestKioskLevel = heartbeats[0].kiosk_level;
+    kioskStatusSince = heartbeats[0].recorded_at;
+    for (const h of heartbeats) {
+      if (h.kiosk_level !== latestKioskLevel) break;
+      kioskStatusSince = h.recorded_at;
+    }
+  }
+
   return {
     ...device,
     heartbeats,
     currentCampaignName,
     currentCreativeName,
     lastGeoCampaignName,
+    lastPlayedCreativeName,
+    lastPlayedAt,
+    kioskStatusSince,
     maintenancePinConfigured,
     maintenanceTimeoutSeconds,
   };

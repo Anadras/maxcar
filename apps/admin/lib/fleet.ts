@@ -42,6 +42,66 @@ export function formatRelativeTime(value: string | null, now = new Date()) {
   return `Há ${Math.floor(seconds / 86400)} d`;
 }
 
+// MAX-016: one shared vocabulary for "what is this tablet actually doing
+// right now", used by Início's "Reproduzindo agora" block and /ao-vivo —
+// ONLINE (heartbeat recente) is connectivity; REPRODUZINDO/GEO/FALLBACK/
+// ATENÇÃO describe playback, and a device can be online while in any of
+// them. Never conflate FALLBACK with OFFLINE — it's still connected and
+// self-recovering, just showing local content instead of a commercial.
+export const LIVE_STATUS_LABEL: Record<string, string> = {
+  playing: 'Reproduzindo',
+  geo: 'GEO ativo',
+  fallback: 'Fallback local',
+  attention: 'Atenção',
+  offline: 'Offline',
+};
+
+export const LIVE_STATUS_TONE: Record<
+  string,
+  'success' | 'warning' | 'danger' | 'geo'
+> = {
+  playing: 'success',
+  geo: 'geo',
+  fallback: 'warning',
+  attention: 'warning',
+  offline: 'danger',
+};
+
+export type LiveStatus = 'playing' | 'geo' | 'fallback' | 'attention' | 'offline';
+
+/** Derives one primary status per device from the same heartbeat fields
+ * already collected (player_state, connection, current vs. last GEO
+ * campaign) — no new telemetry, no guessed state. A pure function (no
+ * `server-only` import) so both lib/data/live.ts and this file's own
+ * tests can use it directly. */
+export function classifyLiveStatus(device: {
+  connection_status: string;
+  player_state: string | null;
+  current_campaign_id: string | null;
+  last_geo_campaign_id: string | null;
+}): LiveStatus {
+  if (device.connection_status === 'offline' || device.connection_status === 'inactive') {
+    return 'offline';
+  }
+  if (device.player_state === 'no_ready_media') return 'fallback';
+  if (
+    device.current_campaign_id &&
+    device.last_geo_campaign_id &&
+    device.current_campaign_id === device.last_geo_campaign_id
+  ) {
+    return 'geo';
+  }
+  if (
+    device.connection_status === 'attention' ||
+    device.player_state === 'stalled' ||
+    device.player_state === 'media_error'
+  ) {
+    return 'attention';
+  }
+  if (device.player_state === 'playing_confirmed') return 'playing';
+  return 'attention';
+}
+
 export function formatDateTime(value: string | null) {
   if (!value) return 'Não registrado';
   return new Intl.DateTimeFormat('pt-BR', {

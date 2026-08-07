@@ -93,6 +93,28 @@ export function PlayerStateBadge({
   return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
+export function LiveStatusBadge({ status }: { status: string }) {
+  const tone =
+    status === 'playing'
+      ? 'success'
+      : status === 'geo'
+        ? 'geo'
+        : status === 'offline'
+          ? 'danger'
+          : 'warning';
+  const label =
+    status === 'playing'
+      ? 'Reproduzindo'
+      : status === 'geo'
+        ? 'GEO ativo'
+        : status === 'fallback'
+          ? 'Fallback local'
+          : status === 'attention'
+            ? 'Atenção'
+            : 'Offline';
+  return <span className={`badge badge-${tone}`}>{label}</span>;
+}
+
 export function MetricCard({
   label,
   value,

@@ -19,7 +19,7 @@ function coordinatesFromLocation(value: unknown) {
   return { longitude: null, latitude: null };
 }
 
-async function getDevicesWithLatestHeartbeats() {
+export async function getDevicesWithLatestHeartbeats() {
   const supabase = await createClient();
   const [
     { data: devices, error },

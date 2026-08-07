@@ -18,6 +18,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
+    <!-- MAX-014: required for PackageInstaller.commit() to succeed at
+         all. The *silent* part (no user-facing confirmation dialog) comes
+         from this app's Device Owner status, not from this permission
+         alone — see kiosk/ApkUpdateManager.kt. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".MaxcarApplication"
         android:allowBackup="false"
@@ -48,6 +54,25 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- MAX-014: schedules the rollback-safety worker the instant this
+             app itself finishes updating — see work/PackageReplacedReceiver.kt. -->
+        <receiver
+            android:name=".work.PackageReplacedReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- MAX-014: PackageInstaller.commit()'s own result callback —
+             never receives anything except our own explicit-component
+             broadcast from kiosk/ApkUpdateManager.kt, so no intent-filter
+             and no export. -->
+        <receiver
+            android:name=".kiosk.ApkInstallResultReceiver"
+            android:exported="false" />
 
         <!-- MAX-011: required for `dpm set-device-owner`. See
              kiosk/AdminReceiver.kt — no policies are actually applied

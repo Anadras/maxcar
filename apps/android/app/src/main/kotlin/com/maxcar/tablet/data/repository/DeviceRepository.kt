@@ -455,6 +455,11 @@ class DeviceRepository(
                 maintenancePinHashVersion = response.maintenancePinHashVersion ?: 1,
                 maintenanceTimeoutSeconds = response.maintenanceTimeoutSeconds
                     ?: RemoteConfigEntity.DEFAULT_MAINTENANCE_TIMEOUT_SECONDS,
+                latestApkVersionCode = response.latestApkVersionCode,
+                latestApkVersionName = response.latestApkVersionName,
+                latestApkSha256 = response.latestApkSha256,
+                latestApkSizeBytes = response.latestApkSizeBytes,
+                latestApkDownloadUrl = response.latestApkDownloadUrl,
             )
             remoteConfigDao.upsert(config)
             config

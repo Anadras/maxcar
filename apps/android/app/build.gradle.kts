@@ -31,8 +31,8 @@ android {
         // there's no device in this fleet the lower floor would ever serve.
         minSdk = 30
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0-pilot"
+        versionCode = 4
+        versionName = "0.2.2-pilot"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

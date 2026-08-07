@@ -179,6 +179,47 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * MAX-014's "rollback lógico": set right before [com.maxcar.tablet.kiosk.ApkUpdateManager]
+     * commits a silent install, cleared the moment the app proves itself
+     * healthy again (first successful heartbeat post-update — see
+     * [com.maxcar.tablet.sync.SyncCoordinator]). If it's still set once
+     * [PENDING_UPDATE_HEALTH_TIMEOUT_MS] has passed, the MY_PACKAGE_REPLACED
+     * watchdog (a WorkManager job scheduled by a receiver *outside* the
+     * app's own crashing code path, so it survives a crash loop the normal
+     * app process can't) silently reinstalls [previousApkBackupPath] — the
+     * exact APK that was running right before this update, pulled and
+     * cached locally for exactly this purpose.
+     */
+    suspend fun setPendingUpdate(versionCode: Int, setAtMillis: Long, previousApkBackupPath: String) {
+        dataStore.edit { prefs ->
+            prefs[KEY_PENDING_UPDATE_VERSION_CODE] = versionCode
+            prefs[KEY_PENDING_UPDATE_SET_AT_MILLIS] = setAtMillis
+            prefs[KEY_PREVIOUS_APK_BACKUP_PATH] = previousApkBackupPath
+        }
+    }
+
+    suspend fun clearPendingUpdate() {
+        dataStore.edit { prefs ->
+            prefs.remove(KEY_PENDING_UPDATE_VERSION_CODE)
+            prefs.remove(KEY_PENDING_UPDATE_SET_AT_MILLIS)
+            prefs.remove(KEY_PREVIOUS_APK_BACKUP_PATH)
+        }
+    }
+
+    suspend fun pendingUpdateSnapshot(): PendingUpdateSnapshot? {
+        val versionCode = dataStore.data.map { it[KEY_PENDING_UPDATE_VERSION_CODE] }.first() ?: return null
+        val setAtMillis = dataStore.data.map { it[KEY_PENDING_UPDATE_SET_AT_MILLIS] }.first() ?: return null
+        val backupPath = dataStore.data.map { it[KEY_PREVIOUS_APK_BACKUP_PATH] }.first() ?: return null
+        return PendingUpdateSnapshot(versionCode, setAtMillis, backupPath)
+    }
+
+    data class PendingUpdateSnapshot(
+        val versionCode: Int,
+        val setAtMillis: Long,
+        val previousApkBackupPath: String,
+    )
+
     private companion object {
         val KEY_IS_ENROLLED = booleanPreferencesKey("is_enrolled")
         val KEY_CREDENTIAL_MISSING_LOCALLY = booleanPreferencesKey("credential_missing_locally")
@@ -193,5 +234,8 @@ class AppPreferences(private val dataStore: DataStore<Preferences>) {
         val KEY_PIN_ATTEMPT_COUNT = intPreferencesKey("pin_attempt_count")
         val KEY_PIN_LOCKED_UNTIL_MILLIS = longPreferencesKey("pin_locked_until_millis")
         val KEY_KIOSK_SUSPENDED_UNTIL = longPreferencesKey("kiosk_suspended_until_millis")
+        val KEY_PENDING_UPDATE_VERSION_CODE = intPreferencesKey("pending_update_version_code")
+        val KEY_PENDING_UPDATE_SET_AT_MILLIS = longPreferencesKey("pending_update_set_at_millis")
+        val KEY_PREVIOUS_APK_BACKUP_PATH = stringPreferencesKey("previous_apk_backup_path")
     }
 }

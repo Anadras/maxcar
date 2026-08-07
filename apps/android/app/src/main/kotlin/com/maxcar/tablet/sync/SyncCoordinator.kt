@@ -8,6 +8,7 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.domain.DeviceApiError
 import com.maxcar.tablet.geo.GeoEngine
+import com.maxcar.tablet.kiosk.ApkUpdateManager
 import com.maxcar.tablet.kiosk.KioskLevelDetector
 import com.maxcar.tablet.kiosk.toWireValue
 import com.maxcar.tablet.work.DeviceTelemetry
@@ -42,6 +43,10 @@ enum class SyncOutcome { SUCCESS, UNAUTHORIZED, RETRY }
  * 5. new media download (folded into step 4's sync() calls)
  * 6. cache cleanup (folded into step 4/5's atomic swap)
  * 7. remote commands (poll + execute + acknowledge)
+ * 8. MAX-014: an available APK update, if any (replacing this app's own
+ *    running code is the single most disruptive thing this coordinator can
+ *    do — it only ever happens last, after every less invasive step has
+ *    already succeeded this cycle)
  *
  * A heartbeat failure only skips priority 3/7 (pending events, remote
  * commands) — priority 4/5/6 (config/manifest/GEO sync) still run even
@@ -61,6 +66,7 @@ class SyncCoordinator(
     private val appPreferences: AppPreferences,
     private val kioskLevelDetector: KioskLevelDetector,
     private val telemetryProvider: () -> DeviceTelemetry,
+    private val apkUpdateManager: ApkUpdateManager,
 ) {
     // MAX-011 Bloco B added a second, short-interval trigger
     // (ForegroundSyncLoop's 30s ticker + its ConnectivityManager callback)
@@ -176,6 +182,16 @@ class SyncCoordinator(
             heartbeatFailed = true
         }
 
+        // MAX-014's "rollback lógico" confirmation: a genuinely successful
+        // heartbeat this cycle is the proof an APK update (if one is
+        // pending) actually works — the app is alive, networked, and
+        // talking to the server. See ApkRollback for the other half: if
+        // this line never runs within its health-check window, a separate
+        // watchdog reinstalls the previous build automatically.
+        if (!heartbeatFailed) {
+            if (appPreferences.pendingUpdateSnapshot() != null) appPreferences.clearPendingUpdate()
+        }
+
         if (!heartbeatFailed) {
             // Priority 3: pending events, oldest first, regardless of source.
             deviceRepository.flushPendingEvents()
@@ -195,6 +211,18 @@ class SyncCoordinator(
         if (!heartbeatFailed) {
             // Priority 7: remote commands.
             commandExecutor.pollAndExecute()
+        }
+
+        // Priority 8: an APK update, if the config fetch above (priority
+        // 4) reported a newer release than what's currently running. Only
+        // ever attempted after every less disruptive step this cycle has
+        // already run — see the class doc. Never allowed to affect this
+        // cycle's own SyncOutcome: a failed/skipped update check is
+        // exactly like "no update available" from the caller's point of
+        // view, retried automatically next cycle via the next config
+        // fetch rather than this cycle being marked RETRY over it.
+        if (!heartbeatFailed) {
+            apkUpdateManager.checkAndApply()
         }
 
         val syncErrors = listOfNotNull(

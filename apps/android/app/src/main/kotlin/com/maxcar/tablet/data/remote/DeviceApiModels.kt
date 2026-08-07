@@ -182,6 +182,14 @@ data class ConfigResponse(
     val maintenancePinSalt: String? = null,
     val maintenancePinHashVersion: Int? = null,
     val maintenanceTimeoutSeconds: Int? = null,
+    // MAX-014: present only when an active release exists for this
+    // device's channel — see kiosk.ApkUpdateManager. All four are null
+    // together or present together; the app never acts on a partial set.
+    val latestApkVersionCode: Int? = null,
+    val latestApkVersionName: String? = null,
+    val latestApkSha256: String? = null,
+    val latestApkSizeBytes: Long? = null,
+    val latestApkDownloadUrl: String? = null,
 )
 
 @Serializable

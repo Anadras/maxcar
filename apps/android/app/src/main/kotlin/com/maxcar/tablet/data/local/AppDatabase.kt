@@ -18,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         GeofenceEventEntity::class,
         MediaQuarantineEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = false,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -76,6 +76,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** MAX-014: adds the five `remote_config.latestApk*` columns (OTA
+         * update info — see [RemoteConfigEntity] and
+         * [com.maxcar.tablet.kiosk.ApkUpdateManager]). All nullable,
+         * defaulting to NULL ("nothing offered yet") until the next
+         * successful config fetch reports a real release — every existing
+         * row, and every other table, is untouched. */
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `remote_config` ADD COLUMN `latestApkVersionCode` INTEGER")
+                db.execSQL("ALTER TABLE `remote_config` ADD COLUMN `latestApkVersionName` TEXT")
+                db.execSQL("ALTER TABLE `remote_config` ADD COLUMN `latestApkSha256` TEXT")
+                db.execSQL("ALTER TABLE `remote_config` ADD COLUMN `latestApkSizeBytes` INTEGER")
+                db.execSQL("ALTER TABLE `remote_config` ADD COLUMN `latestApkDownloadUrl` TEXT")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -83,7 +99,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "maxcar.db",
                 )
-                    .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
+                    .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                     // Only reached for a jump this app has never shipped a
                     // real migration for (i.e. from before version 8) —
                     // see MIGRATION_8_9's own doc for why this pilot no

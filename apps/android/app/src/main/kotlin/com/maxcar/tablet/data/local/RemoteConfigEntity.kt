@@ -33,6 +33,15 @@ data class RemoteConfigEntity(
     // or a remote disable_kiosk_temporarily command) lasts before Lock Task
     // automatically re-engages — see AppPreferences.kioskSuspendedUntilMillis.
     val maintenanceTimeoutSeconds: Int = DEFAULT_MAINTENANCE_TIMEOUT_SECONDS,
+    // MAX-014: the latest APK release offered to this device, if any —
+    // see kiosk.ApkUpdateManager. All five null together means "nothing
+    // currently offered", never a partial set (get_device_config's own
+    // LEFT JOIN LATERAL guarantees this row-wise).
+    val latestApkVersionCode: Int? = null,
+    val latestApkVersionName: String? = null,
+    val latestApkSha256: String? = null,
+    val latestApkSizeBytes: Long? = null,
+    val latestApkDownloadUrl: String? = null,
 ) {
     companion object {
         const val SINGLETON_ID = 0

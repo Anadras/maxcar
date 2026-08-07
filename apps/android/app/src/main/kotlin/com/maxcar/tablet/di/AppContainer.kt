@@ -14,8 +14,11 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.geo.LocationEngine
+import com.maxcar.tablet.kiosk.ApkRollback
+import com.maxcar.tablet.kiosk.ApkUpdateManager
 import com.maxcar.tablet.kiosk.KioskLevelDetector
 import com.maxcar.tablet.kiosk.MaintenanceAccessController
+import com.maxcar.tablet.kiosk.RealPackageInstallerGateway
 import com.maxcar.tablet.sync.DeviceCommandExecutor
 import com.maxcar.tablet.sync.SyncCoordinator
 import com.maxcar.tablet.work.DeviceTelemetry
@@ -105,6 +108,22 @@ class AppContainer(context: Context) {
         tempCodeVerifier = deviceRepository,
     )
 
+    private val packageInstallerGateway = RealPackageInstallerGateway(appContext)
+
+    val apkUpdateManager = ApkUpdateManager(
+        context = appContext,
+        apiClient = apiClient,
+        remoteConfigDao = database.remoteConfigDao(),
+        appPreferences = appPreferences,
+        packageInstaller = packageInstallerGateway,
+        currentVersionCode = BuildConfig.VERSION_CODE,
+    )
+
+    val apkRollback = ApkRollback(
+        appPreferences = appPreferences,
+        packageInstaller = packageInstallerGateway,
+    )
+
     val syncCoordinator = SyncCoordinator(
         deviceRepository = deviceRepository,
         mediaDownloadManager = mediaDownloadManager,
@@ -115,5 +134,6 @@ class AppContainer(context: Context) {
         appPreferences = appPreferences,
         kioskLevelDetector = kioskLevelDetector,
         telemetryProvider = { DeviceTelemetry.collect(appContext) },
+        apkUpdateManager = apkUpdateManager,
     )
 }

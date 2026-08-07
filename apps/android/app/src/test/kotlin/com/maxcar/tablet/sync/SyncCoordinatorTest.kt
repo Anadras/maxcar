@@ -16,7 +16,9 @@ import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import com.maxcar.tablet.data.repository.MediaDownloadManager
 import com.maxcar.tablet.geo.GeoEngine
 import com.maxcar.tablet.geo.LocationEngine
+import com.maxcar.tablet.kiosk.ApkUpdateManager
 import com.maxcar.tablet.kiosk.KioskLevelDetector
+import com.maxcar.tablet.kiosk.PackageInstallerGateway
 import com.maxcar.tablet.work.DeviceTelemetry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -140,6 +142,23 @@ class SyncCoordinatorTest {
             remoteConfigDao = db.remoteConfigDao(),
         )
 
+        // None of this suite's fixtures ever include OTA fields in the
+        // config response, so ApkUpdateManager.checkAndApply() always
+        // returns NoUpdateAvailable before this gateway could possibly be
+        // invoked — a real install call reaching it would itself be a
+        // test bug, not something to fake a return value for.
+        val neverInstalledGateway = PackageInstallerGateway { _ ->
+            error("PackageInstallerGateway.install should never be called in this suite")
+        }
+        val apkUpdateManager = ApkUpdateManager(
+            context = context,
+            apiClient = apiClient,
+            remoteConfigDao = db.remoteConfigDao(),
+            appPreferences = appPreferences,
+            packageInstaller = neverInstalledGateway,
+            currentVersionCode = 1,
+        )
+
         coordinator = SyncCoordinator(
             deviceRepository = deviceRepository,
             mediaDownloadManager = mediaDownloadManager,
@@ -150,6 +169,7 @@ class SyncCoordinatorTest {
             appPreferences = appPreferences,
             kioskLevelDetector = KioskLevelDetector(context),
             telemetryProvider = { DeviceTelemetry(batteryLevel = 90, networkType = "wifi", storageFreeBytes = 5_000_000_000L) },
+            apkUpdateManager = apkUpdateManager,
         )
     }
 

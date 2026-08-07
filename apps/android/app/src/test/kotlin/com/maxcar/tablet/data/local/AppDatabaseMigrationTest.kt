@@ -86,6 +86,52 @@ internal abstract class AppDatabaseV9Fixture : RoomDatabase() {
     abstract fun remoteConfigV9FixtureDao(): RemoteConfigV9FixtureDao
 }
 
+/** The pre-MAX-014 shape of `remote_config` — has `maintenancePinHashVersion`
+ * (MAX-013) but none of the `latestApk*` OTA columns yet — used only to
+ * seed a realistic version-10 database file for
+ * [AppDatabaseMigrationTest]'s 10-to-11 case. */
+@androidx.room.Entity(tableName = "remote_config")
+internal data class RemoteConfigEntityV10Fixture(
+    @androidx.room.PrimaryKey val id: Int = 0,
+    val heartbeatIntervalSeconds: Int,
+    val syncIntervalSeconds: Int,
+    val kioskEnabled: Boolean,
+    val loggingLevel: String,
+    val configVersion: Int,
+    val updatedAt: Long,
+    val maintenancePinHash: String? = null,
+    val maintenancePinSalt: String? = null,
+    val maintenancePinHashVersion: Int = 1,
+    val maintenanceTimeoutSeconds: Int = 300,
+)
+
+@androidx.room.Dao
+internal interface RemoteConfigV10FixtureDao {
+    @androidx.room.Insert(onConflict = androidx.room.OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: RemoteConfigEntityV10Fixture)
+}
+
+/** A byte-for-byte mirror of [AppDatabase] as it existed at version 10 —
+ * same rationale as [AppDatabaseV8Fixture]/[AppDatabaseV9Fixture]. */
+@Database(
+    entities = [
+        DeviceStateEntity::class,
+        RemoteConfigEntityV10Fixture::class,
+        PendingEventEntity::class,
+        PlaylistItemEntity::class,
+        PlaybackEventEntity::class,
+        GeoRuleEntity::class,
+        GeofenceEventEntity::class,
+        MediaQuarantineEntity::class,
+    ],
+    version = 10,
+    exportSchema = false,
+)
+internal abstract class AppDatabaseV10Fixture : RoomDatabase() {
+    abstract fun deviceStateDao(): DeviceStateDao
+    abstract fun remoteConfigV10FixtureDao(): RemoteConfigV10FixtureDao
+}
+
 /**
  * MAX-012: proves [AppDatabase.MIGRATION_8_9] is a real, data-preserving
  * migration rather than the destructive fallback every earlier version
@@ -123,7 +169,7 @@ class AppDatabaseMigrationTest {
         v8.close()
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
-            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11)
             .build()
         try {
             runBlocking {
@@ -186,7 +232,7 @@ class AppDatabaseMigrationTest {
         v9.close()
 
         val database = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
-            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10)
+            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11)
             .build()
         try {
             runBlocking {
@@ -194,6 +240,54 @@ class AppDatabaseMigrationTest {
                 assertEquals("existing-legacy-hash", preserved?.maintenancePinHash)
                 assertEquals("existing-salt", preserved?.maintenancePinSalt)
                 assertEquals(1, preserved?.maintenancePinHashVersion)
+            }
+        } finally {
+            database.close()
+        }
+
+        dbFile.delete()
+    }
+
+    /**
+     * MAX-014: proves [AppDatabase.MIGRATION_10_11] preserves the cached
+     * config row (PIN hash included) and defaults every new `latestApk*`
+     * column to null — a device on the field mid-cycle when this update
+     * lands must not have its cached PIN silently reset, and must not
+     * report a phantom OTA release until its next real config fetch.
+     */
+    @Test
+    fun `migrating from version 10 preserves cached config and defaults OTA fields to null`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbFile = File.createTempFile("migration-test-${System.nanoTime()}", ".db")
+        dbFile.delete()
+
+        val v10 = Room.databaseBuilder(context, AppDatabaseV10Fixture::class.java, dbFile.path).build()
+        runBlocking {
+            v10.remoteConfigV10FixtureDao().upsert(
+                RemoteConfigEntityV10Fixture(
+                    heartbeatIntervalSeconds = 900,
+                    syncIntervalSeconds = 3600,
+                    kioskEnabled = true,
+                    loggingLevel = "info",
+                    configVersion = 7,
+                    updatedAt = 999L,
+                    maintenancePinHash = "existing-bcrypt-hash",
+                    maintenancePinHashVersion = 2,
+                ),
+            )
+        }
+        v10.close()
+
+        val database = Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
+            .addMigrations(AppDatabase.MIGRATION_8_9, AppDatabase.MIGRATION_9_10, AppDatabase.MIGRATION_10_11)
+            .build()
+        try {
+            runBlocking {
+                val preserved = database.remoteConfigDao().get()
+                assertEquals("existing-bcrypt-hash", preserved?.maintenancePinHash)
+                assertEquals(2, preserved?.maintenancePinHashVersion)
+                assertEquals(null, preserved?.latestApkVersionCode)
+                assertEquals(null, preserved?.latestApkDownloadUrl)
             }
         } finally {
             database.close()

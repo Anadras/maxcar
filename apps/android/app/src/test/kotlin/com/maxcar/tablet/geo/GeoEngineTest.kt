@@ -10,6 +10,7 @@ import com.maxcar.tablet.data.repository.DeviceIdentityProvider
 import com.maxcar.tablet.data.repository.GeoRulesSyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -45,6 +46,7 @@ class GeoEngineTest {
 
     private lateinit var db: AppDatabase
     private lateinit var geoEngine: GeoEngine
+    private lateinit var scope: CoroutineScope
 
     private fun rule(
         geofenceId: String,
@@ -88,17 +90,26 @@ class GeoEngineTest {
             deviceIdentity = UnusedDeviceIdentityProvider(),
             geoRuleDao = db.geoRuleDao(),
         )
+        scope = CoroutineScope(Dispatchers.IO)
         geoEngine = GeoEngine(
             locationEngine = LocationEngine(context),
             geoRulesSyncManager = geoRulesSyncManager,
             geoRuleDao = db.geoRuleDao(),
             geofenceEventDao = db.geofenceEventDao(),
-            scope = CoroutineScope(Dispatchers.IO),
+            scope = scope,
         )
     }
 
     @After
     fun tearDown() {
+        // The engine's rules collector runs on this real, non-test scope
+        // (see setUp) — left uncancelled, it keeps collecting from
+        // geoRuleDao's Flow after `db` closes below and throws
+        // asynchronously on a real IO thread, surfacing as an
+        // UncaughtExceptionsBeforeTest failure in whichever test happens
+        // to run next. Physically confirmed via reproducible full-suite
+        // pollution of the unrelated ApkRollbackTest before this fix.
+        scope.cancel()
         db.close()
     }
 

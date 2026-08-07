@@ -185,6 +185,30 @@ export async function cancelCreativeUpload(
     .eq('active', false);
 }
 
+export async function reprocessCreative(
+  campaignId: string,
+  creativeId: string,
+) {
+  const detailPath = `/campanhas/${campaignId}`;
+  const { supabase } = await writableCampaign(campaignId);
+  const { error } = await supabase.rpc('reprocess_creative', {
+    p_creative_id: creativeId,
+  });
+  if (error) {
+    console.error('Reprocess creative failed', {
+      code: error.code,
+      message: error.message,
+    });
+    redirect(
+      messageUrl(detailPath, 'error', 'Não foi possível reprocessar o arquivo.'),
+    );
+  }
+  revalidatePath(detailPath);
+  redirect(
+    messageUrl(detailPath, 'success', 'Reprocessamento enviado para a fila.'),
+  );
+}
+
 export async function setCreativeActive(
   campaignId: string,
   creativeId: string,

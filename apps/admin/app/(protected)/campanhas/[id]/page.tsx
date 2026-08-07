@@ -8,6 +8,7 @@ import {
   cancelCreativeUpload,
   finalizeCreativeUpload,
   prepareCreativeUpload,
+  reprocessCreative,
   setCreativeActive,
 } from './creative-actions';
 import {
@@ -328,6 +329,7 @@ export default async function CampaignDetailPage({
             creatives={creatives}
             canWrite={canWrite}
             toggleAction={setCreativeActive.bind(null, id)}
+            reprocessAction={reprocessCreative.bind(null, id)}
           />
           {canWrite && campaign.advertiser_id && (
             <CreativeUploadForm

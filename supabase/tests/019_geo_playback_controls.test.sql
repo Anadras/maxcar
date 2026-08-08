@@ -73,17 +73,26 @@ insert into public.campaign_creatives (
 -- Geofence A overrides the campaign default to immediate/10s; geofence B
 -- (campaign B) has no override, so it must fall through to the campaign's
 -- own explicit max_wait/20s.
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters
+) values (
+  '19000000-0000-4000-8000-000000000070', '19000000-0000-4000-8000-000000000010',
+  'Posto Playback — Geofence',
+  extensions.st_setsrid(extensions.st_makepoint(-54.6167, -20.4489), 4326)::extensions.geography,
+  150
+);
+
 insert into public.campaign_geofences (
-  id, campaign_id, establishment_id, radius_meters,
+  id, campaign_id, geofence_id,
   playback_mode_override, max_wait_seconds_override, active
 ) values
   (
     '19000000-0000-4000-8000-000000000050', '19000000-0000-4000-8000-000000000030',
-    '19000000-0000-4000-8000-000000000010', 150, 'immediate', 10, true
+    '19000000-0000-4000-8000-000000000070', 'immediate', 10, true
   ),
   (
     '19000000-0000-4000-8000-000000000051', '19000000-0000-4000-8000-000000000031',
-    '19000000-0000-4000-8000-000000000010', 150, null, null, true
+    '19000000-0000-4000-8000-000000000070', null, null, true
   );
 
 update public.campaigns set status = 'active' where id = '19000000-0000-4000-8000-000000000030';

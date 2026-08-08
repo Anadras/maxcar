@@ -60,11 +60,19 @@ insert into public.campaign_creatives (
   'media-processed/f1000000-0000-4000-8000-000000000040/output.jpg'
 );
 
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters
+) values (
+  'f1000000-0000-4000-8000-000000000060', 'f1000000-0000-4000-8000-000000000011',
+  'Posto Teste GEO — Geofence',
+  extensions.st_setsrid(extensions.st_makepoint(-54.6167, -20.4489), 4326)::extensions.geography,
+  150
+);
 insert into public.campaign_geofences (
-  id, campaign_id, establishment_id, radius_meters, active
+  id, campaign_id, geofence_id, active
 ) values (
   'f1000000-0000-4000-8000-000000000050', 'f1000000-0000-4000-8000-000000000030',
-  'f1000000-0000-4000-8000-000000000011', 150, true
+  'f1000000-0000-4000-8000-000000000060', true
 );
 
 update public.campaigns set status = 'active' where id = 'f1000000-0000-4000-8000-000000000030';

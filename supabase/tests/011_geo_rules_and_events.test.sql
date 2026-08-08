@@ -81,16 +81,32 @@ insert into public.campaign_creatives (
     'media-processed/b1000000-0000-4000-8000-000000000043/output.jpg'
   );
 
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters
+) values
+  (
+    'b1000000-0000-4000-8000-000000000060', 'b1000000-0000-4000-8000-000000000010',
+    'Posto Ready — Geofence',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6167, -20.4489), 4326)::extensions.geography,
+    150
+  ),
+  (
+    'b1000000-0000-4000-8000-000000000062', 'b1000000-0000-4000-8000-000000000011',
+    'Posto Inativo — Geofence',
+    extensions.st_setsrid(extensions.st_makepoint(-54.60, -20.44), 4326)::extensions.geography,
+    150
+  );
+
 insert into public.campaign_geofences (
-  id, campaign_id, establishment_id, radius_meters, priority_override, cooldown_override_seconds, active
+  id, campaign_id, geofence_id, priority_override, cooldown_override_seconds, active
 ) values
   (
     'b1000000-0000-4000-8000-000000000050', 'b1000000-0000-4000-8000-000000000030',
-    'b1000000-0000-4000-8000-000000000010', 150, 90, 900, true
+    'b1000000-0000-4000-8000-000000000060', 90, 900, true
   ),
   (
     'b1000000-0000-4000-8000-000000000052', 'b1000000-0000-4000-8000-000000000032',
-    'b1000000-0000-4000-8000-000000000011', 150, null, null, true
+    'b1000000-0000-4000-8000-000000000062', null, null, true
   );
 
 select lives_ok(

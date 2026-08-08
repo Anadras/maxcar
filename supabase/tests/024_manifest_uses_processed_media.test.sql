@@ -43,8 +43,14 @@ insert into public.campaigns (
     '00:00', '23:59', array[0,1,2,3,4,5,6]::smallint[]
   );
 
-insert into public.campaign_geofences (id, campaign_id, establishment_id, radius_meters) values
-  ('24000000-0000-4000-8000-000000000060', '24000000-0000-4000-8000-000000000031', '24000000-0000-4000-8000-000000000010', 100);
+insert into public.geofences (id, establishment_id, name, location, radius_meters) values (
+  '24000000-0000-4000-8000-000000000070', '24000000-0000-4000-8000-000000000010',
+  'Posto Processado — Geofence',
+  extensions.st_setsrid(extensions.st_makepoint(-54.6167, -20.4489), 4326)::extensions.geography,
+  100
+);
+insert into public.campaign_geofences (id, campaign_id, geofence_id) values
+  ('24000000-0000-4000-8000-000000000060', '24000000-0000-4000-8000-000000000031', '24000000-0000-4000-8000-000000000070');
 
 insert into public.campaign_creatives (
   id, campaign_id, name, creative_type, storage_path,

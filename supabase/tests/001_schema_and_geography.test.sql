@@ -3,7 +3,7 @@ begin;
 set local search_path = public, extensions;
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(29);
 
 select has_extension('postgis', 'PostGIS is enabled');
 select has_table('public', 'profiles', 'profiles exists');
@@ -15,6 +15,7 @@ select has_table('public', 'devices', 'devices exists');
 select has_table('public', 'campaigns', 'campaigns exists');
 select has_table('public', 'campaign_creatives', 'campaign_creatives exists');
 select has_table('public', 'campaign_geofences', 'campaign_geofences exists');
+select has_table('public', 'geofences', 'geofences exists');
 select has_table('public', 'playlists', 'playlists exists');
 select has_table('public', 'playlist_items', 'playlist_items exists');
 select has_table('public', 'geofence_events', 'geofence_events exists');
@@ -55,11 +56,12 @@ select is(
 
 select throws_ok(
   $$
-    insert into public.campaign_geofences (
-      campaign_id, establishment_id, radius_meters
+    insert into public.geofences (
+      establishment_id, name, location, radius_meters
     ) values (
-      '60000000-0000-4000-8000-000000000002',
       '30000000-0000-4000-8000-000000000002',
+      'Test',
+      extensions.st_setsrid(extensions.st_makepoint(-54.6201, -20.4697), 4326)::extensions.geography,
       -1
     )
   $$,
@@ -152,12 +154,12 @@ select is(
       and c.relname in (
         'profiles', 'advertisers', 'establishments', 'drivers', 'vehicles',
         'devices', 'campaigns', 'campaign_creatives', 'campaign_geofences',
-        'playlists', 'playlist_items', 'geofence_events', 'impressions',
-        'device_heartbeats', 'driver_sessions'
+        'geofences', 'playlists', 'playlist_items', 'geofence_events',
+        'impressions', 'device_heartbeats', 'driver_sessions'
       )
       and c.relrowsecurity
   ),
-  15,
+  16,
   'RLS is enabled on all application tables'
 );
 

@@ -82,12 +82,30 @@ select throws_ok(
   'campaign without creative cannot activate'
 );
 
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters
+) values
+  (
+    '64000000-0000-4000-8000-000000000002',
+    '24000000-0000-4000-8000-000000000001',
+    'Unidade A — Geofence auxiliar',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6201, -20.4697), 4326)::extensions.geography,
+    500
+  ),
+  (
+    '64000000-0000-4000-8000-000000000003',
+    '24000000-0000-4000-8000-000000000002',
+    'Unidade B — Geofence',
+    extensions.st_setsrid(extensions.st_makepoint(-54.7000, -20.5000), 4326)::extensions.geography,
+    500
+  );
+
 select throws_ok(
   $$insert into public.campaign_geofences (
-      campaign_id, establishment_id, radius_meters
+      campaign_id, geofence_id
     ) values (
       '34000000-0000-4000-8000-000000000001',
-      '24000000-0000-4000-8000-000000000001', 500
+      '64000000-0000-4000-8000-000000000002'
     )$$,
   '23514',
   'Only GEO campaigns can have geofences.',
@@ -96,10 +114,10 @@ select throws_ok(
 
 select throws_ok(
   $$insert into public.campaign_geofences (
-      campaign_id, establishment_id, radius_meters
+      campaign_id, geofence_id
     ) values (
       '34000000-0000-4000-8000-000000000002',
-      '24000000-0000-4000-8000-000000000002', 500
+      '64000000-0000-4000-8000-000000000003'
     )$$,
   '23514',
   'Campaign and establishment must belong to the same advertiser.',
@@ -141,13 +159,21 @@ select throws_ok(
   'GEO campaign without geofence cannot activate'
 );
 
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters
+) values (
+  '64000000-0000-4000-8000-000000000001',
+  '24000000-0000-4000-8000-000000000001',
+  'Unidade A — Geofence de teste',
+  extensions.st_setsrid(extensions.st_makepoint(-54.6201, -20.4697), 4326)::extensions.geography,
+  1000
+);
 insert into public.campaign_geofences (
-  id, campaign_id, establishment_id, radius_meters
+  id, campaign_id, geofence_id
 ) values (
   '54000000-0000-4000-8000-000000000001',
   '34000000-0000-4000-8000-000000000002',
-  '24000000-0000-4000-8000-000000000001',
-  1000
+  '64000000-0000-4000-8000-000000000001'
 );
 update public.campaigns set status = 'active'
 where id = '34000000-0000-4000-8000-000000000002';

@@ -379,14 +379,13 @@ export type Database = {
           campaign_id: string
           cooldown_override_seconds: number | null
           created_at: string
-          establishment_id: string
+          geofence_id: string
           id: string
           max_wait_seconds_override: number | null
           playback_mode_override:
             | Database["public"]["Enums"]["geo_playback_mode"]
             | null
           priority_override: number | null
-          radius_meters: number
           updated_at: string
         }
         Insert: {
@@ -394,14 +393,13 @@ export type Database = {
           campaign_id: string
           cooldown_override_seconds?: number | null
           created_at?: string
-          establishment_id: string
+          geofence_id: string
           id?: string
           max_wait_seconds_override?: number | null
           playback_mode_override?:
             | Database["public"]["Enums"]["geo_playback_mode"]
             | null
           priority_override?: number | null
-          radius_meters: number
           updated_at?: string
         }
         Update: {
@@ -409,14 +407,13 @@ export type Database = {
           campaign_id?: string
           cooldown_override_seconds?: number | null
           created_at?: string
-          establishment_id?: string
+          geofence_id?: string
           id?: string
           max_wait_seconds_override?: number | null
           playback_mode_override?:
             | Database["public"]["Enums"]["geo_playback_mode"]
             | null
           priority_override?: number | null
-          radius_meters?: number
           updated_at?: string
         }
         Relationships: [
@@ -442,17 +439,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "campaign_geofences_establishment_id_fkey"
-            columns: ["establishment_id"]
+            foreignKeyName: "campaign_geofences_geofence_id_fkey"
+            columns: ["geofence_id"]
             isOneToOne: false
-            referencedRelation: "establishment_admin_view"
+            referencedRelation: "campaign_geofence_admin_view"
+            referencedColumns: ["geofence_id"]
+          },
+          {
+            foreignKeyName: "campaign_geofences_geofence_id_fkey"
+            columns: ["geofence_id"]
+            isOneToOne: false
+            referencedRelation: "geofence_admin_view"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "campaign_geofences_establishment_id_fkey"
-            columns: ["establishment_id"]
+            foreignKeyName: "campaign_geofences_geofence_id_fkey"
+            columns: ["geofence_id"]
             isOneToOne: false
-            referencedRelation: "establishments"
+            referencedRelation: "geofences"
             referencedColumns: ["id"]
           },
         ]
@@ -1558,6 +1562,54 @@ export type Database = {
           },
         ]
       }
+      geofences: {
+        Row: {
+          active: boolean
+          created_at: string
+          establishment_id: string
+          id: string
+          location: unknown
+          name: string
+          radius_meters: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          establishment_id: string
+          id?: string
+          location: unknown
+          name: string
+          radius_meters: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          establishment_id?: string
+          id?: string
+          location?: unknown
+          name?: string
+          radius_meters?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geofences_establishment_id_fkey"
+            columns: ["establishment_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofences_establishment_id_fkey"
+            columns: ["establishment_id"]
+            isOneToOne: false
+            referencedRelation: "establishments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       impressions: {
         Row: {
           campaign_id: string
@@ -2124,6 +2176,9 @@ export type Database = {
           created_at: string | null
           establishment_id: string | null
           establishment_name: string | null
+          geofence_active: boolean | null
+          geofence_id: string | null
+          geofence_name: string | null
           id: string | null
           latitude: number | null
           longitude: number | null
@@ -2159,24 +2214,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "campaign_geofences_establishment_id_fkey"
+            foreignKeyName: "campaigns_advertiser_id_fkey"
+            columns: ["advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofences_establishment_id_fkey"
             columns: ["establishment_id"]
             isOneToOne: false
             referencedRelation: "establishment_admin_view"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "campaign_geofences_establishment_id_fkey"
+            foreignKeyName: "geofences_establishment_id_fkey"
             columns: ["establishment_id"]
             isOneToOne: false
             referencedRelation: "establishments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campaigns_advertiser_id_fkey"
-            columns: ["advertiser_id"]
-            isOneToOne: false
-            referencedRelation: "advertisers"
             referencedColumns: ["id"]
           },
         ]
@@ -2440,6 +2495,48 @@ export type Database = {
             columns: ["advertiser_id"]
             isOneToOne: false
             referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geofence_admin_view: {
+        Row: {
+          active: boolean | null
+          advertiser_id: string | null
+          advertiser_name: string | null
+          campaign_link_count: number | null
+          city: string | null
+          created_at: string | null
+          establishment_id: string | null
+          establishment_name: string | null
+          id: string | null
+          latitude: number | null
+          longitude: number | null
+          name: string | null
+          radius_meters: number | null
+          state: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "establishments_advertiser_id_fkey"
+            columns: ["advertiser_id"]
+            isOneToOne: false
+            referencedRelation: "advertisers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofences_establishment_id_fkey"
+            columns: ["establishment_id"]
+            isOneToOne: false
+            referencedRelation: "establishment_admin_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofences_establishment_id_fkey"
+            columns: ["establishment_id"]
+            isOneToOne: false
+            referencedRelation: "establishments"
             referencedColumns: ["id"]
           },
         ]
@@ -2866,6 +2963,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "establishments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      save_geofence: {
+        Args: {
+          p_active: boolean
+          p_establishment_id: string
+          p_id: string
+          p_latitude: number
+          p_longitude: number
+          p_name: string
+          p_radius_meters: number
+        }
+        Returns: {
+          active: boolean
+          created_at: string
+          establishment_id: string
+          id: string
+          location: unknown
+          name: string
+          radius_meters: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "geofences"
           isOneToOne: true
           isSetofReturn: false
         }

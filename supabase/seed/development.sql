@@ -128,11 +128,32 @@ insert into public.campaign_creatives (
   ('70000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 'Plano Prime — Demo', 'image', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp', 10, 900000, repeat('c', 64), true, 'ready', 'advertisers/10000000-0000-4000-8000-000000000003/campaigns/60000000-0000-4000-8000-000000000003/70000000-0000-4000-8000-000000000003.webp')
 on conflict (id) do nothing;
 
-insert into public.campaign_geofences (
-  id, campaign_id, establishment_id, radius_meters, priority_override, cooldown_override_seconds, active
+insert into public.geofences (
+  id, establishment_id, name, location, radius_meters, active
 ) values
-  ('80000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', 1500, 90, 900, true),
-  ('80000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000002', 900, null, null, true)
+  (
+    '90000000-0000-4000-8000-000000000001',
+    '30000000-0000-4000-8000-000000000001',
+    'Pizzaria Central — Entrada principal',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6201, -20.4697), 4326)::extensions.geography,
+    1500,
+    true
+  ),
+  (
+    '90000000-0000-4000-8000-000000000002',
+    '30000000-0000-4000-8000-000000000002',
+    'Academia Prime — Entrada principal',
+    extensions.st_setsrid(extensions.st_makepoint(-54.6112, -20.4584), 4326)::extensions.geography,
+    900,
+    true
+  )
+on conflict (id) do nothing;
+
+insert into public.campaign_geofences (
+  id, campaign_id, geofence_id, priority_override, cooldown_override_seconds, active
+) values
+  ('80000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000002', '90000000-0000-4000-8000-000000000001', 90, 900, true),
+  ('80000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003', '90000000-0000-4000-8000-000000000002', null, null, true)
 on conflict (id) do nothing;
 
 update public.campaigns

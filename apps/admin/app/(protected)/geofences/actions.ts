@@ -19,16 +19,16 @@ async function authorizeWrite() {
 }
 
 function geofenceError(error: { code?: string; message: string }) {
-  console.error('Geofence persistence failed', {
+  console.error('Geofence link persistence failed', {
     code: error.code,
     message: error.message,
   });
   if (error.code === '23505')
-    return 'Esta campanha já possui uma geofence para o estabelecimento.';
+    return 'Esta campanha já está vinculada a esta geofence.';
   if (error.code === '23514')
-    return 'Use uma campanha GEO e um estabelecimento do mesmo cliente.';
+    return 'Use uma campanha GEO e uma geofence de um estabelecimento do mesmo cliente.';
   if (error.code === '42501') return 'Você não tem permissão para esta ação.';
-  return 'Não foi possível salvar a geofence. Revise os dados.';
+  return 'Não foi possível salvar. Revise os dados.';
 }
 
 async function geofencePayload(formData: FormData, path: string) {
@@ -44,37 +44,35 @@ async function geofencePayload(formData: FormData, path: string) {
   }
   const input = parsed.data;
   const supabase = await createClient();
-  const [{ data: campaign }, { data: establishment }] = await Promise.all([
+  const [{ data: campaign }, { data: geofence }] = await Promise.all([
     supabase
       .from('campaigns')
       .select('id, advertiser_id, campaign_type')
       .eq('id', input.campaignId)
       .maybeSingle(),
     supabase
-      .from('establishments')
+      .from('geofence_admin_view')
       .select('id, advertiser_id')
-      .eq('id', input.establishmentId)
-      .eq('active', true)
+      .eq('id', input.geofenceId)
       .maybeSingle(),
   ]);
   if (
     !campaign ||
     campaign.campaign_type !== 'geo' ||
-    !establishment ||
-    campaign.advertiser_id !== establishment.advertiser_id
+    !geofence?.id ||
+    campaign.advertiser_id !== geofence.advertiser_id
   ) {
     redirect(
       messageUrl(
         path,
         'error',
-        'Campanha e estabelecimento devem ser GEO, ativos e do mesmo cliente.',
+        'Campanha e geofence devem ser GEO e do mesmo cliente.',
       ),
     );
   }
   return {
     campaign_id: campaign.id,
-    establishment_id: establishment.id,
-    radius_meters: input.radiusMeters,
+    geofence_id: geofence.id,
     priority_override: input.priorityOverride,
     cooldown_override_seconds: input.cooldownOverrideSeconds,
     playback_mode_override: input.playbackModeOverride,
@@ -96,7 +94,9 @@ export async function createGeofence(formData: FormData) {
   if (error) redirect(messageUrl(path, 'error', geofenceError(error)));
   revalidatePath('/geofences');
   revalidatePath(`/campanhas/${data.campaign_id}`);
-  redirect(messageUrl(`/geofences/${data.id}`, 'success', 'Geofence criada.'));
+  redirect(
+    messageUrl(`/geofences/${data.id}`, 'success', 'Geofence vinculada.'),
+  );
 }
 
 export async function updateGeofence(id: string, formData: FormData) {
@@ -107,8 +107,7 @@ export async function updateGeofence(id: string, formData: FormData) {
   const { data, error } = await supabase
     .from('campaign_geofences')
     .update({
-      establishment_id: payload.establishment_id,
-      radius_meters: payload.radius_meters,
+      geofence_id: payload.geofence_id,
       priority_override: payload.priority_override,
       cooldown_override_seconds: payload.cooldown_override_seconds,
       playback_mode_override: payload.playback_mode_override,

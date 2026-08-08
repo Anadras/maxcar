@@ -10,7 +10,10 @@ import { PilotDeleteAction } from '@/components/pilot-delete-action';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { getEstablishment } from '@/lib/data/establishments';
-import { listGeofencesForEstablishment } from '@/lib/data/geofences';
+import {
+  listGeofencePlacesForEstablishment,
+  listGeofencesForEstablishment,
+} from '@/lib/data/geofences';
 
 export default async function EstablishmentDetailPage({
   params,
@@ -20,9 +23,10 @@ export default async function EstablishmentDetailPage({
   searchParams: Promise<{ success?: string; error?: string }>;
 }) {
   const { id } = await params;
-  const [query, item, geofences, auth] = await Promise.all([
+  const [query, item, geofencePlaces, campaignLinks, auth] = await Promise.all([
     searchParams,
     getEstablishment(id),
+    listGeofencePlacesForEstablishment(id),
     listGeofencesForEstablishment(id),
     getAuthContext(),
   ]);
@@ -60,7 +64,7 @@ export default async function EstablishmentDetailPage({
               </Link>
               <Link
                 className="button button-secondary"
-                href={`/geofences/nova?establishment=${id}`}
+                href={`/estabelecimentos/${id}/geofences/nova`}
               >
                 ＋ Criar geofence
               </Link>
@@ -125,27 +129,27 @@ export default async function EstablishmentDetailPage({
       </SectionCard>
 
       <SectionCard
-        title="Campanhas GEO e geofences"
-        subtitle={`${geofences.length} zona(s) de ativação neste estabelecimento`}
+        title="Geofences"
+        subtitle={`${geofencePlaces.length} local(is) de ativação cadastrados neste estabelecimento`}
         action={
-          canWrite && geofences.length > 0 ? (
+          canWrite && geofencePlaces.length > 0 ? (
             <Link
               className="button button-ghost"
-              href={`/geofences/nova?establishment=${id}`}
+              href={`/estabelecimentos/${id}/geofences/nova`}
             >
               ＋ Nova geofence
             </Link>
           ) : undefined
         }
       >
-        {geofences.length === 0 ? (
+        {geofencePlaces.length === 0 ? (
           <EmptyState
             title="Nenhuma geofence ainda"
-            description="Crie uma campanha GEO para este cliente e associe uma geofence a este estabelecimento para ativar por proximidade."
+            description="Crie uma geofence (ponto + raio) neste estabelecimento e depois vincule-a a uma ou mais campanhas GEO."
             action={
               canWrite
                 ? {
-                    href: `/geofences/nova?establishment=${id}`,
+                    href: `/estabelecimentos/${id}/geofences/nova`,
                     label: 'Criar geofence',
                   }
                 : undefined
@@ -153,11 +157,40 @@ export default async function EstablishmentDetailPage({
           />
         ) : (
           <ul className="link-list">
-            {geofences.map((geo) => (
+            {geofencePlaces.map((geo) => (
+              <li key={geo.id}>
+                <Link href={`/estabelecimentos/${id}/geofences/${geo.id}/editar`}>
+                  <strong>{geo.name}</strong>
+                  <span>
+                    {geo.radius_meters} m de raio ·{' '}
+                    {geo.campaign_link_count ?? 0} campanha(s) vinculada(s)
+                  </span>
+                  <StatusBadge value={geo.active ? 'Ativa' : 'Inativa'} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title="Campanhas GEO vinculadas"
+        subtitle="Vínculos entre campanhas GEO e as geofences deste estabelecimento."
+      >
+        {campaignLinks.length === 0 ? (
+          <EmptyState
+            title="Nenhuma campanha vinculada ainda"
+            description="Vincule uma geofence acima a uma campanha GEO para que o anúncio comece a ativar por proximidade."
+          />
+        ) : (
+          <ul className="link-list">
+            {campaignLinks.map((geo) => (
               <li key={geo.id}>
                 <Link href={`/geofences/${geo.id}`}>
                   <strong>{geo.campaign_name}</strong>
-                  <span>{geo.radius_meters} m de raio</span>
+                  <span>
+                    {geo.geofence_name} · {geo.radius_meters} m de raio
+                  </span>
                   <StatusBadge value={geo.active ? 'Ativa' : 'Inativa'} />
                 </Link>
               </li>

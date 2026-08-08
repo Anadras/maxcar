@@ -8,6 +8,7 @@ import { authorizePilotDelete } from '@/lib/pilot-delete';
 import { friendlyDatabaseError, messageUrl } from '@/lib/forms';
 import { createClient } from '@/lib/supabase/server';
 import { parseEstablishmentForm } from '@/lib/validation/establishments';
+import { parseGeofenceLocationForm } from '@/lib/validation/geofences';
 
 async function save(id: string | null, formData: FormData) {
   const auth = await getAuthContext();
@@ -64,6 +65,58 @@ export async function createEstablishment(formData: FormData) {
 
 export async function updateEstablishment(id: string, formData: FormData) {
   return save(id, formData);
+}
+
+async function saveGeofenceLocation(id: string | null, formData: FormData) {
+  const auth = await getAuthContext();
+  if (!auth || !canWriteCommercialData(auth.profile.role)) {
+    redirect(messageUrl('/estabelecimentos', 'error', 'Ação não autorizada.'));
+  }
+  const parsed = parseGeofenceLocationForm(formData);
+  const establishmentId = String(formData.get('establishmentId') ?? '');
+  const formPath = id
+    ? `/estabelecimentos/${establishmentId}/geofences/${id}/editar`
+    : `/estabelecimentos/${establishmentId}/geofences/nova`;
+  if (!parsed.success) {
+    redirect(
+      messageUrl(
+        formPath,
+        'error',
+        parsed.error.issues[0]?.message ?? 'Dados inválidos.',
+      ),
+    );
+  }
+  const input = parsed.data;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('save_geofence', {
+    // Postgres accepts NULL here for create; generated RPC args omit nullability.
+    p_id: id as string,
+    p_establishment_id: input.establishmentId,
+    p_name: input.name,
+    p_latitude: input.latitude,
+    p_longitude: input.longitude,
+    p_radius_meters: input.radiusMeters,
+    p_active: input.active,
+  });
+  if (error) {
+    redirect(messageUrl(formPath, 'error', friendlyDatabaseError(error)));
+  }
+  revalidatePath(`/estabelecimentos/${input.establishmentId}`);
+  redirect(
+    messageUrl(
+      `/estabelecimentos/${input.establishmentId}`,
+      'success',
+      id ? 'Geofence atualizada.' : 'Geofence criada.',
+    ),
+  );
+}
+
+export async function createGeofenceLocation(formData: FormData) {
+  return saveGeofenceLocation(null, formData);
+}
+
+export async function updateGeofenceLocation(id: string, formData: FormData) {
+  return saveGeofenceLocation(id, formData);
 }
 
 export async function deleteEstablishmentPermanently(

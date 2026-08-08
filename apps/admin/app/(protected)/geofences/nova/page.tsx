@@ -6,39 +6,39 @@ import { PageHeader, SectionCard } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
 import { listGeoCampaignOptions } from '@/lib/data/campaigns';
-import { listEstablishments } from '@/lib/data/establishments';
+import { listAllGeofencePlaces } from '@/lib/data/geofences';
 
 export default async function NewGeofencePage({
   searchParams,
 }: {
   searchParams: Promise<{
     campaign?: string;
-    establishment?: string;
+    geofence?: string;
     error?: string;
   }>;
 }) {
   const auth = await getAuthContext();
   if (!auth || !canWriteCommercialData(auth.profile.role))
     redirect('/geofences');
-  const [params, campaigns, establishments] = await Promise.all([
+  const [params, campaigns, geofencePlaces] = await Promise.all([
     searchParams,
     listGeoCampaignOptions(),
-    listEstablishments(),
+    listAllGeofencePlaces(),
   ]);
   return (
     <div className="page record-page">
       <FlashMessage error={params.error} />
       <PageHeader
         eyebrow="NOVA GEOFENCE"
-        title="Associar zona de ativação"
-        description="Selecione campanha e estabelecimento do mesmo cliente."
+        title="Vincular geofence a uma campanha"
+        description="Selecione a campanha GEO e uma geofence já cadastrada no estabelecimento do mesmo cliente."
       />
       <SectionCard>
         <GeofenceForm
           campaigns={campaigns}
-          establishments={establishments}
+          geofencePlaces={geofencePlaces}
           preselectedCampaign={params.campaign}
-          preselectedEstablishment={params.establishment}
+          preselectedGeofence={params.geofence}
           action={createGeofence}
         />
       </SectionCard>

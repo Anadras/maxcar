@@ -106,7 +106,7 @@ export async function listLiveDevices(): Promise<LiveDevice[]> {
     const { data: events } = await supabase
       .from('geofence_events')
       .select(
-        'device_id, occurred_at, campaign_geofences(establishments(name))',
+        'device_id, occurred_at, campaign_geofences(geofences(establishments(name)))',
       )
       .in('device_id', geoDeviceIds)
       .eq('event_type', 'enter')
@@ -116,7 +116,8 @@ export async function listLiveDevices(): Promise<LiveDevice[]> {
         geoEventByDevice.set(event.device_id, {
           occurred_at: event.occurred_at,
           establishment_name:
-            event.campaign_geofences?.establishments?.name ?? null,
+            event.campaign_geofences?.geofences?.establishments?.name ??
+            null,
         });
       }
     }

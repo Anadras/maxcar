@@ -62,7 +62,9 @@ export async function getDashboardCounts() {
       .limit(5),
     supabase
       .from('geofence_events')
-      .select('id, occurred_at, campaign_geofences(campaigns(name), establishments(name))')
+      .select(
+        'id, occurred_at, campaign_geofences(campaigns(name), geofences(name, establishments(name)))',
+      )
       .eq('event_type', 'enter')
       .order('occurred_at', { ascending: false })
       .limit(5),
@@ -122,8 +124,8 @@ export async function getDashboardCounts() {
       label: 'Campanha GEO ativada',
       detail:
         event.campaign_geofences?.campaigns?.name &&
-        event.campaign_geofences?.establishments?.name
-          ? `${event.campaign_geofences.campaigns.name} em ${event.campaign_geofences.establishments.name}`
+        event.campaign_geofences?.geofences?.establishments?.name
+          ? `${event.campaign_geofences.campaigns.name} em ${event.campaign_geofences.geofences.establishments.name}`
           : (event.campaign_geofences?.campaigns?.name ?? null),
       occurredAt: event.occurred_at,
     })),

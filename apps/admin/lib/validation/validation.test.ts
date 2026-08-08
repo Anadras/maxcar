@@ -3,7 +3,7 @@ import { advertiserSchema } from './advertisers';
 import { campaignSchema } from './campaigns';
 import { inspectCreativeFile } from './creatives';
 import { establishmentSchema } from './establishments';
-import { geofenceSchema } from './geofences';
+import { geofenceLocationSchema, geofenceSchema } from './geofences';
 import { deviceSchema } from './devices';
 import { driverSchema } from './drivers';
 import { normalizeLicensePlate, vehicleSchema } from './vehicles';
@@ -108,11 +108,10 @@ describe('creative validation', () => {
 });
 
 describe('geofence validation', () => {
-  it('accepts a practical radius and rejects zero', () => {
+  it('accepts a campaign linked to an existing geofence', () => {
     const base = {
       campaignId: '33000000-0000-4000-8000-000000000001',
-      establishmentId: '23000000-0000-4000-8000-000000000001',
-      radiusMeters: 1000,
+      geofenceId: '64000000-0000-4000-8000-000000000001',
       priorityOverride: null,
       cooldownOverrideSeconds: null,
       playbackModeOverride: null,
@@ -120,9 +119,24 @@ describe('geofence validation', () => {
       active: true,
     };
     expect(geofenceSchema.safeParse(base).success).toBe(true);
-    expect(geofenceSchema.safeParse({ ...base, radiusMeters: 0 }).success).toBe(
-      false,
-    );
+    expect(
+      geofenceSchema.safeParse({ ...base, geofenceId: 'not-a-uuid' }).success,
+    ).toBe(false);
+  });
+
+  it('accepts a practical geofence radius and rejects zero', () => {
+    const base = {
+      establishmentId: '23000000-0000-4000-8000-000000000001',
+      name: 'Entrada principal',
+      latitude: -20.4697,
+      longitude: -54.6201,
+      radiusMeters: 1000,
+      active: true,
+    };
+    expect(geofenceLocationSchema.safeParse(base).success).toBe(true);
+    expect(
+      geofenceLocationSchema.safeParse({ ...base, radiusMeters: 0 }).success,
+    ).toBe(false);
   });
 });
 

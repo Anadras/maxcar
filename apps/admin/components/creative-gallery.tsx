@@ -1,6 +1,7 @@
 import type { Database } from '@maxcar/shared/database-types';
 import { ConfirmSubmitButton } from './confirm-submit-button';
 import { StatusBadge } from './ui';
+import { CREATIVE_TYPE_LABEL } from '@/lib/creative-labels';
 
 type ProcessingJob = Pick<
   Database['public']['Tables']['media_processing_jobs']['Row'],
@@ -142,8 +143,10 @@ function ProcessingHistory({ history }: { history: ProcessingJob[] }) {
     <ul className="processing-history">
       {history.map((job) => (
         <li key={job.id}>
-          <span className={`badge badge-${job.status === 'ready' ? 'success' : job.status === 'incompatible' || job.status === 'failed' ? 'danger' : 'warning'}`}>
-            v{job.media_version} · {job.status}
+          <span
+            className={`badge badge-${PROCESSING_STATUS_LABELS[job.status].tone}`}
+          >
+            v{job.media_version} · {PROCESSING_STATUS_LABELS[job.status].label}
           </span>
           <small>
             {job.attempts}/{job.max_attempts} tentativa(s)
@@ -210,7 +213,10 @@ export function CreativeGallery({
             <dl>
               <div>
                 <dt>Tipo</dt>
-                <dd>{creative.creative_type.toUpperCase()}</dd>
+                <dd>
+                  {CREATIVE_TYPE_LABEL[creative.creative_type] ??
+                    creative.creative_type}
+                </dd>
               </div>
               <div>
                 <dt>Duração</dt>

@@ -8,12 +8,6 @@ export const PLAYBACK_MODE_LABEL: Record<string, string> = {
   max_wait: 'Esperar no máximo',
 };
 
-export const GEO_PRIORITY_LABEL: Record<number, string> = {
-  5: 'Normal',
-  10: 'Alta',
-  20: 'Urgente',
-};
-
 export function formatCooldownMinutes(seconds: number): string {
   const minutes = Math.round(seconds / 60);
   return minutes === 1 ? '1 minuto' : `${minutes} minutos`;

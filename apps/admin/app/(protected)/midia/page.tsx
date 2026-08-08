@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
+import { CREATIVE_TYPE_LABEL } from '@/lib/creative-labels';
 import { listAllCreativesForMediaOverview, type MediaStatusFilter } from '@/lib/data/creatives';
 import { formatRelativeTime } from '@/lib/fleet';
 
@@ -130,7 +131,10 @@ export default async function MediaOverviewPage({
                     </td>
                     <td>{creative.campaigns?.name ?? '—'}</td>
                     <td>{creative.campaigns?.advertisers?.trade_name ?? '—'}</td>
-                    <td>{creative.creative_type.toUpperCase()}</td>
+                    <td>
+                      {CREATIVE_TYPE_LABEL[creative.creative_type] ??
+                        creative.creative_type}
+                    </td>
                     <td title={creative.processing_error ?? undefined}>
                       <StatusBadge value={STATUS_BADGE[creative.processing_status] ?? creative.processing_status} />
                     </td>

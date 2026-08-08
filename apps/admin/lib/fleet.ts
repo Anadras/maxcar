@@ -10,15 +10,17 @@ export const CONNECTION_LABEL: Record<DeviceConnectionStatus, string> = {
 // MAX-012 item 14: the raw player_state the Android app reports is a
 // richer vocabulary than a plain "playing"/"empty" pair — never shown
 // unlabeled. Shared between the devices list (dashboard alert) and the
-// device detail page, so the two never drift out of sync.
+// device detail page, so the two never drift out of sync. MAX-020: a
+// leading emoji gives the operator a state at a glance in a busy table,
+// on top of (never instead of) PLAYER_STATE_TONE's own color coding.
 export const PLAYER_STATE_LABEL: Record<string, string> = {
-  preparing: 'Preparando',
-  buffering: 'Carregando (buffering)',
-  playing_confirmed: 'Reproduzindo (frame confirmado)',
-  stalled: 'Travado — watchdog detectou',
-  recovering: 'Recuperando',
-  media_error: 'Erro de mídia',
-  no_ready_media: 'Sem mídia pronta — recuperação automática em andamento',
+  preparing: '🟡 Preparando',
+  buffering: '🟡 Carregando',
+  playing_confirmed: '🟢 Reproduzindo',
+  stalled: '🔴 Travado — recuperando sozinho',
+  recovering: '🟡 Recuperando',
+  media_error: '🔴 Erro de mídia',
+  no_ready_media: '⚠️ Sem mídia disponível',
 };
 
 /** MAX-014: a device reporting no_ready_media isn't broken — the tablet's

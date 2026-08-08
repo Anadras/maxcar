@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CONNECTION_LABEL } from '@/lib/fleet';
 
 type ConnectionStatus = 'online' | 'attention' | 'offline' | 'inactive';
 
@@ -12,13 +13,6 @@ export interface CampaignDeviceOption {
   driverName: string | null;
   assigned: boolean;
 }
-
-const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
-  online: 'Online',
-  attention: 'Instável',
-  offline: 'Offline',
-  inactive: 'Inativo',
-};
 
 export function CampaignDevicePicker({
   devices,

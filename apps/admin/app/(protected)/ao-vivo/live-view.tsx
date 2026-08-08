@@ -3,7 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { LiveStatusBadge } from '@/components/ui';
+import { priorityLabel } from '@/lib/campaigns';
 import { formatRelativeTime } from '@/lib/fleet';
+import { PLAYBACK_MODE_LABEL } from '@/lib/geo-playback-labels';
+import { KIOSK_LEVEL_LABEL } from '@/lib/kiosk-labels';
 import type { LiveDevice, LiveStatus } from '@/lib/data/live';
 
 const FILTERS: Array<{ value: LiveStatus | 'all'; label: string }> = [
@@ -190,7 +193,11 @@ export function LiveView({ devices }: { devices: LiveDevice[] }) {
                     </div>
                     <div>
                       <dt>Prioridade</dt>
-                      <dd>{device.geo.priority ?? '—'}</dd>
+                      <dd>
+                        {device.geo.priority != null
+                          ? priorityLabel(device.geo.priority)
+                          : '—'}
+                      </dd>
                     </div>
                     <div>
                       <dt>Latência</dt>
@@ -290,7 +297,12 @@ export function LiveView({ devices }: { devices: LiveDevice[] }) {
                 </div>
                 <div>
                   <dt>Kiosk</dt>
-                  <dd>{selected.kioskLevel ?? '—'}</dd>
+                  <dd>
+                    {selected.kioskLevel
+                      ? (KIOSK_LEVEL_LABEL[selected.kioskLevel] ??
+                        selected.kioskLevel)
+                      : '—'}
+                  </dd>
                 </div>
               </dl>
             </div>
@@ -361,11 +373,20 @@ export function LiveView({ devices }: { devices: LiveDevice[] }) {
                   </div>
                   <div>
                     <dt>Prioridade</dt>
-                    <dd>{selected.geo.priority ?? '—'}</dd>
+                    <dd>
+                      {selected.geo.priority != null
+                        ? priorityLabel(selected.geo.priority)
+                        : '—'}
+                    </dd>
                   </div>
                   <div>
                     <dt>Modo</dt>
-                    <dd>{selected.geo.playbackMode ?? '—'}</dd>
+                    <dd>
+                      {selected.geo.playbackMode
+                        ? (PLAYBACK_MODE_LABEL[selected.geo.playbackMode] ??
+                          selected.geo.playbackMode)
+                        : '—'}
+                    </dd>
                   </div>
                   <div>
                     <dt>Latência</dt>

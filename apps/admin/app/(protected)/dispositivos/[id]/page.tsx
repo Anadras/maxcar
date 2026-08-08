@@ -35,6 +35,7 @@ import {
 } from '@/components/ui';
 import { canManageFleet } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
+import { KIOSK_LEVEL_LABEL, KIOSK_REASON_LABEL } from '@/lib/kiosk-labels';
 import {
   getDevice,
   getDeviceEnrollment,
@@ -63,18 +64,18 @@ const DEVICE_LIFECYCLE_LABEL: Record<string, string> = {
 };
 
 const OPERATIONAL_STATUS_LABEL: Record<string, string> = {
-  ready: 'Pronto',
-  playing: 'Reproduzindo',
-  offline_playing: 'Reproduzindo offline',
-  syncing: 'Sincronizando',
-  downloading: 'Baixando mídia',
-  no_content: 'Sem conteúdo',
+  ready: '🟡 Pronto',
+  playing: '🟢 Reproduzindo',
+  offline_playing: '🟢 Reproduzindo offline',
+  syncing: '🟡 Sincronizando',
+  downloading: '🟡 Baixando mídia',
+  no_content: '⚠️ Sem conteúdo',
   // MAX-012: the watchdog surfaces these two distinctly instead of the
   // tablet just silently looking "stuck" — see playbackDiagnosis below.
-  recovering: 'Recuperando de uma falha de mídia',
-  media_error: 'Erro de mídia',
-  error: 'Erro',
-  maintenance: 'Manutenção',
+  recovering: '🟡 Recuperando de uma falha de mídia',
+  media_error: '🔴 Erro de mídia',
+  error: '🔴 Erro',
+  maintenance: '🟡 Manutenção',
 };
 
 const COMMAND_LABEL: Record<DeviceCommandType, string> = {
@@ -101,29 +102,6 @@ const COMMAND_STATUS_LABEL: Record<string, string> = {
 // Android: below this the tablet's own clock is trusted for local expiry
 // enforcement; at or above it, only ever an alert here, never silent.
 const SEVERE_CLOCK_SKEW_SECONDS = 3600;
-
-const KIOSK_LEVEL_LABEL: Record<string, string> = {
-  none: 'Nenhum (tela normal)',
-  immersive: 'Imersivo (tela cheia)',
-  lock_task: 'Fixação de tela (Lock Task)',
-  // Pré-MAX-019: nunca mais emitido por um build atualizado, mas linhas
-  // antigas continuam existindo — ver docs/architecture/ANDROID_KIOSK.md.
-  device_owner: 'Device Owner (detalhe indisponível — build antigo)',
-  device_owner_locked: 'Device Owner — quiosque fixado',
-  device_owner_unlocked: 'Device Owner — quiosque destravado',
-  maintenance_mode: 'Em manutenção (quiosque suspenso)',
-  no_content_mode: 'Sem conteúdo pronto (quiosque suspenso)',
-};
-
-// Só acompanha kiosk_level = device_owner_unlocked — as outras camadas já
-// são autoexplicativas. lock_task_not_engaged é o único valor que merece
-// atenção operacional; kiosk_disabled_remotely é o interruptor de frota
-// (app_remote_config.kiosk_enabled) desligado de propósito.
-const KIOSK_REASON_LABEL: Record<string, string> = {
-  kiosk_disabled_remotely: 'Interruptor de kiosk da frota está desligado',
-  lock_task_not_engaged:
-    'Nenhuma causa conhecida — deveria estar fixado e não está',
-};
 
 // MAX-012 item 14: reads the player's own richer state instead of
 // collapsing everything down to "not exactly 'playing'" — that old check

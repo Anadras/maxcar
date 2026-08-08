@@ -8,11 +8,11 @@ import { LocationMap } from '@/components/location-map-loader';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import {
   formatCooldownMinutes,
-  GEO_PRIORITY_LABEL,
   PLAYBACK_MODE_LABEL,
 } from '@/lib/geo-playback-labels';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
+import { priorityLabel } from '@/lib/campaigns';
 import { getGeofence } from '@/lib/data/geofences';
 
 export default async function GeofenceDetailPage({
@@ -100,11 +100,10 @@ export default async function GeofenceDetailPage({
               <dt>Prioridade do anúncio GEO</dt>
               <dd>
                 {geofence.priority_override != null
-                  ? (GEO_PRIORITY_LABEL[geofence.priority_override] ??
-                    geofence.priority_override)
+                  ? priorityLabel(geofence.priority_override)
                   : `Usar a campanha${
                       geofence.campaign_priority != null
-                        ? ` (${geofence.campaign_priority})`
+                        ? ` (${priorityLabel(geofence.campaign_priority)})`
                         : ''
                     }`}
               </dd>

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { type ReactNode, useEffect } from 'react';
+import { LIVE_STATUS_LABEL, LIVE_STATUS_TONE } from '@/lib/fleet';
 
 export function PageHeader({
   eyebrow,
@@ -122,25 +123,12 @@ export function KioskLevelBadge({
   return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 
+// MAX-020: was hardcoding its own label/tone ladder, a second source of
+// truth for the exact same vocabulary lib/fleet.ts already owns — a wording
+// change there used to require remembering to update this copy too.
 export function LiveStatusBadge({ status }: { status: string }) {
-  const tone =
-    status === 'playing'
-      ? 'success'
-      : status === 'geo'
-        ? 'geo'
-        : status === 'offline'
-          ? 'danger'
-          : 'warning';
-  const label =
-    status === 'playing'
-      ? 'Reproduzindo'
-      : status === 'geo'
-        ? 'GEO ativo'
-        : status === 'fallback'
-          ? 'Fallback local'
-          : status === 'attention'
-            ? 'Atenção'
-            : 'Offline';
+  const tone = LIVE_STATUS_TONE[status] ?? 'warning';
+  const label = LIVE_STATUS_LABEL[status] ?? 'Offline';
   return <span className={`badge badge-${tone}`}>{label}</span>;
 }
 

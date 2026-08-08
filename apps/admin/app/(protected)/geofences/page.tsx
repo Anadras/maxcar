@@ -4,9 +4,9 @@ import { FlashMessage } from '@/components/flash-message';
 import { PageHeader, SectionCard, StatusBadge } from '@/components/ui';
 import { canWriteCommercialData } from '@/lib/auth/access';
 import { getAuthContext } from '@/lib/auth/context';
+import { priorityLabel } from '@/lib/campaigns';
 import { listGeofences } from '@/lib/data/geofences';
 import {
-  GEO_PRIORITY_LABEL,
   PLAYBACK_MODE_LABEL,
   formatCooldownMinutes,
 } from '@/lib/geo-playback-labels';
@@ -104,9 +104,8 @@ export default async function GeofencesPage({
                     <td>{playbackMode ? (PLAYBACK_MODE_LABEL[playbackMode] ?? playbackMode) : '—'}</td>
                     <td>
                       {geo.priority_override === null
-                        ? `Da campanha${geo.campaign_priority != null ? ` (${GEO_PRIORITY_LABEL[geo.campaign_priority] ?? geo.campaign_priority})` : ''}`
-                        : (GEO_PRIORITY_LABEL[geo.priority_override] ??
-                          geo.priority_override)}
+                        ? `Da campanha${geo.campaign_priority != null ? ` (${priorityLabel(geo.campaign_priority)})` : ''}`
+                        : priorityLabel(geo.priority_override)}
                     </td>
                     <td>{cooldownSeconds != null ? formatCooldownMinutes(cooldownSeconds) : '—'}</td>
                     <td>{activations.get(geo.id ?? '') ?? 0}</td>
